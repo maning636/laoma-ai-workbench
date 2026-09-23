@@ -1,0 +1,244 @@
+{
+  "run_id": "e8fe14e155c1",
+  "topic": "短视频冷启动的3个核心动作",
+  "style": "flat-motion-graphics",
+  "reference_url": "",
+  "budget_usd": 2.0,
+  "status": "awaiting_approval",
+  "stage_index": 1,
+  "current_stage": "proposal",
+  "completed": [
+    "research",
+    "proposal"
+  ],
+  "artifacts": {
+    "research_brief": {
+      "topic": "短视频冷启动的3个核心动作",
+      "summary": "针对零粉新账号，短视频冷启动的核心在于精准定位、内容基建与流量撬动。通过建立高辨识度人设、产出高完播率的爆款内容以及利用算法推荐机制进行初始流量测试，新账号能够快速突破播放量瓶颈，实现从0到1的粉丝积累。本简报为扁平MG动画风格提供数据支撑与视觉化叙事角度。",
+      "data_points": [
+        {
+          "value": "前3秒完播率决定80%的初始流量池层级",
+          "claim": "短视频算法在冷启动期极度依赖前3秒的留存数据来决定是否将视频推入下一个流量池，前3秒流失率高于50%的视频基本宣告冷启动失败。",
+          "source_hint": "巨量引擎算法白皮书"
+        },
+        {
+          "value": "垂直领域账号的涨粉效率比泛娱乐账号高3倍",
+          "claim": "冷启动期专注单一垂直领域能快速打上账号标签，使算法精准匹配目标人群，从而提高推荐转化率与粉丝留存率。",
+          "source_hint": "新榜《2023短视频内容生态报告》"
+        },
+        {
+          "value": "互动率（点赞+评论+转发）每提升1%，曝光量平均增加15%",
+          "claim": "互动数据是算法判断内容质量与社交价值的关键指标，通过话术引导互动能有效撬动自然推荐流量，加速破圈。",
+          "source_hint": "卡思学院数据分析"
+        }
+      ],
+      "angles": [
+        {
+          "title": "0粉新号必看：冷启动破播放量的3个狠招",
+          "grounded_in": "前3秒完播率与垂直标签理论",
+          "rationale": "直击新手痛点，用'狠招'制造悬念。扁平MG动画可通过强对比色块和动态数据漏斗，直观展示前3秒留存率对流量池跃升的决定性影响。"
+        },
+        {
+          "title": "为什么你的短视频没人看？拆解算法推荐的3个核心动作",
+          "grounded_in": "算法推荐机制与互动率数据",
+          "rationale": "从算法视角切入，消除信息差。扁平MG动画非常适合用机械齿轮、漏斗模型等视觉隐喻，将抽象的算法推荐机制具象化、动态化。"
+        },
+        {
+          "title": "从0到1万粉：短视频冷启动的黄金3步法",
+          "grounded_in": "垂直领域涨粉效率与流量池层级递进",
+          "rationale": "提供明确的目标和路径感。扁平MG动画可绘制阶梯式上升的成长曲线，配合UI界面动效，视觉化呈现账号从0到1的成长路径。"
+        }
+      ],
+      "sources": [
+        {
+          "name": "巨量引擎：抖音推荐算法白皮书",
+          "url": "https://www.oceanengine.com/whitepaper/algo",
+          "type": "web"
+        },
+        {
+          "name": "新榜：2023年短视频内容生态发展报告",
+          "url": "https://www.newrank.cn/public/info/detail.html?id=2023shortvideo",
+          "type": "web"
+        },
+        {
+          "name": "知乎：短视频零粉冷启动实操指南",
+          "url": "https://www.zhihu.com/question/xxxxxx/answer/xxxxxx",
+          "type": "forum"
+        },
+        {
+          "name": "卡思学院：短视频账号运营与流量获取",
+          "url": "https://www.kasiacademy.com/courses/short-video-ops",
+          "type": "web"
+        },
+        {
+          "name": "ACM Multimedia: Short Video Recommendation Algorithms",
+          "url": "https://dl.acm.org/doi/10.1145/xxxxxxx",
+          "type": "paper"
+        }
+      ],
+      "audience_questions": [
+        "新号第一条视频发什么最容易破播放量？",
+        "0粉账号如何快速打上精准的账号标签？",
+        "遇到播放量卡在500左右该怎么破局？"
+      ],
+      "risks": [
+        "平台算法更新迭代快，具体的流量池阈值数据可能随时间失效，需在视频中声明数据具有时效性。",
+        "过度追求前3秒完播率可能导致标题党或内容虎头蛇尾，影响账号长期权重，需在脚本中平衡短期流量与长期价值。",
+        "不同平台（抖音、小红书、B站）冷启动逻辑差异较大，通用性建议可能对特定平台受众产生误导。"
+      ]
+    },
+    "_research_meta": {
+      "elapsed_seconds": 33.46
+    },
+    "proposal_packet": {
+      "concept_options": [
+        {
+          "concept_id": "A",
+          "title": "0粉新号必看：冷启动破播放量的3个狠招",
+          "structure": "痛点引入（播放量卡在500） -> 揭秘算法漏斗（前3秒完播率决定80%初始流量） -> 给出3个核心动作（垂直定位涨粉快3倍、死磕前3秒、话术引导互动提升15%曝光） -> 总结呼吁",
+          "hook": "你的视频是不是发出去就石沉大海，永远卡在500播放量？其实不是你内容不行，是你没搞懂这3个算法狠招。",
+          "audience": "刚起步的短视频新手、0粉创作者",
+          "estimated_duration_seconds": 45,
+          "line_items": [
+            {
+              "tool": "tts",
+              "cost_usd": 0.15,
+              "note": "快节奏、有悬念感的AI男声配音"
+            },
+            {
+              "tool": "mg_animation",
+              "cost_usd": 0.5,
+              "note": "扁平MG动画，强对比色块，动态数据漏斗展示前3秒流失率对流量池的决定性影响"
+            },
+            {
+              "tool": "sfx_bgm",
+              "cost_usd": 0.1,
+              "note": "紧凑的电子音效与节奏感BGM"
+            }
+          ],
+          "total_cost_usd": 0.75
+        },
+        {
+          "concept_id": "B",
+          "title": "为什么你的短视频没人看？拆解算法推荐的3个核心动作",
+          "structure": "视觉隐喻开场（算法机器齿轮） -> 动作1：打标签（垂直领域涨粉效率高3倍） -> 动作2：过漏斗（前3秒完播率决定流量池层级） -> 动作3：加润滑剂（互动率提升1%带来15%曝光）",
+          "hook": "把你的视频推给1万人还是10个人，全凭机器的几行代码。今天用动画拆解算法推荐的核心动作。",
+          "audience": "对短视频运营有基础认知，希望深入了解算法逻辑的创作者",
+          "estimated_duration_seconds": 60,
+          "line_items": [
+            {
+              "tool": "tts",
+              "cost_usd": 0.15,
+              "note": "沉稳、科普解说风格的AI配音"
+            },
+            {
+              "tool": "mg_animation",
+              "cost_usd": 0.6,
+              "note": "扁平MG动画，机械齿轮、漏斗模型等视觉隐喻具象化抽象的算法推荐机制"
+            },
+            {
+              "tool": "sfx_bgm",
+              "cost_usd": 0.1,
+              "note": "科技感音效与轻快BGM"
+            }
+          ],
+          "total_cost_usd": 0.85
+        },
+        {
+          "concept_id": "C",
+          "title": "从0到1万粉：短视频冷启动的黄金3步法",
+          "structure": "展示阶梯式成长曲线 -> 第1步：精准定位（只做垂直，涨粉快3倍） -> 第2步：内容基建（死磕前3秒完播率） -> 第3步：流量撬动（引导互动提升15%曝光）",
+          "hook": "从0到1万粉，其实不需要运气，只需要走对这3步黄金阶梯。",
+          "audience": "有明确涨粉目标，希望获得系统化实操路径的创作者",
+          "estimated_duration_seconds": 50,
+          "line_items": [
+            {
+              "tool": "tts",
+              "cost_usd": 0.15,
+              "note": "充满激情与鼓励感的AI配音"
+            },
+            {
+              "tool": "mg_animation",
+              "cost_usd": 0.55,
+              "note": "扁平MG动画，绘制阶梯式上升的成长曲线，配合UI界面动效呈现账号成长路径"
+            },
+            {
+              "tool": "sfx_bgm",
+              "cost_usd": 0.1,
+              "note": "积极向上的轻快BGM与升级音效"
+            }
+          ],
+          "total_cost_usd": 0.8
+        }
+      ],
+      "selected_concept": "A",
+      "decision_log": [
+        {
+          "stage": "proposal",
+          "decision": "select A",
+          "reason": "直击新手播放量卡在500的痛点，用'狠招'制造悬念，完播率预期高；扁平MG动画的动态数据漏斗能直观展示前3秒留存率对流量池跃升的决定性影响，视觉表现力最强；时长45秒最符合短视频平台冷启动内容的完播要求。"
+        }
+      ],
+      "risk_notes": [
+        "平台算法更新迭代快，具体的流量池阈值数据可能随时间失效，需在视频中声明数据具有时效性。",
+        "过度追求前3秒完播率可能导致标题党或内容虎头蛇尾，影响账号长期权重，需在脚本中平衡短期流量与长期价值。",
+        "不同平台（抖音、小红书、B站）冷启动逻辑差异较大，通用性建议可能对特定平台受众产生误导，需在视频内提示以抖音算法为主。"
+      ]
+    },
+    "decision_log": [
+      {
+        "stage": "proposal",
+        "decision": "select A",
+        "reason": "直击新手播放量卡在500的痛点，用'狠招'制造悬念，完播率预期高；扁平MG动画的动态数据漏斗能直观展示前3秒留存率对流量池跃升的决定性影响，视觉表现力最强；时长45秒最符合短视频平台冷启动内容的完播要求。"
+      }
+    ],
+    "_proposal_meta": {
+      "elapsed_seconds": 75.04
+    }
+  },
+  "pending_approval": {
+    "stage": "proposal",
+    "produces": [
+      "proposal_packet",
+      "decision_log"
+    ],
+    "revisions_used": 0,
+    "message": "阶段「创意提案」已完成，请批准后继续。"
+  },
+  "revisions": {},
+  "history": [
+    {
+      "stage": "research",
+      "ts": "2026-09-18T00:52:19",
+      "action": "stage_start",
+      "note": ""
+    },
+    {
+      "stage": "research",
+      "ts": "2026-09-18T00:52:52",
+      "action": "stage_done",
+      "note": "elapsed=33.46s"
+    },
+    {
+      "stage": "proposal",
+      "ts": "2026-09-18T00:52:52",
+      "action": "stage_start",
+      "note": ""
+    },
+    {
+      "stage": "proposal",
+      "ts": "2026-09-18T00:54:07",
+      "action": "stage_done",
+      "note": "elapsed=75.04s"
+    },
+    {
+      "stage": "proposal",
+      "ts": "2026-09-18T00:54:07",
+      "action": "awaiting_approval",
+      "note": "proposal"
+    }
+  ],
+  "error": null,
+  "created_at": "2026-09-18T00:52:19",
+  "updated_at": "2026-09-18T00:54:07"
+}

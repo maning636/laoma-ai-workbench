@@ -36,6 +36,12 @@ from .crawler.router import router as crawler_router
 from .tikhub.router import router as tikhub_router
 from .persona_proxy.router import router as persona_proxy_router
 from .persona.router import router as persona_router
+from .easel_bridge.router import router as easel_bridge_router  # Easel 工作台托管（内嵌 iframe + 稿件桥）
+from .skills.router import router as skills_router  # 技能库注册中心（Easel 技能 + 实时更新接口）
+from .workshop.router import router as workshop_router  # 创作工坊（Easel 脚本表单直调）
+from .video_pipeline.router import router as video_pipeline_router  # 视频流水线（HyperFrames 引擎，并行第二条流水线）
+from .content_library.router import router as content_library_router  # 原生内容库（outputs 直读）
+from .profile.router import router as profile_router  # 账号画像（build/list/get）
 
 # 导入平台路由
 from .platforms.douyin.router import router as douyin_router
@@ -47,6 +53,7 @@ from .platforms.tasks.router import router as platform_tasks_router
 from .tools.router import router as tools_router
 from .ccswitch.router import router as ccswitch_router  # CC Switch 桥接（读取本机 cc-switch 库并应用到项目内）
 from .tool_catalog.router import router as tool_catalog_router  # 声明式工具注册中心（能力暴露为 tool）
+from fusion_ai.router import router as fusion_router  # Prism-Fusion 能力扩展（AI 多 Provider/平台风格/生图/热点/审核/模型广场/技能/认知/NL→SQL/配置中心）
 
 # 创建API路由器
 api_router = APIRouter()
@@ -84,6 +91,12 @@ api_router.include_router(crawler_router, prefix="/crawler", tags=["混合爬虫
 api_router.include_router(tikhub_router)  # router 已自带 /tikhub 前缀
 api_router.include_router(persona_proxy_router)  # /persona-proxy 代理网关
 api_router.include_router(persona_router)  # /persona Dashboard 托管
+api_router.include_router(easel_bridge_router)  # /easel Easel 工作台托管
+api_router.include_router(skills_router)  # /skills 技能库注册中心
+api_router.include_router(workshop_router)  # /workshop 创作工坊
+api_router.include_router(video_pipeline_router)  # /video-pipeline 视频流水线（HyperFrames）
+api_router.include_router(content_library_router)  # /content-library 原生内容库（outputs 直读）
+api_router.include_router(profile_router)  # /content-library/profile 账号画像（build/list/get）
 
 # 注册平台路由
 api_router.include_router(douyin_router)  # router 已自带 /platforms/douyin 前缀
@@ -95,6 +108,9 @@ api_router.include_router(platform_tasks_router)  # router 已自带 /platforms/
 api_router.include_router(tools_router)  # 开发者工具 /tools 前缀
 api_router.include_router(ccswitch_router)  # /ccswitch 前缀
 api_router.include_router(tool_catalog_router)  # 声明式工具目录 /tool-catalog 前缀
+
+# Prism-Fusion 扩展（P0-P1 能力）
+api_router.include_router(fusion_router)  # /fusion 前缀（AI多Provider/平台风格/生图/热点/审核/模型广场/技能工坊/认知/NL→SQL/配置中心）
 
 
 @api_router.get("/ping")

@@ -39,8 +39,13 @@ import logging
 import datetime
 
 from pathlib import Path
-from rich.logging import RichHandler
+from logging import StreamHandler
 from logging.handlers import TimedRotatingFileHandler
+
+try:
+    from rich.logging import RichHandler
+except ModuleNotFoundError:
+    RichHandler = None
 
 
 class Singleton(type):
@@ -89,14 +94,18 @@ class LogManager(metaclass=Singleton):
         self.logger.setLevel(level)
 
         if log_to_console:
-            ch = RichHandler(
-                show_time=False,
-                show_path=False,
-                markup=True,
-                keywords=(RichHandler.KEYWORDS or []) + ["STREAM"],
-                rich_tracebacks=True,
-            )
-            ch.setFormatter(logging.Formatter("{message}", style="{", datefmt="[%X]"))
+            if RichHandler is not None:
+                ch = RichHandler(
+                    show_time=False,
+                    show_path=False,
+                    markup=True,
+                    keywords=(RichHandler.KEYWORDS or []) + ["STREAM"],
+                    rich_tracebacks=True,
+                )
+                ch.setFormatter(logging.Formatter("{message}", style="{", datefmt="[%X]"))
+            else:
+                ch = StreamHandler()
+                ch.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
             self.logger.addHandler(ch)
 
         if log_path:

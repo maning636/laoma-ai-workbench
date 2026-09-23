@@ -1,6 +1,13 @@
 param(
     [string]$Branch = "main",
     [string]$WebUIVersion = "v0.51.91",
+    # Pin hermes-agent to a known-good commit. Upstream main is BROKEN as of 2026-09-17:
+    # the Sep 2026 decomposition reverts (HEAD~0..5) left dangling imports
+    # (build_nous_subscription_prompt in agent.prompt_builder, _deterministic_call_id moved
+    # out of agent.codex_responses_adapter) + AIAgent.__init__ signature drift (cwd kwarg),
+    # so the chat assistant won't start. bb0c230 (the commit just before those reverts) is
+    # self-consistent. Pass "" to use latest main (not recommended until upstream fixes).
+    [string]$AgentCommit = "bb0c230",
     [switch]$Force
 )
 
@@ -60,9 +67,18 @@ if (-not $Force) {
 
 if (-not (Test-Path $hermesRoot)) {
     git clone --depth 1 --branch $Branch https://github.com/NousResearch/hermes-agent.git $hermesRoot
+    if ($AgentCommit) {
+        git -C $hermesRoot fetch --depth 1 origin $AgentCommit
+        git -C $hermesRoot checkout $AgentCommit
+    }
 } elseif ($Force) {
     git -C $hermesRoot fetch --depth 1 origin $Branch
-    git -C $hermesRoot reset --hard "origin/$Branch"
+    if ($AgentCommit) {
+        git -C $hermesRoot fetch --depth 1 origin $AgentCommit
+        git -C $hermesRoot checkout $AgentCommit
+    } else {
+        git -C $hermesRoot reset --hard "origin/$Branch"
+    }
     git -C $hermesRoot clean -fd
 }
 

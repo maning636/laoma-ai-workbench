@@ -1,0 +1,31 @@
+{
+  "run_id": "f1401139df5b",
+  "topic": "宝妈必看：3个0元试用的隐藏入口",
+  "style": "clean-professional",
+  "reference_url": "",
+  "budget_usd": 2.0,
+  "status": "failed",
+  "stage_index": 0,
+  "current_stage": "research",
+  "completed": [],
+  "artifacts": {},
+  "pending_approval": null,
+  "revisions": {},
+  "history": [
+    {
+      "stage": "research",
+      "ts": "2026-09-18T19:08:05",
+      "action": "stage_start",
+      "note": ""
+    },
+    {
+      "stage": "research",
+      "ts": "2026-09-18T19:09:30",
+      "action": "failed",
+      "note": "AI 返回的不是有效 JSON（已重试）: JSON 解析失败：Expecting ',' delimiter: line 36 column 6 (char 1045)"
+    }
+  ],
+  "error": "AI 返回的不是有效 JSON（已重试）: JSON 解析失败：Expecting ',' delimiter: line 36 column 6 (char 1045)",
+  "created_at": "2026-09-18T19:08:05",
+  "updated_at": "2026-09-18T19:09:30"
+}

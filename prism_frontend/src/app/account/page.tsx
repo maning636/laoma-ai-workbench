@@ -950,7 +950,7 @@ function AccountPageContent() {
   return (
     <div className="mx-auto max-w-[1440px] space-y-5 px-4 py-4 md:px-6 md:py-5">
       <PageHeader
-        eyebrow="PRISM / ACCOUNT MATRIX"
+        eyebrow="老马AI研习社 / 账号矩阵"
         title="账号管理"
         // description="集中管理矩阵账号，支持扫码绑定"
         actions={

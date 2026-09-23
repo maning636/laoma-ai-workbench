@@ -140,6 +140,20 @@ class CampaignService:
         # 按创建时间倒序
         return sorted(self.campaigns.values(), key=lambda c: c.created_at, reverse=True)
 
+    def compute_task_stats(self, campaign: Campaign) -> Dict[str, Any]:
+        """基于调度器任务索引统计真实执行进度（finished/failed 记为已处理）"""
+        total = campaign.task_count or len(campaign.task_ids)
+        stats: Dict[str, int] = {}
+        processed = 0
+        for task_id in campaign.task_ids:
+            task = self.scheduler.task_index.get(task_id)
+            status = task.status.value if task else "pending"
+            stats[status] = stats.get(status, 0) + 1
+            if status in ("finished", "failed"):
+                processed += 1
+        progress = round(processed / total * 100, 1) if total else 0.0
+        return {"progress": progress, "task_stats": stats}
+
     def delete_campaign(self, campaign_id: str):
         if campaign_id in self.campaigns:
             del self.campaigns[campaign_id]

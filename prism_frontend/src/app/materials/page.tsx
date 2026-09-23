@@ -530,7 +530,7 @@ function MaterialsPageContent() {
   return (
     <div className="mx-auto flex h-full max-w-[1440px] flex-col space-y-5 px-4 py-4 md:px-6 md:py-5">
       <PageHeader
-        eyebrow="PRISM / ASSET REGISTRY"
+        eyebrow="老马AI研习社 / 素材管理"
         title="素材管理"
         actions={
           <div className="flex gap-3">

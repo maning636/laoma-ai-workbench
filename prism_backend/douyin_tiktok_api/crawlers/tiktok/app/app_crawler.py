@@ -58,8 +58,17 @@ from crawlers.utils.deprecated import deprecated
 path = os.path.abspath(os.path.dirname(__file__))
 
 # 读取配置文件
-with open(f"{path}/config.yaml", "r", encoding="utf-8") as f:
-    config = yaml.safe_load(f)
+def _load_yaml(path_text: str):
+    try:
+        with open(path_text, "r", encoding="utf-8") as f:
+            return yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        return {}
+
+
+config = _load_yaml(f"{path}/config.yaml") or _load_yaml(
+    os.path.abspath(os.path.join(path, "..", "..", "..", "config.yaml"))
+)
 
 
 class TikTokAPPCrawler:

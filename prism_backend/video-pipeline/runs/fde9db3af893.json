@@ -1,0 +1,335 @@
+{
+  "run_id": "fde9db3af893",
+  "topic": "短视频冷启动的3个核心动作",
+  "style": "",
+  "reference_url": "",
+  "budget_usd": 2.0,
+  "status": "awaiting_approval",
+  "stage_index": 2,
+  "current_stage": "script",
+  "completed": [
+    "research",
+    "proposal",
+    "script"
+  ],
+  "artifacts": {
+    "research_brief": {
+      "topic": "短视频冷启动的3个核心动作",
+      "summary": "针对短视频新手账号冷启动期面临的0播放、低流量问题，提炼出提升完播率、强化账号标签、引导互动三个核心动作，帮助创作者快速突破初始流量池限制，获取算法推荐。",
+      "data_points": [
+        {
+          "value": "前3秒完播率",
+          "claim": "短视频前3秒的完播率决定了视频能否进入下一个流量池，是冷启动期最关键的数据指标。",
+          "source_hint": "巨量引擎《短视频运营白皮书》"
+        },
+        {
+          "value": "账号垂直度",
+          "claim": "持续发布同一垂直领域的优质内容，能帮助系统快速为账号打上精准标签，从而分发给目标人群。",
+          "source_hint": "抖音创作者学院官方教程"
+        },
+        {
+          "value": "互动率（评论与转发）",
+          "claim": "评论率和转发率是衡量内容社交价值的核心指标，高互动率能触发算法的二次推荐，突破基础流量池。",
+          "source_hint": "新榜《2023短视频内容生态报告》"
+        }
+      ],
+      "angles": [
+        {
+          "title": "新手必看：短视频冷启动的3个核心动作，告别0播放",
+          "grounded_in": "前3秒完播率与账号垂直度",
+          "rationale": "直击新手痛点，提供明确的行动指南，吸引初创创作者点击。"
+        },
+        {
+          "title": "为什么你的视频总是不推流？做对这3个冷启动动作，流量翻倍",
+          "grounded_in": "算法推荐机制与互动率指标",
+          "rationale": "利用反问句式制造悬念，结合算法机制解释，引发用户好奇与共鸣。"
+        },
+        {
+          "title": "拆解百万粉大V起号套路：冷启动期的3个核心动作",
+          "grounded_in": "成功账号案例复盘",
+          "rationale": "借势成功案例，增强说服力与权威感，满足用户对爆款方法论的需求。"
+        }
+      ],
+      "sources": [
+        {
+          "name": "巨量引擎：短视频运营白皮书",
+          "url": "https://www.oceanengine.com/reports/short_video_whitepaper",
+          "type": "web"
+        },
+        {
+          "name": "抖音创作者学院",
+          "url": "https://creator.douyin.com/creator-micro/learn",
+          "type": "web"
+        },
+        {
+          "name": "新榜：2023短视频内容生态报告",
+          "url": "https://www.newrank.cn/public/info/detail.html",
+          "type": "web"
+        },
+        {
+          "name": "知乎讨论：短视频如何突破冷启动期",
+          "url": "https://www.zhihu.com/question/xxxxxxx",
+          "type": "forum"
+        },
+        {
+          "name": "基于推荐算法的短视频传播机制研究",
+          "url": "https://www.cnki.com.cn/Article/CJFDTotal-XXXXX.html",
+          "type": "paper"
+        }
+      ],
+      "audience_questions": [
+        "新手做短视频第一步应该发什么内容才能快速打标签？",
+        "如何设计前3秒的钩子来提高完播率？",
+        "冷启动期有必要投DOU+吗？怎么投效果最好？"
+      ],
+      "risks": [
+        "各大平台算法机制不断迭代，过往的冷启动策略可能随时失效。",
+        "不同内容赛道（如美妆、知识、搞笑）的冷启动侧重点不同，不能生搬硬套通用方法论。"
+      ]
+    },
+    "_research_meta": {
+      "elapsed_seconds": 40.67
+    },
+    "proposal_packet": {
+      "concept_options": [
+        {
+          "concept_id": "A",
+          "title": "0播放？别慌！短视频冷启动必做的3个动作",
+          "structure": "痛点引入(0播放截图) -> 动作1：设计前3秒钩子提升完播 -> 动作2：发垂直内容强化标签 -> 动作3：神评论引导互动 -> 总结",
+          "hook": "展示一个0播放、0点赞的账号后台截图，伴随叹气音效，随后画面反转，文案打出'别再盲目发了！'",
+          "audience": "刚入局短视频、面临0播放或低流量困境的新手创作者",
+          "estimated_duration_seconds": 45,
+          "line_items": [
+            {
+              "tool": "tts",
+              "cost_usd": 0.1,
+              "note": "AI配音生成情绪化解说词"
+            },
+            {
+              "tool": "stock_footage",
+              "cost_usd": 0.3,
+              "note": "后台数据截图及反转特效素材"
+            },
+            {
+              "tool": "video_editing",
+              "cost_usd": 0.1,
+              "note": "基础剪辑与花字包装"
+            }
+          ],
+          "total_cost_usd": 0.5
+        },
+        {
+          "concept_id": "B",
+          "title": "为什么算法不推你的视频？3个冷启动核心动作揭秘",
+          "structure": "反问悬念 -> 算法视角解析(前3秒完播率) -> 账号标签机制(垂直度) -> 社交推荐机制(互动率) -> 实操建议",
+          "hook": "模拟系统视角的机械音：'警告！该视频前3秒跳出率过高，拒绝推流。'随后切入真人或数字人解说。",
+          "audience": "有一定运营基础，但遭遇流量瓶颈的初级/中级创作者",
+          "estimated_duration_seconds": 60,
+          "line_items": [
+            {
+              "tool": "tts",
+              "cost_usd": 0.15,
+              "note": "系统机械音与专业解说配音"
+            },
+            {
+              "tool": "motion_graphics",
+              "cost_usd": 0.5,
+              "note": "算法机制动画演示与数据图表"
+            },
+            {
+              "tool": "video_editing",
+              "cost_usd": 0.15,
+              "note": "剪辑与特效合成"
+            }
+          ],
+          "total_cost_usd": 0.8
+        },
+        {
+          "concept_id": "C",
+          "title": "拆解百万粉大V起号套路：冷启动的3个核心动作",
+          "structure": "大V现状展示 -> 倒推冷启动期数据 -> 拆解3个核心动作(钩子、垂直、互动) -> 提炼可复用模板",
+          "hook": "画面快速闪过几个百万粉大V主页，旁白：'你知道这些大V，第一个月是怎么熬过来的吗？'",
+          "audience": "渴望学习爆款方法论、追求专业运营的创作者",
+          "estimated_duration_seconds": 50,
+          "line_items": [
+            {
+              "tool": "tts",
+              "cost_usd": 0.1,
+              "note": "专业解说配音"
+            },
+            {
+              "tool": "stock_footage",
+              "cost_usd": 0.2,
+              "note": "大V主页录屏与案例素材"
+            },
+            {
+              "tool": "motion_graphics",
+              "cost_usd": 0.4,
+              "note": "数据对比图表动画"
+            },
+            {
+              "tool": "video_editing",
+              "cost_usd": 0.1,
+              "note": "剪辑与节奏卡点"
+            }
+          ],
+          "total_cost_usd": 0.8
+        }
+      ],
+      "selected_concept": "A",
+      "decision_log": [
+        {
+          "stage": "proposal",
+          "decision": "select A",
+          "reason": "提案A直击新手0播放痛点，情绪共鸣强，前3秒钩子设计本身就在践行'提升完播率'的方法论，且制作成本较低，适合快速冷启动测试与迭代。"
+        }
+      ],
+      "risk_notes": [
+        "各大平台算法机制不断迭代，过往的冷启动策略可能随时失效，需在视频发布时关注最新平台规则。",
+        "不同内容赛道（如美妆、知识、搞笑）的冷启动侧重点不同，通用方法论需结合具体赛道微调，避免生搬硬套。"
+      ]
+    },
+    "decision_log": [
+      {
+        "stage": "proposal",
+        "decision": "select A",
+        "reason": "提案A直击新手0播放痛点，情绪共鸣强，前3秒钩子设计本身就在践行'提升完播率'的方法论，且制作成本较低，适合快速冷启动测试与迭代。"
+      }
+    ],
+    "_proposal_meta": {
+      "elapsed_seconds": 41.63
+    },
+    "script": {
+      "total_duration_seconds": 45,
+      "sections": [
+        {
+          "section_id": "s1",
+          "text": "发了一堆视频，播放量还是个位数？别再盲目发了！",
+          "enhancement_cues": [
+            "展示0播放、0点赞的账号后台截图",
+            "伴随叹气音效",
+            "画面反转，打出大字报'别再盲目发了！'"
+          ],
+          "speaker_directions": "语气从无奈叹气转为急促、有号召力的提醒"
+        },
+        {
+          "section_id": "s2",
+          "text": "冷启动第一个动作：死磕前3秒钩子！记住，前3秒完播率决定了你的视频能不能进入下一个流量池。开头直接抛悬念或痛点，别铺垫，死死抓住眼球！",
+          "enhancement_cues": [
+            "花字强调'前3秒完播率'和'下一个流量池'",
+            "配合时钟滴答声效增加紧迫感"
+          ],
+          "speaker_directions": "语速加快，强调重点，充满干货输出的力量感"
+        },
+        {
+          "section_id": "s3",
+          "text": "第二个动作：发垂直内容强化标签。系统需要知道把你的视频推给谁。持续发同一领域的优质内容，系统才能快速为你打上精准标签，分发给目标人群。",
+          "enhancement_cues": [
+            "动画演示系统打标签的过程",
+            "展示不同赛道（如美妆、知识）的垂直主页对比"
+          ],
+          "speaker_directions": "语速平稳，清晰解释机制，像老师讲课般专业"
+        },
+        {
+          "section_id": "s4",
+          "text": "第三个动作：用神评论引导互动。高评论率和转发率能触发算法二次推荐，突破基础流量池。在结尾留个争议话题，或者直接在评论区置顶神评论，把气氛炒热！",
+          "enhancement_cues": [
+            "展示评论区置顶神评论的截图",
+            "花字突出'二次推荐'和'突破基础流量池'"
+          ],
+          "speaker_directions": "语气带有策略感，稍微压低声音传授秘籍"
+        },
+        {
+          "section_id": "s5",
+          "text": "前3秒留人、垂直内容打标签、神评论促互动。做好这3个核心动作，告别0播放，赶紧去试试吧！",
+          "enhancement_cues": [
+            "三个核心动作依次弹出并定格",
+            "结尾出现点赞关注的引导动画"
+          ],
+          "speaker_directions": "语调上扬，充满鼓励和强烈的行动号召力"
+        }
+      ],
+      "voice_performance": {
+        "pacing": "整体偏快，痛点引入部分紧凑，干货部分节奏明快，每讲完一个动作有短暂停顿。",
+        "pause_seconds": 0.5,
+        "sample_phrase": "发了一堆视频，播放量还是个位数？别再盲目发了！"
+      },
+      "cited_facts": [
+        "短视频前3秒的完播率决定了视频能否进入下一个流量池，是冷启动期最关键的数据指标。",
+        "持续发布同一垂直领域的优质内容，能帮助系统快速为账号打上精准标签，从而分发给目标人群。",
+        "评论率和转发率是衡量内容社交价值的核心指标，高互动率能触发算法的二次推荐，突破基础流量池。"
+      ]
+    },
+    "_script_meta": {
+      "elapsed_seconds": 29.37
+    }
+  },
+  "pending_approval": {
+    "stage": "script",
+    "produces": [
+      "script"
+    ],
+    "revisions_used": 0,
+    "message": "阶段「脚本撰写」已完成，请批准后继续。"
+  },
+  "revisions": {},
+  "history": [
+    {
+      "stage": "research",
+      "ts": "2026-09-18T19:14:16",
+      "action": "stage_start",
+      "note": ""
+    },
+    {
+      "stage": "research",
+      "ts": "2026-09-18T19:14:57",
+      "action": "stage_done",
+      "note": "elapsed=40.67s"
+    },
+    {
+      "stage": "proposal",
+      "ts": "2026-09-18T19:14:57",
+      "action": "stage_start",
+      "note": ""
+    },
+    {
+      "stage": "proposal",
+      "ts": "2026-09-18T19:15:38",
+      "action": "stage_done",
+      "note": "elapsed=41.63s"
+    },
+    {
+      "stage": "proposal",
+      "ts": "2026-09-18T19:15:38",
+      "action": "awaiting_approval",
+      "note": "proposal"
+    },
+    {
+      "stage": "proposal",
+      "ts": "2026-09-18T19:16:12",
+      "action": "approved",
+      "note": "proposal"
+    },
+    {
+      "stage": "script",
+      "ts": "2026-09-18T19:16:12",
+      "action": "stage_start",
+      "note": ""
+    },
+    {
+      "stage": "script",
+      "ts": "2026-09-18T19:16:41",
+      "action": "stage_done",
+      "note": "elapsed=29.37s"
+    },
+    {
+      "stage": "script",
+      "ts": "2026-09-18T19:16:41",
+      "action": "awaiting_approval",
+      "note": "script"
+    }
+  ],
+  "error": null,
+  "created_at": "2026-09-18T19:14:16",
+  "updated_at": "2026-09-18T19:16:41"
+}

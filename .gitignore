@@ -40,6 +40,11 @@ test_*.json
 template_dirs
 # Node / frontend
 node_modules/
+*.tsbuildinfo
+prism_frontend/.next/
+prism_frontend/out/
+prism_frontend/.env.local
+# 旧名残留（保留以防分支回退）
 syn_frontend_react/.next/
 syn_frontend_react/out/
 syn_frontend_react/.env.local
@@ -135,7 +140,6 @@ dist/
 /dist/
 dist-out/
 build/supervisor/
-/build/supervisor/
 build_output/
 scripts/packaging/*
 !scripts/packaging/build-package.bat
@@ -228,11 +232,6 @@ prism_backend/videoFile/covers/first_frame_3.png
 *.jpeg
 *.webp
 *.gif
-prism_backend/logs/douyin_preview_screenshot.png
-prism_backend/logs/douyin_preview_screenshot.png
-prism_backend/logs/douyin_preview_screenshot.png
-prism_backend/logs/douyin_preview_screenshot.png
-prism_backend/logs/douyin_preview_screenshot.png
 prism_backend/logs/douyin_preview_screenshot.png
 
 #本地/业务敏感数据（账号指纹/Cookie、运行时日志、抓取诊断脚本，不入库）

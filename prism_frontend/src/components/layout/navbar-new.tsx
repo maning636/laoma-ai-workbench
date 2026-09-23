@@ -12,10 +12,12 @@ import {
   Menu,
   Search,
   Settings,
+  Sparkles,
   TrendingUp,
   UsersRound,
   Video,
 } from "lucide-react"
+import { externalModules } from "@/lib/external-modules"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
 import debounce from "lodash.debounce"
@@ -179,9 +181,17 @@ const ROUTE_CATALOG: SearchRoute[] = [
     icon: Settings,
     keywords: ["settings", "system", "config", "设置", "系统"],
   },
+  ...externalModules.map((module) => ({
+    category: module.category,
+    label: module.label,
+    description: module.description,
+    href: module.href,
+    icon: module.icon,
+    keywords: module.keywords,
+  })),
 ]
 
-const CATEGORY_ORDER = ["概览", "资源", "分发", "数据", "智能", "系统"] as const
+const CATEGORY_ORDER = ["概览", "资源", "分发", "数据", "智能", "扩展", "系统"] as const
 
 function buildSearchUrl(pathname: string, searchParams: URLSearchParams, term: string) {
   const params = new URLSearchParams(searchParams.toString())

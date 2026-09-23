@@ -1,0 +1,30 @@
+{
+  "name": "验证-宝妈号-01",
+  "form": {
+    "platforms": [
+      "抖音"
+    ],
+    "links": {},
+    "accountStage": "",
+    "direction": "母婴好物测评 + 育儿避坑科普",
+    "reason": "",
+    "goal": "",
+    "formats": [],
+    "likes": "",
+    "tone": "",
+    "avoid": ""
+  },
+  "baseline": {
+    "name": "验证-宝妈号-01",
+    "定位": "母婴好物测评 + 育儿避坑科普",
+    "受众": "（未填）",
+    "风格": "（未填）",
+    "目标平台": "抖音",
+    "调性": "（未填）"
+  },
+  "created_at": "2026-09-17T21:25:53",
+  "updated_at": "2026-09-17T21:25:53",
+  "filled_dims": 2,
+  "total_dims": 12,
+  "engine": "prism-native-baseline"
+}

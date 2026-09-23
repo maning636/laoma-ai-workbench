@@ -62,7 +62,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {hermesChatActive && (
             <div className="absolute inset-0 z-10 bg-black">
               <iframe
-                src="http://127.0.0.1:8788/"
+                src="http://127.0.0.1:9119/chat"
                 title="HermesChat"
                 className="block h-full w-full border-0 bg-black"
               />

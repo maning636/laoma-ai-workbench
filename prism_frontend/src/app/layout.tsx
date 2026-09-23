@@ -7,12 +7,12 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
-  title: "Prism - 矩阵发布控制台",
-  description: "Prism Engine · 多平台矩阵调度中心",
+  title: "老马AI研习社",
+  description: "AI 多模态工作台 · 智能剪辑 · 矩阵发布 · 素材管理",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Prism",
+    title: "老马AI研习社",
   },
 };
 

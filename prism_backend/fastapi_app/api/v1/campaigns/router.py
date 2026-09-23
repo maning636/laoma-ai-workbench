@@ -30,13 +30,18 @@ async def create_campaign(
 async def list_campaigns(
     service: CampaignService = Depends(get_campaign_service)
 ):
-    """获取所有投放计划列表"""
+    """获取所有投放计划列表（附带真实执行进度）"""
     campaigns = service.list_campaigns()
+    items = []
+    for campaign in campaigns:
+        item = campaign.model_dump(mode="json")
+        item.update(service.compute_task_stats(campaign))
+        items.append(item)
     return {
         "status": "success",
         "result": {
             "success": True,
-            "items": campaigns
+            "items": items
         }
     }
 
@@ -49,11 +54,13 @@ async def get_campaign_detail(
     campaign = service.get_campaign(campaign_id)
     if not campaign:
         raise HTTPException(status_code=404, detail=f"Campaign {campaign_id} not found")
+    plan = campaign.model_dump(mode="json")
+    plan.update(service.compute_task_stats(campaign))
     return {
         "status": "success",
         "result": {
             "success": True,
-            "plan": campaign
+            "plan": plan
         }
     }
 

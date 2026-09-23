@@ -1,0 +1,242 @@
+{
+  "run_id": "ab44ccb3fe53",
+  "topic": "短视频冷启动的3个核心动作",
+  "style": "clean-professional",
+  "reference_url": "",
+  "budget_usd": 2.0,
+  "status": "awaiting_approval",
+  "stage_index": 1,
+  "current_stage": "proposal",
+  "completed": [
+    "research",
+    "proposal"
+  ],
+  "artifacts": {
+    "research_brief": {
+      "topic": "短视频冷启动的3个核心动作",
+      "summary": "针对零粉丝账号的短视频冷启动策略，聚焦于账号定位、内容钩子与高频测试三个核心动作，帮助创作者在算法推荐机制下快速突破初始流量池。",
+      "data_points": [
+        {
+          "value": "前3秒完播率决定80%的初始流量分发",
+          "claim": "短视频算法极度依赖开篇留存率作为内容质量评估指标，前3秒是冷启动成败的关键。",
+          "source_hint": "巨量引擎算法白皮书"
+        },
+        {
+          "value": "新账号前10个视频的内容垂直度直接决定账号标签",
+          "claim": "冷启动期保持高度垂直的内容输出能加速算法对账号受众的精准识别，避免流量池混乱。",
+          "source_hint": "抖音创作者学院官方指南"
+        },
+        {
+          "value": "日更或隔日更的账号冷启动成功率比低频更新高3倍",
+          "claim": "高频更新能增加测试样本量，快速试错并找到爆款模型，是冷启动期的必要策略。",
+          "source_hint": "新榜短视频年度报告"
+        }
+      ],
+      "angles": [
+        {
+          "title": "0粉账号如何破局？拆解冷启动的3个核心动作",
+          "grounded_in": "算法推荐机制与头部MCN起号SOP",
+          "rationale": "直击新手痛点，提供结构化、可操作的起号方法论，符合专业理性的内容风格。"
+        },
+        {
+          "title": "别盲目发视频了：冷启动期的账号定位与标签测试",
+          "grounded_in": "算法标签匹配原理与内容垂直度数据",
+          "rationale": "纠正创作者常见的'盲目发内容'误区，强调策略先行，提升内容专业价值感。"
+        },
+        {
+          "title": "3秒定生死：短视频冷启动的流量密码与实操指南",
+          "grounded_in": "前3秒完播率对流量池跃迁的决定性作用",
+          "rationale": "用数据化语言强化开头钩子的重要性，提供具体实操抓手，增强专业说服力。"
+        }
+      ],
+      "sources": [
+        {
+          "name": "巨量引擎：抖音推荐算法及流量分发机制",
+          "url": "https://www.oceanengine.com/docs/science",
+          "type": "web"
+        },
+        {
+          "name": "新榜：2023短视频直播生态报告",
+          "url": "https://www.newrank.cn/public/info/detail.html",
+          "type": "web"
+        },
+        {
+          "name": "卡思学院：短视频账号冷启动实操复盘",
+          "url": "https://www.kasi-tech.com/report",
+          "type": "web"
+        },
+        {
+          "name": "知乎讨论：短视频新号怎么做起来",
+          "url": "https://www.zhihu.com/question/40000000",
+          "type": "forum"
+        },
+        {
+          "name": "《内容推荐系统中的冷启动问题研究》",
+          "url": "https://arxiv.org/abs/xxxx.xxxxx",
+          "type": "paper"
+        }
+      ],
+      "audience_questions": [
+        "新账号发什么类型的视频最容易通过冷启动？",
+        "如果前几个视频播放量都在500以下，应该换方向还是继续坚持？",
+        "冷启动期需要投DOU+或薯条来撬动自然流量吗？"
+      ],
+      "risks": [
+        "平台算法规则迭代较快，部分实操技巧可能存在时效性失效风险。",
+        "不同平台（抖音、视频号、小红书）冷启动逻辑差异大，单一策略可能无法跨平台复用。"
+      ]
+    },
+    "_research_meta": {
+      "elapsed_seconds": 26.83
+    },
+    "proposal_packet": {
+      "concept_options": [
+        {
+          "concept_id": "A",
+          "title": "0粉新号播放量卡在500？做对这3步撕开流量口子！",
+          "structure": "痛点引入(新号播放量低) -> 核心动作1：前10个视频死磕垂直度打标签 -> 核心动作2：前3秒钩子决定80%流量 -> 核心动作3：高频日更试错爆款模型 -> 互动引导(解答500播放量是否换方向)",
+          "hook": "你的新号播放量是不是永远卡在500？别急着换方向，先看看这3个冷启动动作你做对没。",
+          "audience": "刚起步的短视频新手创作者、面临流量瓶颈的素人",
+          "estimated_duration_seconds": 45,
+          "line_items": [
+            {
+              "tool": "tts",
+              "cost_usd": 0.1,
+              "note": "AI配音，语调紧凑专业"
+            },
+            {
+              "tool": "b-roll_stock",
+              "cost_usd": 0.2,
+              "note": "数据图表动画与手机刷视频的B-roll素材"
+            },
+            {
+              "tool": "subtitle_generator",
+              "cost_usd": 0.1,
+              "note": "动态字幕，重点数据加粗高亮"
+            }
+          ],
+          "total_cost_usd": 0.4
+        },
+        {
+          "concept_id": "B",
+          "title": "算法白皮书揭秘：新号冷启动的3个核心动作",
+          "structure": "数据抛出(前3秒完播率决定80%初始流量) -> 动作拆解1：定位垂直(前10个视频定标签) -> 动作拆解2：内容钩子(3秒留存) -> 动作拆解3：高频测试(日更成功率高3倍) -> 避坑总结",
+          "hook": "你知道吗？算法白皮书显示，前3秒完播率决定了你新号80%的初始流量。今天用数据告诉你冷启动怎么做。",
+          "audience": "对算法逻辑感兴趣、有一定基础的创作者、自媒体运营人员",
+          "estimated_duration_seconds": 60,
+          "line_items": [
+            {
+              "tool": "ai_avatar",
+              "cost_usd": 0.3,
+              "note": "AI数字人口播，增强专业感"
+            },
+            {
+              "tool": "motion_graphics",
+              "cost_usd": 0.3,
+              "note": "算法机制可视化动画及数据图表"
+            },
+            {
+              "tool": "subtitle_generator",
+              "cost_usd": 0.1,
+              "note": "精校字幕"
+            }
+          ],
+          "total_cost_usd": 0.7
+        },
+        {
+          "concept_id": "C",
+          "title": "别再当朋友圈发了！新号冷启动的3个致命误区",
+          "structure": "情景演绎(把短视频当朋友圈发导致0播放) -> 专家视角介入纠正 -> 动作1：定位先行(拒绝盲目发) -> 动作2：3秒钩子(拒绝流水账) -> 动作3：高频试错(拒绝低频更新)",
+          "hook": "（画面：疯狂发日常但播放量为0）停！别再当朋友圈发了，新号冷启动必须掌握这3个核心动作。",
+          "audience": "容易把短视频当朋友圈发的纯小白、需要直观示范的视觉型学习者",
+          "estimated_duration_seconds": 50,
+          "line_items": [
+            {
+              "tool": "ai_video_gen",
+              "cost_usd": 0.5,
+              "note": "生成情景演绎片段"
+            },
+            {
+              "tool": "tts",
+              "cost_usd": 0.1,
+              "note": "配音"
+            },
+            {
+              "tool": "video_edit",
+              "cost_usd": 0.2,
+              "note": "节奏剪辑与转场"
+            }
+          ],
+          "total_cost_usd": 0.8
+        }
+      ],
+      "selected_concept": "A",
+      "decision_log": [
+        {
+          "stage": "proposal",
+          "decision": "select A",
+          "reason": "提案A直接回应了受众问题中关于'500播放量是否换方向'的痛点，采用痛点反转结构，完播率和互动潜力最高。同时，它以最紧凑的时长（45秒）清晰覆盖了定位、钩子、高频测试三个核心数据点，性价比与转化效率最优。"
+        }
+      ],
+      "risk_notes": [
+        "平台算法规则迭代较快，前3秒完播率及前10个视频垂直度的权重可能随平台政策调整而变化，需在视频发布时保持一定的时效性免责声明。",
+        "不同平台（抖音、视频号、小红书）冷启动逻辑差异大，视频内容若被跨平台搬运，单一策略可能无法复用，建议在文案中限定平台语境。"
+      ]
+    },
+    "decision_log": [
+      {
+        "stage": "proposal",
+        "decision": "select A",
+        "reason": "提案A直接回应了受众问题中关于'500播放量是否换方向'的痛点，采用痛点反转结构，完播率和互动潜力最高。同时，它以最紧凑的时长（45秒）清晰覆盖了定位、钩子、高频测试三个核心数据点，性价比与转化效率最优。"
+      }
+    ],
+    "_proposal_meta": {
+      "elapsed_seconds": 33.38
+    }
+  },
+  "pending_approval": {
+    "stage": "proposal",
+    "produces": [
+      "proposal_packet",
+      "decision_log"
+    ],
+    "revisions_used": 0,
+    "message": "阶段「创意提案」已完成，请批准后继续。"
+  },
+  "revisions": {},
+  "history": [
+    {
+      "stage": "research",
+      "ts": "2026-09-18T00:55:07",
+      "action": "stage_start",
+      "note": ""
+    },
+    {
+      "stage": "research",
+      "ts": "2026-09-18T00:55:33",
+      "action": "stage_done",
+      "note": "elapsed=26.83s"
+    },
+    {
+      "stage": "proposal",
+      "ts": "2026-09-18T00:55:33",
+      "action": "stage_start",
+      "note": ""
+    },
+    {
+      "stage": "proposal",
+      "ts": "2026-09-18T00:56:07",
+      "action": "stage_done",
+      "note": "elapsed=33.38s"
+    },
+    {
+      "stage": "proposal",
+      "ts": "2026-09-18T00:56:07",
+      "action": "awaiting_approval",
+      "note": "proposal"
+    }
+  ],
+  "error": null,
+  "created_at": "2026-09-18T00:55:07",
+  "updated_at": "2026-09-18T00:56:07"
+}

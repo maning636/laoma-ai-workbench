@@ -85,6 +85,13 @@ export const quickActions = [
     icon: "BarChart3",
     href: "/analytics",
   },
+  {
+    id: "fusion-hub",
+    title: "AI-Fusion",
+    description: "进入融合能力中心",
+    icon: "Sparkles",
+    href: "/fusion",
+  },
 ]
 
 // Recommended Topics

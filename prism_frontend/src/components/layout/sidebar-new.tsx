@@ -9,6 +9,7 @@ import {
   BarChart3,
   ChevronsLeft,
   ChevronDown,
+  CalendarDays,
   ClipboardList,
   Fingerprint,
   FolderKanban,
@@ -21,14 +22,26 @@ import {
   Boxes,
   Network,
   MessageCircle,
+  NotebookPen,
+  PersonStanding,
+  Scissors,
+  Sparkles,
+  Palette,
+  Inbox,
+  Layers,
+  FolderOpen,
+  Hammer,
+  Film,
+  TrendingUp,
 } from "lucide-react"
+import { externalModules } from "@/lib/external-modules"
 
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { HermesLogoIcon } from "@/components/hermes-logo-icon"
-import GradientText from "@/components/GradientText"
+
 import { cn } from "@/lib/utils"
 
 const DouyinIcon = ({ className }: { className?: string }) => (
@@ -87,6 +100,15 @@ interface NavSection {
   items: NavItem[]
 }
 
+const externalNavSection: NavSection = {
+  label: "扩展",
+  items: externalModules.map((module) => ({
+    label: module.label,
+    href: module.href,
+    icon: module.icon,
+  })),
+}
+
 const navSections: NavSection[] = [
   {
     label: "概览",
@@ -107,6 +129,7 @@ const navSections: NavSection[] = [
     items: [
       { label: "矩阵发布", href: "/publish/matrix", icon: LayoutGrid },
       { label: "任务管理", href: "/tasks", icon: ClipboardList },
+      { label: "排期日历", href: "/calendar", icon: CalendarDays },
     ],
   },
   {
@@ -133,9 +156,20 @@ const navSections: NavSection[] = [
     items: [
       { label: "Hermes Agent", href: "/ai-agent", icon: HermesLogoIcon },
       { label: "HermesChat", href: "/hermes-chat", icon: MessageCircle },
+      { label: "AI 对话", href: "/chat", icon: MessageCircle },
+      { label: "技能库", href: "/skills", icon: Layers },
+      { label: "创作工坊", href: "/workshop", icon: Hammer },
+      { label: "视频流水线", href: "/video-pipeline", icon: Film },
+      { label: "创作工作台", href: "/easel-workbench", icon: Palette },
+      { label: "内容库", href: "/easel-content", icon: FolderOpen },
+      { label: "选题库", href: "/ideas", icon: NotebookPen },
+      { label: "趋势热榜", href: "/trends", icon: TrendingUp },
+      { label: "内容拆解", href: "/breakdown", icon: Scissors },
+      { label: "账号画像", href: "/profile", icon: PersonStanding },
       { label: "开发者工具", href: "/tools", icon: Boxes },
     ],
   },
+  externalNavSection,
   {
     label: "系统",
     items: [
@@ -172,22 +206,15 @@ export function SidebarNew({
           <AnimatePresence mode="wait">
             {!collapsed ? (
               <motion.div
-                key="logo-text"
+                key="logo-full"
                 initial={false}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.3 }}
                 className="flex items-center gap-3"
               >
-                <div className="relative">
-                  <img src="/logo.png" alt="Prism Logo" className="h-10 w-10 rounded-full object-cover ring-1 ring-border/80" />
-                  <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-background bg-white" />
-                </div>
-                <GradientText
-                  colors={["#FFFFFF", "#C8C8C8", "#FFFFFF"]}
-                  animationSpeed={14}
-                  className="whitespace-nowrap text-base font-semibold tracking-tight !mx-0 !justify-start"
-                >Prism</GradientText>
+                <img src="/logo.png" alt="老马AI研习社" className="h-8 w-8 rounded object-contain" />
+                <span className="text-base font-bold tracking-tight">老马AI研习社</span>
               </motion.div>
             ) : (
               <motion.div
@@ -196,11 +223,9 @@ export function SidebarNew({
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.8 }}
                 transition={{ duration: 0.3 }}
+                className="flex items-center justify-center"
               >
-                <div className="relative">
-                  <img src="/logo.png" alt="Prism Logo" className="h-10 w-10 rounded-full object-cover ring-1 ring-border/80" />
-                  <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-background bg-white" />
-                </div>
+                <img src="/logo.png" alt="老马AI研习社" className="h-8 w-8 rounded object-contain" />
               </motion.div>
             )}
           </AnimatePresence>

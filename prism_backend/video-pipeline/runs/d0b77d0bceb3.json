@@ -1,0 +1,124 @@
+{
+  "run_id": "d0b77d0bceb3",
+  "topic": "短视频冷启动的3个核心动作",
+  "style": "",
+  "reference_url": "",
+  "budget_usd": 2.0,
+  "status": "failed",
+  "stage_index": 1,
+  "current_stage": "proposal",
+  "completed": [
+    "research"
+  ],
+  "artifacts": {
+    "research_brief": {
+      "topic": "短视频冷启动的3个核心动作",
+      "summary": "针对新账号在短视频平台初期面临的零流量、零粉丝困境，提炼出从账号定位、内容测试到数据复盘的三个核心冷启动动作，帮助创作者快速突破基础流量池门槛。",
+      "data_points": [
+        {
+          "value": "新账号前5个视频的完播率决定了初始流量池层级",
+          "claim": "算法在冷启动期更看重完播率和互动率而非粉丝量",
+          "source_hint": "巨量引擎白皮书/抖音算法解析"
+        },
+        {
+          "value": "赛道垂直度在冷启动期比内容丰富度更重要",
+          "claim": "统一标签能让算法快速识别账号定位并分发给精准人群",
+          "source_hint": "新榜短视频运营报告"
+        },
+        {
+          "value": "发布时间与频率的规律性可提升账号活跃权重",
+          "claim": "固定频率发布比随机发布更容易获得初始推荐",
+          "source_hint": "卡思数据/星图平台数据"
+        }
+      ],
+      "angles": [
+        {
+          "title": "新号没流量？做对这3个动作，快速突破500播放量",
+          "grounded_in": "冷启动期算法推荐机制与基础流量池门槛",
+          "rationale": "切中新手最痛的零播放低播放焦虑，提供可量化的目标，吸引点击"
+        },
+        {
+          "title": "别急着发视频！短视频冷启动的3个核心准备动作",
+          "grounded_in": "账号定位与标签垂直度对初始推荐的影响",
+          "rationale": "反常识切入引发好奇心，强调谋定而后动的运营逻辑"
+        },
+        {
+          "title": "拆解百万大号的冷启动期：这3个动作决定了你能不能火",
+          "grounded_in": "头部账号历史数据复盘与冷启动动作共性",
+          "rationale": "借势成功案例，利用对标大号的心理暗示，增强方法论可信度"
+        }
+      ],
+      "sources": [
+        {
+          "name": "巨量引擎：抖音短视频算法白皮书",
+          "url": "https://www.oceanengine.com/docs/whitepaper",
+          "type": "web"
+        },
+        {
+          "name": "新榜：2023短视频内容生态发展报告",
+          "url": "https://www.newrank.cn/public/info/detail.html",
+          "type": "web"
+        },
+        {
+          "name": "知乎话题：抖音新号怎么冷启动？",
+          "url": "https://www.zhihu.com/question/placeholder",
+          "type": "forum"
+        },
+        {
+          "name": "卡思数据：短视频账号涨粉规律研究",
+          "url": "https://www.caasdata.com/report",
+          "type": "web"
+        },
+        {
+          "name": "B站运营教程：新号冷启动的三个核心动作",
+          "url": "https://www.bilibili.com/video/placeholder",
+          "type": "forum"
+        }
+      ],
+      "audience_questions": [
+        "新号前几个视频发什么内容最容易破播放？",
+        "冷启动期每天发几条视频最合适？",
+        "如果第一个视频爆了，后续怎么接住流量？"
+      ],
+      "risks": [
+        "平台算法更新导致冷启动策略失效",
+        "过度追求垂直度导致内容同质化严重",
+        "盲目搬运或抄袭导致账号被限流封禁"
+      ]
+    },
+    "_research_meta": {
+      "elapsed_seconds": 62.53
+    }
+  },
+  "pending_approval": null,
+  "revisions": {},
+  "history": [
+    {
+      "stage": "research",
+      "ts": "2026-09-18T00:49:28",
+      "action": "stage_start",
+      "note": ""
+    },
+    {
+      "stage": "research",
+      "ts": "2026-09-18T00:50:31",
+      "action": "stage_done",
+      "note": "elapsed=62.53s"
+    },
+    {
+      "stage": "proposal",
+      "ts": "2026-09-18T00:50:31",
+      "action": "stage_start",
+      "note": ""
+    },
+    {
+      "stage": "proposal",
+      "ts": "2026-09-18T00:51:48",
+      "action": "failed",
+      "note": "AI 返回的不是有效 JSON（已重试）: JSON 解析失败：Expecting ',' delimiter: line 28 column 6 (char 734)"
+    }
+  ],
+  "error": "AI 返回的不是有效 JSON（已重试）: JSON 解析失败：Expecting ',' delimiter: line 28 column 6 (char 734)",
+  "created_at": "2026-09-18T00:49:28",
+  "updated_at": "2026-09-18T00:51:48"
+}

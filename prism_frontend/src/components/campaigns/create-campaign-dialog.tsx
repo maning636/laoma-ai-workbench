@@ -35,10 +35,18 @@ interface Material {
     cover_url?: string
 }
 
+export interface CampaignPrefillValues {
+    name?: string
+    remark?: string
+    platforms?: string[]
+    materialIds?: string[]
+}
+
 interface CreateCampaignDialogProps {
     open: boolean
     onOpenChange: (open: boolean) => void
     onSuccess: () => void
+    initialValues?: CampaignPrefillValues | null
 }
 
 const PLATFORMS = [
@@ -51,7 +59,7 @@ const PLATFORMS = [
     { id: "youtube", name: "YouTube", color: "bg-white" },
 ]
 
-export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCampaignDialogProps) {
+export function CreateCampaignDialog({ open, onOpenChange, onSuccess, initialValues }: CreateCampaignDialogProps) {
     const { toast } = useToast()
     const [step, setStep] = useState(1)
     const [loading, setLoading] = useState(false)
@@ -81,22 +89,22 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
     // Fetch Data
     useEffect(() => {
         if (open) {
-            // Reset form
+            // Reset form（支持外部预填：Easel 稿件桥一键建计划）
             setStep(1)
-            setName("")
-            setSelectedPlatforms([])
+            setName(initialValues?.name || "")
+            setSelectedPlatforms(initialValues?.platforms || [])
             setSelectedAccounts([])
-            setSelectedMaterials([])
+            setSelectedMaterials(initialValues?.materialIds || [])
             setScheduleType("immediate")
             setIntervalEnabled(false)
             setIntervalMode("account_video")
             setIntervalMinutes(30)
-            setRemark("")
+            setRemark(initialValues?.remark || "")
 
             fetchAccounts()
             fetchMaterials()
         }
-    }, [open])
+    }, [open, initialValues])
 
     const fetchAccounts = async () => {
         try {

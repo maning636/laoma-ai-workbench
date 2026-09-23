@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   ArrowRight,
   BarChart3,
+  Sparkles,
   Users,
 } from "lucide-react"
 
@@ -165,6 +166,16 @@ export default function DashboardPage() {
     [quickActionData, hasSearch, searchTerm]
   )
 
+  const fusionAction = useMemo(
+    () => filteredQuickActions.find((action: any) => action.href === "/fusion") ?? null,
+    [filteredQuickActions]
+  )
+
+  const nonFusionQuickActions = useMemo(
+    () => filteredQuickActions.filter((action: any) => action.href !== "/fusion"),
+    [filteredQuickActions]
+  )
+
   const alertsToShow: any[] = filteredAlerts
 
   const statCards = useMemo(
@@ -213,7 +224,7 @@ export default function DashboardPage() {
   return (
     <div className="mx-auto max-w-[1440px] space-y-5 px-4 py-4 md:px-6 md:py-5">
       <PageHeader
-        eyebrow="PRISM / CONTROL CENTER"
+        eyebrow="老马AI研习社 / 控制中心"
         title="矩阵投放仪表盘"
         // description="快手、抖音、视频号、小红书统一监控"
         actions={
@@ -352,7 +363,31 @@ export default function DashboardPage() {
                 正在载入推荐操作...
               </div>
             )}
-            {filteredQuickActions.map((action: any, idx: number) => (
+            {!isLoading && fusionAction && (
+              <div className="group relative overflow-hidden rounded-2xl border border-primary/40 bg-gradient-to-br from-primary/12 via-card to-background/60 p-[1px] shadow-[0_0_36px_rgba(124,92,252,0.18)] transition-colors hover:border-primary/70">
+                <div className="rounded-2xl bg-background/40 p-4 transition group-hover:bg-card">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1.5">
+                      <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] text-primary">
+                        <Sparkles className="h-3 w-3" />
+                        重点入口
+                      </div>
+                      <p className="text-base font-semibold text-foreground">{fusionAction.title}</p>
+                      <p className="text-xs text-muted-foreground">{fusionAction.description}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="rounded-lg border border-primary/40 bg-primary/10 text-primary hover:bg-primary hover:text-white"
+                      onClick={() => handleNavigate(fusionAction.href)}
+                    >
+                      进入
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+            {nonFusionQuickActions.map((action: any, idx: number) => (
               <div
                 key={action.id || idx}
                 className="group rounded-xl border border-border/60 bg-background/40 p-[1px] transition-colors hover:border-primary/30"

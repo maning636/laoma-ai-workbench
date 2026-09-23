@@ -111,7 +111,7 @@ export default function CampaignsPage() {
     return (
         <div className="mx-auto max-w-[1440px] space-y-5 px-4 py-4 md:px-6 md:py-5">
             <PageHeader
-                eyebrow="PRISM / CAMPAIGNS"
+                eyebrow="老马AI研习社 / 投放计划"
                 title="投放计划"
                 description="管理多账号、多素材、多日的矩阵投放"
                 actions={
@@ -196,9 +196,16 @@ export default function CampaignsPage() {
                                 <div className="space-y-1.5">
                                     <div className="flex justify-between text-xs">
                                         <span className="text-muted-foreground">执行进度</span>
-                                        <span>0%</span> {/* TODO: Real progress */}
+                                        <span>
+                                            {Math.round(campaign.progress ?? 0)}%
+                                            {campaign.task_count > 0 && (
+                                                <span className="text-muted-foreground ml-1.5">
+                                                    ({campaign.task_stats?.finished ?? 0}/{campaign.task_count})
+                                                </span>
+                                            )}
+                                        </span>
                                     </div>
-                                    <Progress value={0} className="h-1.5" />
+                                    <Progress value={campaign.progress ?? 0} className="h-1.5" />
                                 </div>
                             </CardContent>
                             <CardFooter className="pt-0 flex items-center justify-between">

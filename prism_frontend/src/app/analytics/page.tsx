@@ -297,7 +297,7 @@ export default function AnalyticsPage() {
     return (
         <div className="mx-auto max-w-[1440px] space-y-3 px-3 py-3 md:px-5 md:py-4">
             <PageHeader
-                eyebrow="PRISM / TELEMETRY"
+                eyebrow="老马AI研习社 / 数据监控"
                 title="数据中心"
                 actions={
                     <div className="flex gap-2">
