@@ -47,17 +47,39 @@ cd Prism
 start.bat
 ```
 
-**⚠️ 重要：`tools/hermes-agent` 是独立 git 仓库，不被主仓库跟踪。**
-clone 后该目录会是空的。两种处理方式：
+**⚠️ 重要：`tools/` 下所有内容都不被主仓库跟踪。**
+`.gitignore` L191-196 明确排除它们（注释：「外部项目 clone（构建时拉取，不入库）」）。
+复制整个文件夹则全部保留；clone 方式必须自己装。
+
+**核心栈（后端 + 前端 + Celery）不需要下面任何一项。** 缺了只会导致 `/fusion` 等 Hermes 能力接口不可用。
 
 ```bat
 cd tools
+
+:: 1) Hermes Agent —— 上游开源，pin 到已验证可用的提交
 git clone https://github.com/NousResearch/hermes-agent.git
+cd hermes-agent
+git checkout bb0c230      :: setup-local-hermes.ps1 里硬编码的这个值
 cd ..
-scripts\hermes\setup-local-hermes.ps1
+
+:: 2) Hermes WebUI —— 独立上游，装成 zip 解包
+powershell -ExecutionPolicy Bypass -File ..\scripts\hermes\install-hermes-webui.ps1
+
+:: 3) 装好运行时
+powershell -ExecutionPolicy Bypass -File scripts\hermes\setup-local-hermes.ps1
 ```
 
-如果不用 Hermes 能力（AI 多 Provider、Persona、技能工坊、认知等 `/fusion` 路由），可以跳过，但对应接口会 404。
+注意 `setup-local-hermes.ps1` **只会装 hermes-agent**，它把 `tools/hermes-webui/server.py`
+列为「必须已存在」的前置条件。所以第 2 步不能跳过。
+
+**⚠️ 自定义发布技能不会被任何脚本自动安装。**
+抖音 / 小红书 / B站 / 视频号 / 快手 / TikTok / YouTube / 百家号的发布技能，
+唯一被跟踪的源在 `docs/hermes-skills/`。装好 Hermes 后需要手动复制到它的 home：
+
+```bat
+xcopy /E /Y docs\hermes-skills\* tools\hermes-home\skills\software-development\
+```
+
 
 ---
 
@@ -102,11 +124,15 @@ Prism-Fusion/
 │   └── Redis/              # ← 空目录，Redis 二进制放这里
 ├── prism_frontend/         # Next.js 前端（258 个跟踪文件）
 ├── scripts/launchers/      # 所有 .bat 启动脚本
-├── tools/hermes-agent/     # ⚠️ 独立 git 仓库，600 MB，主仓库不跟踪
-├── tools/persona-studio/   # Persona 账号画像
+├── tools/hermes-agent/     # ⚠️ 独立 git 仓库，不被主仓库跟踪
+├── tools/hermes-webui/     # ⚠️ 同上，需 install-hermes-webui.ps1
+├── tools/persona-studio/   # ⚠️ 同上，start.bat 会尝试拉起但容忍缺失
+├── tools/hermes-home/      # ⚠️ Hermes 运行时 home，含本地 auth.json
+├── docs/hermes-skills/     # ✅ 唯一被跟踪的发布技能源（11 个）
 ├── docs/                   # 文档
 ├── start.bat               # 总入口，带自举逻辑
-└── pyproject.toml          # Python 依赖
+├── STARTUP.md              # 本文件
+└── pyproject.toml / uv.lock / requirements.txt
 ```
 
 ### 本轮新增的成品模块（刚提交入库）
@@ -187,6 +213,28 @@ copy prism_backend\.env.example prism_backend\.env
 
 需要填的通常是：LLM API Key、各平台 cookie/token、`hermes_agent.toml`（Hermes 桥接）。
 **密钥不要提交进 git。**
+
+### 本机状态文件（不在仓库里，新机器上没有）
+
+这几类东西被 `.gitignore` 排除，因为它们是**你本机的身份和凭据**，不是代码：
+
+| 位置 | 内容 | 新机器怎么办 |
+|---|---|---|
+| `prism_backend/.env` | LLM key、平台 token | 自己填 |
+| `prism_backend/config/hermes_agent.toml` | Hermes 桥接配置 | 从模板改 |
+| `prism_backend/config/llm_config.toml` | LLM 多 Provider 配置 | 从模板改 |
+| `tools/hermes-home/.env`、`auth.json` | Hermes 登录凭据 | 首次运行 Hermes 后自动生成 |
+| `prism_backend/Redis/` | Redis 二进制 | 见第 2 节 |
+
+`tools/hermes-home/` 里含 Hermes 的登录状态（`auth.json`、`.env`）。
+它被 `.gitignore` 排除所以**不会进 git**，但如果你用「复制整个文件夹」的方式迁移，
+这些文件会被一起拷过去 —— 那意味着新程序员会继承你的 Hermes 登录态。
+
+两种处理：
+
+- **想让新程序员用你自己的账号跑**：什么都不用做，凭据已经跟文件夹走了。
+- **想让新程序员用自己的账号**：删掉 `tools/hermes-home\auth.json`、
+  `tools/hermes-home\.env`、`tools/hermes-home\auth.lock`，首次运行 Hermes 会自动重建。
 
 ---
 
