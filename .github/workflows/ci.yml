@@ -1,0 +1,278 @@
+# ============================================================
+# Prism-Fusion 快速 CI：轻量语法/导入烟测
+#
+# 触发：push / pull_request
+# 目的：
+#   1) 保证 prism_backend 下所有 .py 至少能 py_compile（捕获 A1 之类 subprocess 迁移的语法回归）
+#   2) 保证关键模块能 import（捕获循环导入、缺失依赖）
+#   3) 不安装完整依赖，不启动 FastAPI/Redis，秒级返回
+#
+# 完整端到端打包仍在 release.yml（tag 触发）中。
+# ============================================================
+
+name: CI
+
+on:
+  push:
+    branches:
+      - '**'
+    tags-ignore:
+      - 'v*'
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      # 默认关闭：e2e-packaged 需要 self-hosted Windows runner + 真实打包产物，
+      # 走 push/PR 会自动跳过。需要时手动触发并置 run_e2e_packaged=true。
+      run_e2e_packaged:
+        description: 'Run e2e-packaged job (requires self-hosted Windows runner + packaged artifacts)'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: prism-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-smoke:
+    name: Python py_compile + smoke import
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # 只取必要文件；跳过前端/node_modules/electron 产物，加快下载
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: prism_backend/requirements.txt
+
+      - name: 安装最小依赖（仅用于 import 烟测）
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --quiet \
+            fastapi pydantic pydantic-settings loguru httpx sqlalchemy \
+            uvicorn sqlalchemy aiohttp aiohttp-cors celery redis \
+            requests python-multipart toml pytz pyyaml openpyxl psutil
+
+      - name: py_compile 全后端（排除 dist-build / node_modules / prismenv）
+        shell: bash
+        run: |
+          set -euo pipefail
+          # 用目录遍历 + compileall，避免 rg/find 差异
+          find prism_backend -type d \( \
+              -name '.venv' -o -name 'venv' -o -name '__pycache__' \
+              -o -name 'dist-build' -o -name 'node_modules' \
+              -o -name 'prismenv' -o -name 'build' -o -name 'dist' \
+            \) -prune -o -type f -name '*.py' -print > /tmp/pyfiles.txt
+          wc -l /tmp/pyfiles.txt
+          python -m py_compile $(cat /tmp/pyfiles.txt)
+
+      - name: 轻量导入烟测（关键模块）
+        shell: bash
+        working-directory: prism_backend
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import importlib
+          # 仅列纯逻辑模块：能在最小依赖(无 .env/hermes/redis/DB)下 import。
+          # 需完整运行时的模块（fastapi_app.main / prism_backend.utils.process_manager /
+          # prism_backend.utils.video_probe / prism_backend.uploader.bilibili_uploader.runtime /
+          # prism_backend.ai_service.script_runner）不在此步 smoke，改由 release.yml 全量 job 覆盖。
+          modules = [
+              "fastapi_app.core.config",
+              "fastapi_app.core.paths",
+              "fastapi_app.utils.subprocess_safe",
+          ]
+          for name in modules:
+              try:
+                  importlib.import_module(name)
+                  print(f"OK   {name}")
+              except Exception as exc:
+                  # 硬守门：import 失败即视为 CI 失败（不吞异常）
+                  print(f"FAIL {name}: {type(exc).__name__}: {str(exc)[:200]}")
+                  raise SystemExit(1)
+          PY
+
+      - name: 检查 A1 迁移残留（禁止裸 subprocess.run/Popen，除 wrapper 与 process_manager）
+        shell: bash
+        run: |
+          set -euo pipefail
+          # 允许列表：wrapper 自身 + 按设计保留 CREATE_NEW_PROCESS_GROUP 的 process_manager
+          python - <<'PY'
+          import re, sys, pathlib
+          allow = {
+              "prism_backend/fastapi_app/utils/subprocess_safe.py",
+              "prism_backend/utils/process_manager.py",
+          }
+          pat = re.compile(r'\bsubprocess\s*\.\s*(?:run|Popen)\s*\(')
+          # 只看关键源码目录，避开 node_modules / prismenv / dist-build 等
+          scan_roots = [pathlib.Path("prism_backend")]
+          offenders = []
+          for root in scan_roots:
+              if not root.exists():
+                  continue
+              for py in root.rglob("*.py"):
+                  s = str(py)
+                  if s in allow:
+                      continue
+                  if any(part in ("node_modules", "dist-build", "prismenv", "__pycache__", "build", "dist", ".venv", "hermes-agent") for part in py.parts):
+                      continue
+                  try:
+                      text = py.read_text(encoding="utf-8", errors="replace")
+                  except Exception as e:
+                      print(f"WARN read {s}: {e}"); continue
+                  for i, line in enumerate(text.splitlines(), 1):
+                      if pat.search(line):
+                          offenders.append((s, i, line.strip()[:120]))
+          if offenders:
+              print("❌ Found naked subprocess.run/Popen outside allow list:")
+              for s, i, ln in offenders:
+                  print(f"   {s}:{i}: {ln}")
+              sys.exit(1)
+          print("OK   no naked subprocess.run/Popen outside allow list")
+          PY
+
+      - name: 快速校验 .env.example 无遗留 FLASK_/UPLOAD_FOLDER/MAX_CONTENT_LENGTH
+        shell: bash
+        run: |
+          set -euo pipefail
+          for bad in "FLASK_PORT" "FLASK_HOST" "FLASK_DEBUG" "UPLOAD_FOLDER" "MAX_CONTENT_LENGTH" "COOKIE_BACKUP_DIR"; do
+              if grep -Eq "^\s*${bad}\s*=" prism_backend/.env.example; then
+                  echo "❌ .env.example 仍含遗留字段: ${bad}"
+                  exit 1
+              fi
+          done
+          echo "OK   .env.example clean of legacy keys"
+
+  # ============================================================
+  # lint: ruff 静态检查（快速门，先加基础规则集）
+  # 现状：仓库无 ruff 配置，用 --select 限定最小规则集避免大量历史告警
+  # 触发：与 python-smoke 独立并行
+  # ============================================================
+  lint:
+    name: Ruff lint (prism_backend)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: requirements-dev.txt
+
+      - name: 安装 ruff
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --quiet "ruff>=0.4"
+
+      - name: ruff check（最小规则集：E9 语法/致命, F63/F7/F82 常见 NameError）
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ruff check prism_backend/ \
+            --select E9,F63,F7,F82 \
+            --extend-exclude 'dist-build,node_modules,prismenv,build,dist,.venv,__pycache__,hermes-agent'
+
+  # ============================================================
+  # test: pytest 后端测试
+  # 现状：conftest.py 直接 import fastapi_app.main（依赖 hermes-agent / .env），
+  #       在无完整运行时的 CI 上大概率收集失败或执行失败；先以 continue-on-error
+  #       软门运行，避免阻塞主 CI。等 SaaS 化改造补齐测试隔离后改为硬失败。
+  # ============================================================
+  test:
+    name: Pytest (backend tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: |
+            prism_backend/requirements.txt
+            requirements-dev.txt
+
+      - name: 安装依赖（生产 + 开发）
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --quiet -r prism_backend/requirements.txt
+          python -m pip install --quiet -r requirements-dev.txt
+
+      - name: pytest（软门：收集/执行失败不阻塞，等待测试隔离补齐）
+        shell: bash
+        working-directory: prism_backend
+        run: |
+          set -euo pipefail
+          python -m pytest fastapi_app/tests/ -x --tb=short -q
+
+  # ============================================================
+  # e2e-packaged: 打包产物在干净 Windows 环境下的端到端烟测
+  #
+  # 触发策略（默认 skip）：
+  #   1) 需要 self-hosted Windows runner（label: self-hosted, windows, laoma-e2e）
+  #      —— github-hosted 没有中文路径/Inno Setup/supervisor.exe，跑不了
+  #   2) 需要真实打包产物（scripts\packaging\build-package.bat 的产物，
+  #      位于 dist-out\v*\win-unpacked）；PR / push 不会自动打包
+  #   3) 因此只在 workflow_dispatch 手动触发且 run_e2e_packaged=true 时才跑
+  #
+  # 执行内容：
+  #   - scripts\tests\e2e_packaged_test.ps1：拉起 supervisor.exe，轮询 /health，
+  #     用 PowerShell 直连 4 个关键 API 校验结构；
+  #   - scripts\tests\integration_test.py：pytest 版同一批断言，用 httpx 复用。
+  #
+  # 与 python-smoke / lint / test 三 job 独立，失败不影响主 CI 门。
+  # ============================================================
+  e2e-packaged:
+    name: E2E packaged smoke (self-hosted Windows)
+    runs-on: [self-hosted, windows, x64, laoma-e2e]
+    timeout-minutes: 30
+    # 只在 workflow_dispatch 且显式勾选时执行；push/PR 一律 skip
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.run_e2e_packaged == true
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: 打印运行环境
+        shell: pwsh
+        run: |
+          $PSVersionTable.PSVersion.ToString()
+          [System.IO.Directory]::GetFiles("$env:GITHUB_WORKSPACE\dist-out", "win-unpacked", [System.IO.SearchOption]::AllDirectories) | Select-Object -First 5
+
+      - name: 运行 PowerShell E2E 打包烟测
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\scripts\tests\e2e_packaged_test.ps1 -TimeoutSec 60
+
+      - name: 运行 pytest 集成测试（对同一 backend 实例）
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $py = 'python'
+          & $py -m pip install --quiet pytest httpx
+          $env:BACKEND_URL = 'http://127.0.0.1:7000'
+          & $py -m pytest scripts/tests/integration_test.py -q --tb=short
+
