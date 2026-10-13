@@ -5,7 +5,7 @@
 set -e  # 遇到错误立即退出
 
 echo "======================================"
-echo "  Prism 项目结构重组"
+echo "  老马AI工作台项目结构重组"
 echo "======================================"
 echo ""
 
@@ -96,14 +96,14 @@ echo "🗑️  移动临时文件..."
 echo ""
 echo "📄 创建根目录README..."
 cat > README.md << 'EOF'
-# Prism
+# 老马AI工作台
 
 多平台内容分发自动化系统
 
 ## 📁 项目结构
 
 ```
-Prism/
+laoma-ai-workbench/
 ├── prism_backend/          # 后端服务（需同步到云）
 ├── prism_frontend/   # 前端服务（需同步到云）
 ├── docs/                 # 项目文档

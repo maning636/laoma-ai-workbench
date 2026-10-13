@@ -4,7 +4,7 @@
  * 双版本体系（参考 dsh-desktop version-info.ts）：
  * - 桌面壳版本：package.json / app.getVersion()
  * - 内置服务版本：prism_backend/VERSION + tools/hermes-agent + frontend standalone
- *   服务随桌面壳一起更新（"Harness 随 DSH Desktop 更新"的 Prism 版本）
+ *   服务随桌面壳一起更新（"Harness 随 DSH Desktop 更新"的 老马AI工作台版本）
  */
 
 const fs = require('node:fs');
@@ -70,21 +70,21 @@ function aboutDetail(versionInfo, locale = 'zh') {
   const fmt = (value) => value || (locale === 'zh' ? '未知' : 'Unknown');
   if (locale === 'zh') {
     return [
-      `Prism 桌面版版本：${desktop}`,
+      `老马AI工作台桌面版版本：${desktop}`,
       `内置后端版本：${fmt(bundled.backend)}`,
       `内置 Hermes Agent 版本：${fmt(bundled.hermes)}`,
       `内置前端版本：${fmt(bundled.frontend)}`,
       '',
-      '内置服务随 Prism 桌面版一起更新。'
+      '内置服务随老马AI工作台桌面版一起更新。'
     ].join('\n');
   }
   return [
-    `Prism Desktop version: ${desktop}`,
+    `LaomaAI Workbench version: ${desktop}`,
     `Bundled backend version: ${fmt(bundled.backend)}`,
     `Bundled Hermes Agent version: ${fmt(bundled.hermes)}`,
     `Bundled frontend version: ${fmt(bundled.frontend)}`,
     '',
-    'Bundled services are updated with Prism Desktop.'
+    'Bundled services are updated with LaomaAI Workbench.'
   ].join('\n');
 }
 

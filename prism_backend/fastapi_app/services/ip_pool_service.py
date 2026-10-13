@@ -14,6 +14,7 @@ from fastapi_app.models.ip_pool import (
     ProxyIP, IPStatus, IPSourceType, AddIPRequest, IPStatsResponse
 )
 from fastapi_app.core.logger import logger
+from fastapi_app.core import paths
 
 
 def _get_cookie_manager():
@@ -37,7 +38,7 @@ class IPPoolService:
     """
     
     def __init__(self):
-        self.ip_pool_file = Path("data/ip_pool.json")
+        self.ip_pool_file = paths.get_data_dir() / "ip_pool.json"
         self.ips: Dict[str, ProxyIP] = {}
         self._load_ips()
     

@@ -41,7 +41,7 @@ interface ParamFieldProps {
 
 function ParamField({ name, spec, value, onChange }: ParamFieldProps) {
     const base =
-        "w-full rounded-lg border border-border/70 bg-black/40 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-accent"
+        "w-full rounded-lg border border-border/70 bg-popover px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-accent"
     const type = spec.type || "string"
     const label = `${name}${spec.description ? ` — ${spec.description}` : ""}`
     if (type === "boolean") {
@@ -145,7 +145,7 @@ function CatalogToolCard({ tool }: { tool: CatalogTool }) {
         <Card className="bg-card/40 border-border/70">
             <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
                 <div className="flex items-start gap-3">
-                    <div className="rounded-lg p-2 border border-border/70 bg-black text-foreground">
+                    <div className="rounded-lg p-2 border border-border/70 bg-popover text-foreground">
                         <Terminal className="h-5 w-5" />
                     </div>
                     <div>
@@ -159,7 +159,7 @@ function CatalogToolCard({ tool }: { tool: CatalogTool }) {
                     </div>
                 </div>
                 {tool.category && (
-                    <Badge variant="outline" className="bg-black text-white border-border text-xs shrink-0">
+                    <Badge variant="outline" className="bg-popover text-foreground border-border text-xs shrink-0">
                         {tool.category}
                     </Badge>
                 )}

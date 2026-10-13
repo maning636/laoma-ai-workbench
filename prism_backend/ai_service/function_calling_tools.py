@@ -12,7 +12,7 @@ from .function_calling_service import Tool
 
 
 def _resolve_backend_cwd() -> Path:
-    env_root = os.getenv("PRISM_APP_ROOT") or os.getenv("PRISM_RESOURCES_PATH")
+    env_root = os.getenv("LAOMA_APP_ROOT") or os.getenv("LAOMA_RESOURCES_PATH")
     if env_root:
         root = Path(env_root).resolve()
         if root.name.lower() in {"prism_backend", "backend"}:
@@ -351,15 +351,14 @@ async def execute_python_script(
     try:
         import subprocess
         import time
+        from fastapi_app.utils.subprocess_safe import safe_run
 
         start_time = time.time()
 
         backend_dir = _resolve_backend_cwd()
         cwd = str(backend_dir) if backend_dir.exists() else None
-        result = subprocess.run(
+        result = safe_run(
             ["python", script_path] + (args or []),
-            capture_output=True,
-            text=True,
             timeout=300,  # 5分钟超时
             cwd=cwd,
         )

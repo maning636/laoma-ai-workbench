@@ -16,17 +16,17 @@ from __future__ import annotations
 import json
 import os
 import shutil
-import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 from loguru import logger
+from fastapi_app.utils.subprocess_safe import safe_run, safe_popen
 
 # 项目根目录（tools/ 所在）
 BACKEND_ROOT = Path(__file__).resolve().parents[2]  # fastapi_app/../.. = prism_backend
-REPO_ROOT = BACKEND_ROOT.parent  # Prism 根
+REPO_ROOT = BACKEND_ROOT.parent  # 老马AI工作台 根
 TOOLS_DIR = REPO_ROOT / "tools"
 
 # Hermes 技能（md 文件）根目录
@@ -86,7 +86,7 @@ class DevTool:
     install_path: str    # tools/ 下的子目录名
     install_cmd: str = ""  # 安装后执行的构建/安装命令（可选；外部应用时为"打开下载页"命令）
     check: str = ""      # 检测已安装的命令（可选）
-    launch_cmd: str = ""  # 从 Prism 打开/调用的命令（可选，如 macOS 应用）
+    launch_cmd: str = ""  # 从 老马AI工作台 打开/调用的命令（可选，如 macOS 应用）
     build_cmd: str = ""  # 构建命令（可选，如 persona dashboard 构建）
     install_url: str = ""  # 外部应用时的官方下载/安装链接（如 GitHub Releases）
     note: str = ""      # 备注（如"模型管理外置"）
@@ -109,7 +109,9 @@ class DevTool:
         if not cmd:
             return False
         try:
-            r = subprocess.run(
+            # check 命令多为 shell 语法（test -f / command -v / if exist / open -a），
+            # 保留 shell=True 语义，通过 safe_run 注入 UTF8 与跨平台安全参数。
+            r = safe_run(
                 cmd, shell=True, capture_output=True, timeout=10
             )
             return r.returncode == 0
@@ -164,7 +166,7 @@ def resolve_github_latest_asset(repo: str, pattern: str) -> Optional[str]:
     url = f"https://api.github.com/repos/{repo}/releases/latest"
     req = urllib.request.Request(url, headers={
         "Accept": "application/vnd.github+json",
-        "User-Agent": "Prism-tool-registry",
+        "User-Agent": "LaomaAI-tool-registry",
     })
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
@@ -230,7 +232,8 @@ def open_url(url: str) -> None:
     else:
         cmd = f'xdg-open "{url}"'
     try:
-        subprocess.Popen(cmd, shell=True)
+        # shell 语法 (open / start "" / xdg-open)，跨平台依赖 shell，保留 shell=True
+        safe_run(cmd, shell=True, capture_output=False)
     except Exception as exc:
         logger.error(f"[Tools] 打开 URL 失败: {exc}")
 
@@ -256,10 +259,10 @@ DEV_TOOLS: List[DevTool] = [
         name="CC Switch",
         type="plugin",
         repo="https://github.com/farion1231/cc-switch.git",
-        description="模型提供方管理桌面应用：管理 agent 模型切换，Prism 只读桥接其数据库。",
+        description="模型提供方管理桌面应用：管理 agent 模型切换，老马AI工作台 只读桥接其数据库。",
         install_path="",
         install_url="https://github.com/farion1231/cc-switch/releases",
-        note="模型管理外置：CC Switch 内管理 provider；Prism 支持读取ccswitch配置应用到本项目",
+        note="模型管理外置：CC Switch 内管理 provider；老马AI工作台支持读取ccswitch配置应用到本项目",
         install_cmd="",
         github_repo="farion1231/cc-switch",
         asset_patterns={
@@ -320,7 +323,7 @@ DEV_TOOLS: List[DevTool] = [
         ),
         install_path="",
         install_url="https://github.com/MetaCubeX/mihomo/releases",
-        note="由 PM2 persona-proxy 托管，配置目录 tools/persona-studio/proxies/（config.yaml / gateway.json）；点「打开」进入 Prism 代理网关管理页",
+        note="由 PM2 persona-proxy 托管，配置目录 tools/persona-studio/proxies/（config.yaml / gateway.json）；点「打开」进入 老马AI工作台代理网关管理页",
         # 二进制随 persona-studio 仓库内置，install_path 留空避免 uninstall 误删 proxies 目录；
         # check 用绝对路径（后端进程 cwd 是 prism_backend/，相对路径解析不到）
         check=f"test -f {REPO_ROOT / 'tools/persona-studio/proxies/mihomo'}",
@@ -373,9 +376,9 @@ class DevToolRegistry:
             target = tool.target_path()
             if not target.exists():
                 logger.info(f"[Tools] 克隆 {tool.name} -> {target}")
-                r = subprocess.run(
+                r = safe_run(
                     ["git", "clone", "--depth", "1", tool.repo, str(target)],
-                    capture_output=True, text=True, timeout=600,
+                    timeout=600,
                 )
                 if r.returncode != 0:
                     raise RuntimeError(f"克隆失败: {r.stderr[:300]}")
@@ -410,8 +413,10 @@ class DevToolRegistry:
         if install_cmd:
             cwd = str(tool.target_path()) if tool.install_path and tool.target_path().exists() else str(REPO_ROOT)
             logger.info(f"[Tools] 安装 {tool.name}: {install_cmd}")
-            r = subprocess.run(
-                install_cmd, shell=True, capture_output=True, text=True,
+            # install_cmd 含 shell 管道/重定向（如 pnpm install 2>/dev/null || corepack enable && pnpm install），
+            # 保留 shell=True 语义，走 safe_run 统一注入 UTF8/超时/cwd 校验。
+            r = safe_run(
+                install_cmd, shell=True, capture_output=True,
                 timeout=1200, cwd=cwd,
             )
             if r.returncode != 0 and not tool.is_installed():
@@ -444,23 +449,23 @@ class DevToolRegistry:
         if "npm install -g" in tool.install_cmd:
             pkg = tool.install_cmd.split("npm install -g")[-1].strip()
             if pkg:
-                subprocess.run(["npm", "uninstall", "-g", pkg], capture_output=True, timeout=120)
+                safe_run(["npm", "uninstall", "-g", pkg], timeout=120)
                 removed = True
 
         return {"success": True, "message": f"{tool.name} 已卸载", "removed": removed}
 
     def launch(self, tool_id: str) -> Dict[str, Any]:
-        """从 Prism 打开/调用本地已安装的工具（如 macOS/Windows 桌面应用）。"""
+        """从 老马AI工作台 打开/调用本地已安装的工具（如 macOS/Windows 桌面应用）。"""
         tool = self.get(tool_id)
         if not tool:
             raise ValueError(f"未知工具: {tool_id}")
         launch_cmd = _platform_cmd(tool.launch_cmd)
         if not launch_cmd:
-            raise ValueError(f"{tool.name} 不支持从 Prism 打开")
+            raise ValueError(f"{tool.name} 不支持从 老马AI工作台 打开")
         if not tool.is_installed():
             raise RuntimeError(f"{tool.name} 尚未安装，无法打开")
         try:
-            subprocess.Popen(launch_cmd, shell=True)
+            safe_popen(launch_cmd, shell=True)
             return {"success": True, "message": f"已打开 {tool.name}"}
         except Exception as e:
             logger.error(f"[Tools] 打开 {tool.name} 失败: {e}")
@@ -477,8 +482,8 @@ class DevToolRegistry:
             raise RuntimeError(f"{tool.name} 尚未安装，无法构建")
         cwd = str(tool.target_path()) if tool.install_path and tool.target_path().exists() else str(REPO_ROOT)
         logger.info(f"[Tools] 构建 {tool.name}: {tool.build_cmd} (cwd={cwd})")
-        r = subprocess.run(
-            tool.build_cmd, shell=True, capture_output=True, text=True,
+        r = safe_run(
+            tool.build_cmd, shell=True, capture_output=True,
             timeout=1200, cwd=cwd,
         )
         if r.returncode != 0:

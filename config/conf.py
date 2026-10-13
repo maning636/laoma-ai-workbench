@@ -83,5 +83,5 @@ PLAYWRIGHT_HEADLESS = _env_bool("PLAYWRIGHT_HEADLESS", True)  # true=无头, fal
 
 # Shared defaults used by the refactored platform CLI modules.
 LOCAL_CHROME_HEADLESS = PLAYWRIGHT_HEADLESS
-DEBUG_MODE = _env_bool("PRISM_DEBUG_MODE", False)
+DEBUG_MODE = _env_bool("LAOMA_DEBUG_MODE", False)
 YT_PROXY = os.getenv("YT_PROXY") or None

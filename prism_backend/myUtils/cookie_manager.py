@@ -19,7 +19,7 @@ BASE_DIR = Path(__file__).parent.parent
 
 
 def _is_dev_repo(base_dir: Path) -> bool:
-    env = (os.getenv("PRISM_ENV") or os.getenv("NODE_ENV") or "").strip().lower()
+    env = (os.getenv("LAOMA_ENV") or os.getenv("NODE_ENV") or "").strip().lower()
     if env in ("dev", "development", "local"):
         return True
     try:
@@ -29,7 +29,7 @@ def _is_dev_repo(base_dir: Path) -> bool:
 
 
 def _resolve_data_dir() -> Path:
-    env_dir = os.getenv("PRISM_DATA_DIR")
+    env_dir = os.getenv("LAOMA_DATA_DIR")
     if env_dir:
         return Path(env_dir)
 
@@ -40,9 +40,9 @@ def _resolve_data_dir() -> Path:
     appdata = os.getenv("APPDATA")
     local_root = os.getenv("LOCALAPPDATA")
     if appdata:
-        candidates.append(Path(appdata) / "Prism" / "data")
+        candidates.append(Path(appdata) / "老马AI工作台" / "data")
     if local_root and local_root != appdata:
-        candidates.append(Path(local_root) / "Prism" / "data")
+        candidates.append(Path(local_root) / "老马AI工作台" / "data")
 
     for candidate in candidates:
         if (candidate / "cookiesFile").exists() or (candidate / "db").exists():

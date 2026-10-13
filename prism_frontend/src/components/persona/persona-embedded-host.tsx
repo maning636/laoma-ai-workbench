@@ -203,7 +203,7 @@ export function PersonaEmbeddedHost({ active }: { active: boolean }) {
               </button>
               <a
                 href="/persona-proxy"
-                className="rounded-xl bg-foreground px-4 py-2 text-sm text-background"
+                className="rounded-xl bg-popover px-4 py-2 text-sm text-foreground border border-border/70"
               >
                 打开代理网关
               </a>

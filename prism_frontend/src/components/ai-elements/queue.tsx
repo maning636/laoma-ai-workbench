@@ -72,10 +72,10 @@ export function Queue({
   const [isOpen, setIsOpen] = React.useState(defaultOpen)
 
   const statusIcons = {
-    pending: <Circle className="h-3 w-3 text-white" />,
-    "in-progress": <Clock className="h-3 w-3 text-white animate-spin" />,
-    completed: <CheckCircle2 className="h-3 w-3 text-white" />,
-    failed: <Circle className="h-3 w-3 text-white" />
+    pending: <Circle className="h-3 w-3 text-foreground" />,
+    "in-progress": <Clock className="h-3 w-3 text-foreground animate-spin" />,
+    completed: <CheckCircle2 className="h-3 w-3 text-foreground" />,
+    failed: <Circle className="h-3 w-3 text-foreground" />
   }
 
   const content = (
@@ -164,10 +164,10 @@ export function Queue({
  */
 export function QueueItemComponent({ item, onClick }: { item: QueueItem; onClick?: () => void }) {
   const statusIcons = {
-    pending: <Circle className="h-3 w-3 text-white" />,
-    "in-progress": <Clock className="h-3 w-3 text-white" />,
-    completed: <CheckCircle2 className="h-3 w-3 text-white" />,
-    failed: <Circle className="h-3 w-3 text-white" />
+    pending: <Circle className="h-3 w-3 text-foreground" />,
+    "in-progress": <Clock className="h-3 w-3 text-foreground" />,
+    completed: <CheckCircle2 className="h-3 w-3 text-foreground" />,
+    failed: <Circle className="h-3 w-3 text-foreground" />
   }
 
   return (

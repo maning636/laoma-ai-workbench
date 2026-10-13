@@ -1,13 +1,13 @@
 {
-  "name": "Prism",
+  "name": "laoma-ai-workbench",
   "version": "1.1.0",
-  "description": "Prism",
+  "description": "老马AI工作台",
   "main": "src/main/index.js",
   "author": "Laihiujin",
   "license": "Apache-2.0",
   "scripts": {
     "start": "electron .",
-    "dev": "cross-env PRISM_START_SERVICES=1 PRISM_START_FRONTEND=1 electron .",
+    "dev": "cross-env LAOMA_START_SERVICES=1 LAOMA_START_FRONTEND=1 electron .",
     "build": "electron-builder --win --x64",
     "build:dir": "electron-builder --win --x64 --dir",
     "pack": "electron-builder --dir",
@@ -27,9 +27,10 @@
     "electron-builder": "^24.9.1"
   },
   "build": {
-    "appId": "com.prism.automation",
-    "productName": "Prism",
-    "artifactName": "Prism-${version}-setup.${ext}",
+    "appId": "com.laomai.workbench",
+    "productName": "老马AI工作台",
+    "executableName": "LaomaAI",
+    "artifactName": "老马AI工作台-${version}-setup.${ext}",
     "asar": true,
     "asarUnpack": [
       "src/renderer/**",
@@ -177,7 +178,8 @@
           "from": "resources/supervisor",
           "to": "supervisor",
           "filter": [
-            "supervisor.exe"
+            "supervisor.py",
+            "api_server.py"
           ]
         },
         {
@@ -215,7 +217,7 @@
       "perMachine": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Prism",
+      "shortcutName": "老马AI工作台",
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
       "installerHeaderIcon": "build/icon.ico",
@@ -227,13 +229,13 @@
       {
         "provider": "github",
         "owner": "Laihiujin",
-        "repo": "Prism",
+        "repo": "laoma-ai-workbench",
         "releaseType": "release"
       }
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
-      "artifactName": "Prism-${version}-${arch}-setup.${ext}",
+      "artifactName": "LaomaAI-${version}-${arch}-setup.${ext}",
       "target": [
         {
           "target": "dmg",
@@ -264,5 +266,5 @@
       ]
     }
   },
-  "repository": "https://github.com/Laihiujin/Prism.git"
+  "repository": "https://github.com/Laihiujin/laoma-ai-workbench.git"
 }

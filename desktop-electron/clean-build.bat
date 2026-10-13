@@ -14,10 +14,10 @@ echo 正在清理打包临时文件...
 echo.
 
 :: 停止可能运行的进程
-tasklist /FI "IMAGENAME eq Prism.exe" 2>NUL | find /I /N "Prism.exe">NUL
+tasklist /FI "IMAGENAME eq LaomaAI.exe" 2>NUL | find /I /N "LaomaAI.exe">NUL
 if "%ERRORLEVEL%"=="0" (
-    echo 停止 Prism.exe...
-    taskkill /F /IM Prism.exe >nul 2>&1
+    echo 停止 LaomaAI.exe...
+    taskkill /F /IM LaomaAI.exe >nul 2>&1
     timeout /t 2 >nul
 )
 

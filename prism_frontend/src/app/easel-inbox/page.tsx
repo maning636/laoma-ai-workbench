@@ -45,7 +45,7 @@ interface ImportResult {
     campaign_prefill?: { name?: string; remark?: string }
 }
 
-// Easel 平台名 → Prism 投放平台 id
+// Easel 平台名 → 老马AI工作台 投放平台 id
 const PLATFORM_MAP: Record<string, string> = {
     xiaohongshu: "xiaohongshu",
     douyin: "douyin",
@@ -219,7 +219,7 @@ export default function EaselInboxPage() {
                                     {starting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
                                     启动 Easel
                                 </Button>
-                                <Button variant="outline" onClick={() => window.open("http://127.0.0.1:7861", "_blank")}>
+                                <Button variant="outline" onClick={() => window.open("http://127.0.0.1:7860", "_blank")}>
                                     <ExternalLink className="h-4 w-4 mr-2" /> 新窗口打开
                                 </Button>
                             </div>
@@ -318,7 +318,7 @@ export default function EaselInboxPage() {
                                                 创建投放计划
                                             </Button>
                                             <a
-                                                href={`http://127.0.0.1:7861/#outputs/${encodeURIComponent(draft.project)}`}
+                                                href={`http://127.0.0.1:7860/#outputs/${encodeURIComponent(draft.project)}`}
                                                 target="_blank"
                                                 rel="noreferrer"
                                                 className="ml-auto text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"

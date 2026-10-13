@@ -621,14 +621,13 @@ async def check_cookie(type, file_path):
         import json
         import sys
         from pathlib import Path
+        from fastapi_app.utils.subprocess_safe import safe_run
 
         # Run validation in subprocess to avoid asyncio issues
         validator_script = Path(__file__).parent / "cookie_validator_subprocess.py"
-        result = subprocess.run(
+        result = safe_run(
             [sys.executable, str(validator_script), str(type), file_path],
-            capture_output=True,
-            text=True,
-            timeout=60  # 60 second timeout
+            timeout=60,  # 60 second timeout
         )
 
         if result.returncode == 0:

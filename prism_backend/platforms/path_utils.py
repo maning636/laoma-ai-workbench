@@ -15,11 +15,11 @@ import os
 import re
 
 
-_PRISM_BACKEND_DIR = Path(__file__).resolve().parent.parent
+_LAOMA_BACKEND_DIR = Path(__file__).resolve().parent.parent
 
 
 def _is_dev_repo(base_dir: Path) -> bool:
-    env = (os.getenv("PRISM_ENV") or os.getenv("NODE_ENV") or "").strip().lower()
+    env = (os.getenv("LAOMA_ENV") or os.getenv("NODE_ENV") or "").strip().lower()
     if env in ("dev", "development", "local"):
         return True
     try:
@@ -39,22 +39,22 @@ def _load_settings_dirs() -> tuple[Path, Path]:
         videos_dir = Path(settings.VIDEO_FILES_DIR)
         return cookies_dir, videos_dir
     except Exception:
-        env_dir = os.getenv("PRISM_DATA_DIR")
+        env_dir = os.getenv("LAOMA_DATA_DIR")
         if env_dir:
-            return Path(env_dir) / "cookiesFile", _PRISM_BACKEND_DIR / "videoFile"
-        if _is_dev_repo(_PRISM_BACKEND_DIR):
-            return _PRISM_BACKEND_DIR / "cookiesFile", _PRISM_BACKEND_DIR / "videoFile"
+            return Path(env_dir) / "cookiesFile", _LAOMA_BACKEND_DIR / "videoFile"
+        if _is_dev_repo(_LAOMA_BACKEND_DIR):
+            return _LAOMA_BACKEND_DIR / "cookiesFile", _LAOMA_BACKEND_DIR / "videoFile"
         appdata = os.getenv("APPDATA")
         localappdata = os.getenv("LOCALAPPDATA")
         candidates = []
         if appdata:
-            candidates.append(Path(appdata) / "Prism" / "data" / "cookiesFile")
+            candidates.append(Path(appdata) / "老马AI工作台" / "data" / "cookiesFile")
         if localappdata and localappdata != appdata:
-            candidates.append(Path(localappdata) / "Prism" / "data" / "cookiesFile")
+            candidates.append(Path(localappdata) / "老马AI工作台" / "data" / "cookiesFile")
         for candidate in candidates:
             if candidate.exists():
-                return candidate, _PRISM_BACKEND_DIR / "videoFile"
-        return _PRISM_BACKEND_DIR / "cookiesFile", _PRISM_BACKEND_DIR / "videoFile"
+                return candidate, _LAOMA_BACKEND_DIR / "videoFile"
+        return _LAOMA_BACKEND_DIR / "cookiesFile", _LAOMA_BACKEND_DIR / "videoFile"
 
 
 _COOKIES_DIR, _VIDEOS_DIR = _load_settings_dirs()

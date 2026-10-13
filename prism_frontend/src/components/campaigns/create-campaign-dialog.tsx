@@ -319,7 +319,7 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess, initialVal
                                             key={p.id}
                                             className={cn(
                                                 "flex items-center gap-2 px-4 py-3 rounded-lg border border-border cursor-pointer transition-all",
-                                                selectedPlatforms.includes(p.id) ? "border-primary bg-black ring-1 ring-primary" : "hover:bg-muted"
+                                                selectedPlatforms.includes(p.id) ? "border-primary bg-popover ring-1 ring-primary" : "hover:bg-muted"
                                             )}
                                             onClick={() => togglePlatform(p.id)}
                                         >
@@ -452,21 +452,21 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess, initialVal
                                 <Label>排期设置</Label>
                                 <div className="grid grid-cols-3 gap-4">
                                     <div
-                                        className={cn("border border-border rounded-lg p-4 cursor-pointer text-center hover:bg-muted", scheduleType === 'immediate' && "border-primary bg-black")}
+                                        className={cn("border border-border rounded-lg p-4 cursor-pointer text-center hover:bg-muted", scheduleType === 'immediate' && "border-primary bg-popover")}
                                         onClick={() => setScheduleType('immediate')}
                                     >
                                         <div className="font-medium">立即执行</div>
                                         <div className="text-xs text-muted-foreground mt-1">生成任务后立即进入队列</div>
                                     </div>
                                     <div
-                                        className={cn("border border-border rounded-lg p-4 cursor-pointer text-center hover:bg-muted", scheduleType === 'range' && "border-primary bg-black")}
+                                        className={cn("border border-border rounded-lg p-4 cursor-pointer text-center hover:bg-muted", scheduleType === 'range' && "border-primary bg-popover")}
                                         onClick={() => setScheduleType('range')}
                                     >
                                         <div className="font-medium">固定区间</div>
                                         <div className="text-xs text-muted-foreground mt-1">在指定日期范围内分发</div>
                                     </div>
                                     <div
-                                        className={cn("border border-border rounded-lg p-4 cursor-pointer text-center hover:bg-muted", scheduleType === 'daily' && "border-primary bg-black")}
+                                        className={cn("border border-border rounded-lg p-4 cursor-pointer text-center hover:bg-muted", scheduleType === 'daily' && "border-primary bg-popover")}
                                         onClick={() => setScheduleType('daily')}
                                     >
                                         <div className="font-medium">每日定量</div>
@@ -514,7 +514,7 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess, initialVal
                                                         <div
                                                             className={cn(
                                                                 "border border-border rounded-lg p-3 cursor-pointer hover:bg-muted/50 transition-colors",
-                                                                intervalMode === 'account_video' && "border-primary bg-black ring-1 ring-primary"
+                                                                intervalMode === 'account_video' && "border-primary bg-popover ring-1 ring-primary"
                                                             )}
                                                             onClick={() => setIntervalMode('account_video')}
                                                         >
@@ -524,7 +524,7 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess, initialVal
                                                         <div
                                                             className={cn(
                                                                 "border border-border rounded-lg p-3 cursor-pointer hover:bg-muted/50 transition-colors",
-                                                                intervalMode === 'video' && "border-primary bg-black ring-1 ring-primary"
+                                                                intervalMode === 'video' && "border-primary bg-popover ring-1 ring-primary"
                                                             )}
                                                             onClick={() => setIntervalMode('video')}
                                                         >

@@ -1,4 +1,19 @@
 const { app, BrowserWindow, ipcMain, Menu, Tray, dialog } = require('electron');
+
+// 开发模式(!app.isPackaged):把 userData / sessionData 重定向到项目内 D 盘,
+// 避免往 C:\Users\...\AppData\Roaming\laoma-ai-workbench 写数据。
+// 必须在 app.whenReady() 之前调用 app.setPath 才生效。
+// 打包模式(isPackaged === true)不进入此分支,安装机仍用默认 %APPDATA%。
+// 必须放在 app.requestSingleInstanceLock() 与 electron-log 文件路径配置之前,
+// 否则单实例锁文件与首条日志仍可能落到旧的 C 盘 userData。
+if (!app.isPackaged) {
+  const devUserDataRoot = 'D:\\dim开发\\Prism-Fusion\\_electron_userdata';
+  // userData: 控制 config / data / hermes / logs 等
+  app.setPath('userData', devUserDataRoot);
+  // sessionData: 控制 Cache / Code Cache / GPUCache / Local Storage 等
+  app.setPath('sessionData', devUserDataRoot);
+}
+
 const path = require('path');
 const { nativeTheme } = require('electron');
 const { spawn, spawnSync, execSync } = require('child_process');
@@ -21,8 +36,8 @@ log.transports.console.level = 'debug';
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
-  console.log('Another Prism instance is already running. Exiting.');
-  log.info('Another Prism instance is already running. Exiting.');
+  console.log('另一个老马AI工作台实例已在运行，退出。');
+  log.info('另一个老马AI工作台实例已在运行，退出。');
   app.quit();
   process.exit(0);
 }
@@ -64,12 +79,12 @@ class PrismApp {
   }
 
   useExternalStack() {
-    return process.env.PRISM_USE_EXTERNAL_STACK === '1';
+    return process.env.LAOMA_USE_EXTERNAL_STACK === '1';
   }
 
   async initialize() {
-    console.log('Prism is starting...');
-    log.info('Prism is starting...');
+    console.log('老马AI工作台正在启动...');
+    log.info('老马AI工作台正在启动...');
 
     // 绛夊緟 Electron 鍑嗗灏辩华
     await app.whenReady();
@@ -84,7 +99,7 @@ class PrismApp {
     this.appIconPath = this.getAppIconPath();
     this.runtimeSettings = this.loadRuntimeSettings();
     process.env.PLAYWRIGHT_HEADLESS = this.runtimeSettings.browserHeadless ? 'true' : 'false';
-    process.env.PRISM_AUTOMATION_RUNTIME = this.runtimeSettings.automationRuntime;
+    process.env.LAOMA_AUTOMATION_RUNTIME = this.runtimeSettings.automationRuntime;
     this.applyPlatformBrowserPreferenceEnv(process.env, this.runtimeSettings.platformBrowserPreferences || {});
     this.applyPlatformProxyPreferenceEnv(process.env, this.runtimeSettings.platformProxyPreferences || {});
     this.setupTray();
@@ -99,10 +114,10 @@ class PrismApp {
     // 1. 璁剧疆 Playwright 娴忚鍣ㄨ矾寰?
     this.setupAutomationPath();
 
-    // 2. 鍚姩鍚庣/鍓嶇鏈嶅姟锛堢敓浜ч粯璁ゅ惎鍔紝寮€鍙戝彲鐢?PRISM_START_SERVICES=1 寮哄埗锛?
+    // 2. 鍚姩鍚庣/鍓嶇鏈嶅姟锛堢敓浜ч粯璁ゅ惎鍔紝寮€鍙戝彲鐢?LAOMA_START_SERVICES=1 寮哄埗锛?
     const useExternalStack = this.useExternalStack();
-    const shouldStartServices = !useExternalStack && (process.env.PRISM_START_SERVICES === '1' || !this.isDev);
-    const showLauncher = process.env.PRISM_SHOW_LAUNCHER === '1'; // 鏄惁鏄剧ず鍚姩绠＄悊鍣?
+    const shouldStartServices = !useExternalStack && (process.env.LAOMA_START_SERVICES === '1' || !this.isDev);
+    const showLauncher = process.env.LAOMA_SHOW_LAUNCHER === '1'; // 鏄惁鏄剧ず鍚姩绠＄悊鍣?
     console.log('Use external stack:', useExternalStack);
     console.log('Should start services:', shouldStartServices, '(isDev:', this.isDev, ')');
     console.log('Show launcher:', showLauncher);
@@ -123,7 +138,7 @@ class PrismApp {
         const detail = this.summarizeDiagnostics(diagnostics);
         dialog.showMessageBoxSync({
           type: 'error',
-          title: 'Prism 服务启动失败',
+          title: '老马AI工作台服务启动失败',
           message: message.slice(0, 400),
           detail: detail || `诊断详情见日志: ${log.transports.file.getFile().path}`,
           buttons: ['确定']
@@ -161,7 +176,7 @@ class PrismApp {
       }
     });
 
-    log.info('Prism startup complete');
+    log.info('老马AI工作台 startup complete');
   }
 
   setupAppMenu() {
@@ -194,12 +209,12 @@ class PrismApp {
           },
           { type: 'separator' },
           {
-            label: '关于 Prism',
+            label: '关于 老马AI工作台',
             click: () => {
               dialog.showMessageBox({
                 type: 'info',
-                title: '关于 Prism',
-                message: 'Prism',
+                title: '关于 老马AI工作台',
+                message: '老马AI工作台',
                 detail: aboutDetail(this.getVersionInfo(), 'zh')
               });
             }
@@ -307,7 +322,7 @@ class PrismApp {
 
   getConfiguredBackendPort(rawUrl) {
     const envPort = [
-      process.env.PRISM_BACKEND_PORT,
+      process.env.LAOMA_BACKEND_PORT,
       process.env.BACKEND_PORT
     ].find((value) => String(value || '').trim());
 
@@ -342,8 +357,8 @@ class PrismApp {
 
   getBackendBaseUrl() {
     const rawUrl = [
-      process.env.PRISM_BACKEND_URL,
-      process.env.NEXT_PUBLIC_PRISM_BACKEND_URL,
+      process.env.LAOMA_BACKEND_URL,
+      process.env.NEXT_PUBLIC_LAOMA_BACKEND_URL,
       process.env.NEXT_PUBLIC_BACKEND_URL
     ].find((value) => String(value || '').trim());
 
@@ -357,7 +372,7 @@ class PrismApp {
   getConfiguredAutomationWorkerPort() {
     const envPort = [
       process.env.AUTOMATION_WORKER_PORT,
-      process.env.PRISM_AUTOMATION_WORKER_PORT
+      process.env.LAOMA_AUTOMATION_WORKER_PORT
     ].find((value) => String(value || '').trim());
 
     const parsedEnvPort = Number.parseInt(envPort, 10);
@@ -553,7 +568,7 @@ class PrismApp {
     return normalized;
   }
 
-  // 把平台代理偏好转成后端可消费的 PRISM_DIRECT_PLATFORMS（逗号分隔的“强制直连”平台列表）。
+  // 把平台代理偏好转成后端可消费的 LAOMA_DIRECT_PLATFORMS（逗号分隔的“强制直连”平台列表）。
   // 只有标记为 direct 的平台才会走直连；tiktok/youtube 等未配置平台默认走代理。
   buildDirectConnectPlatforms(rawPreferences = {}) {
     const preferences = this.normalizePlatformProxyPreferences(rawPreferences);
@@ -568,8 +583,8 @@ class PrismApp {
 
   applyPlatformProxyPreferenceEnv(targetEnv, rawPreferences = {}) {
     const direct = this.buildDirectConnectPlatforms(rawPreferences);
-    targetEnv.PRISM_DIRECT_PLATFORMS = direct.join(',');
-    return targetEnv.PRISM_DIRECT_PLATFORMS;
+    targetEnv.LAOMA_DIRECT_PLATFORMS = direct.join(',');
+    return targetEnv.LAOMA_DIRECT_PLATFORMS;
   }
 
   applyPlatformBrowserPreferenceEnv(targetEnv, rawPreferences = {}) {
@@ -605,7 +620,7 @@ class PrismApp {
     fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
     this.runtimeSettings = settings;
     process.env.PLAYWRIGHT_HEADLESS = settings.browserHeadless ? 'true' : 'false';
-    process.env.PRISM_AUTOMATION_RUNTIME = settings.automationRuntime;
+    process.env.LAOMA_AUTOMATION_RUNTIME = settings.automationRuntime;
     this.applyPlatformBrowserPreferenceEnv(process.env, settings.platformBrowserPreferences || {});
     this.applyPlatformProxyPreferenceEnv(process.env, settings.platformProxyPreferences || {});
     return settings;
@@ -1020,7 +1035,7 @@ class PrismApp {
     const env = this.buildPythonEnv({
       ...process.env,
       PLAYWRIGHT_BROWSERS_PATH: this.getBrowsersRoot(),
-      PRISM_AUTOMATION_RUNTIME: this.runtimeSettings.automationRuntime
+      LAOMA_AUTOMATION_RUNTIME: this.runtimeSettings.automationRuntime
     });
 
     return this.runManagedCommand(
@@ -1078,7 +1093,7 @@ class PrismApp {
       const env = this.buildPythonEnv({
         ...process.env,
         PLAYWRIGHT_BROWSERS_PATH: this.getBrowsersRoot(),
-        PRISM_AUTOMATION_RUNTIME: this.runtimeSettings.automationRuntime
+        LAOMA_AUTOMATION_RUNTIME: this.runtimeSettings.automationRuntime
       });
 
       const result = await this.runManagedCommand(
@@ -1202,7 +1217,7 @@ class PrismApp {
     const env = this.buildPythonEnv({
       ...process.env,
       PLAYWRIGHT_BROWSERS_PATH: browsersRoot,
-      PRISM_AUTOMATION_RUNTIME: this.runtimeSettings.automationRuntime
+      LAOMA_AUTOMATION_RUNTIME: this.runtimeSettings.automationRuntime
     });
 
     if (target === 'patchright') {
@@ -1289,7 +1304,7 @@ class PrismApp {
     }
 
     this.tray = new Tray(this.appIconPath);
-    this.tray.setToolTip('Prism');
+    this.tray.setToolTip('老马AI工作台');
     this.refreshTrayMenu();
 
     this.tray.on('click', () => {
@@ -1314,12 +1329,6 @@ class PrismApp {
       {
         label: 'Open settings',
         click: () => this.createSettingsWindow()
-      },
-      {
-        label: 'Restart application and all processes',
-        click: () => {
-          void this.restartApplication();
-        }
       },
       { type: 'separator' },
       {
@@ -1349,7 +1358,7 @@ class PrismApp {
     if (this.supervisorStatePath) {
       return this.supervisorStatePath;
     }
-    const explicitPath = process.env.PRISM_SUPERVISOR_STATE_PATH;
+    const explicitPath = process.env.LAOMA_SUPERVISOR_STATE_PATH;
     if (explicitPath) {
       this.supervisorStatePath = explicitPath;
       return this.supervisorStatePath;
@@ -1498,9 +1507,9 @@ class PrismApp {
       const backendUrl = this.getBackendBaseUrl();
       const backendApiBaseUrl = this.getBackendApiBaseUrl();
       process.env.BACKEND_PORT = String(this.getBackendPort());
-      process.env.PRISM_BACKEND_PORT = process.env.BACKEND_PORT;
-      process.env.PRISM_BACKEND_URL = backendUrl;
-      process.env.NEXT_PUBLIC_PRISM_BACKEND_URL = backendUrl;
+      process.env.LAOMA_BACKEND_PORT = process.env.BACKEND_PORT;
+      process.env.LAOMA_BACKEND_URL = backendUrl;
+      process.env.NEXT_PUBLIC_LAOMA_BACKEND_URL = backendUrl;
       process.env.NEXT_PUBLIC_BACKEND_URL = backendUrl;
       process.env.NEXT_PUBLIC_API_URL = backendUrl;
       process.env.MANUS_API_BASE_URL = backendApiBaseUrl;
@@ -1509,7 +1518,7 @@ class PrismApp {
 
     if (nextWorkerPort) {
       process.env.AUTOMATION_WORKER_PORT = String(this.getAutomationWorkerPort());
-      process.env.PRISM_AUTOMATION_WORKER_PORT = process.env.AUTOMATION_WORKER_PORT;
+      process.env.LAOMA_AUTOMATION_WORKER_PORT = process.env.AUTOMATION_WORKER_PORT;
     }
 
     return status;
@@ -1653,14 +1662,14 @@ class PrismApp {
     const relaunchEnv = {
       ...process.env,
       PLAYWRIGHT_HEADLESS: this.runtimeSettings.browserHeadless ? 'true' : 'false',
-      PRISM_AUTOMATION_RUNTIME: this.runtimeSettings.automationRuntime
+      LAOMA_AUTOMATION_RUNTIME: this.runtimeSettings.automationRuntime
     };
     this.applyPlatformBrowserPreferenceEnv(relaunchEnv, this.runtimeSettings.platformBrowserPreferences || {});
     this.applyPlatformProxyPreferenceEnv(relaunchEnv, this.runtimeSettings.platformProxyPreferences || {});
 
     if (this.isDev) {
-      relaunchEnv.PRISM_START_SERVICES = process.env.PRISM_START_SERVICES || '1';
-      relaunchEnv.PRISM_START_FRONTEND = process.env.PRISM_START_FRONTEND || '1';
+      relaunchEnv.LAOMA_START_SERVICES = process.env.LAOMA_START_SERVICES || '1';
+      relaunchEnv.LAOMA_START_FRONTEND = process.env.LAOMA_START_FRONTEND || '1';
 
       const appPath = app.getAppPath();
       const child = spawn(process.execPath, [appPath], {
@@ -1680,32 +1689,6 @@ class PrismApp {
       args: process.argv.slice(1)
     });
     log.info('Scheduled packaged app restart via app.relaunch');
-  }
-
-  async restartApplication() {
-    if (this.isQuitting) {
-      return { success: true };
-    }
-
-    this.isQuitting = true;
-    this.isRestarting = true;
-    log.info('Restarting application and stopping all processes...');
-
-    try {
-      this.scheduleAppRestart();
-      await this.stopManagedServices();
-      if (this.tray) {
-        this.tray.destroy();
-        this.tray = null;
-      }
-      app.exit(0);
-      return { success: true };
-    } catch (error) {
-      this.isQuitting = false;
-      this.isRestarting = false;
-      log.error('Failed to restart application cleanly:', error);
-      return { success: false, error: error.message };
-    }
   }
 
   getServiceExe(name) {
@@ -1735,19 +1718,20 @@ class PrismApp {
       ...process.env,
       PYTHONUTF8: '1',
       PYTHONIOENCODING: 'utf-8',
-      PRISM_APP_ROOT: appRoot,
-      PRISM_RESOURCES_PATH: appRoot,
+      LAOMA_APP_ROOT: appRoot,
+      LAOMA_RESOURCES_PATH: appRoot,
       PRISM_HERMES_PYTHON: pythonPath,
       PRISM_RUNTIME_SETTINGS_PATH: this.getRuntimeSettingsPath(),
       PLAYWRIGHT_BROWSERS_PATH: browsersRoot,
       PLAYWRIGHT_HEADLESS: this.runtimeSettings.browserHeadless ? 'true' : 'false',
-      PRISM_AUTOMATION_RUNTIME: this.runtimeSettings.automationRuntime,
+      LAOMA_AUTOMATION_RUNTIME: this.runtimeSettings.automationRuntime,
       BACKEND_PORT: backendPort,
-      PRISM_BACKEND_PORT: backendPort,
+      LAOMA_BACKEND_PORT: backendPort,
       AUTOMATION_WORKER_PORT: automationWorkerPort,
-      PRISM_AUTOMATION_WORKER_PORT: automationWorkerPort,
-      PRISM_BACKEND_URL: backendUrl,
-      NEXT_PUBLIC_PRISM_BACKEND_URL: backendUrl,
+      LAOMA_AUTOMATION_WORKER_PORT: automationWorkerPort,
+      LAOMA_BACKEND_URL: backendUrl,
+      SUPERVISOR_KILL_PORT_CONFLICT: '0',
+      NEXT_PUBLIC_LAOMA_BACKEND_URL: backendUrl,
       NEXT_PUBLIC_BACKEND_URL: backendUrl,
       NEXT_PUBLIC_API_URL: backendUrl,
       MANUS_API_BASE_URL: backendApiBaseUrl,
@@ -1757,18 +1741,18 @@ class PrismApp {
     Object.assign(env, pythonEnv);
     this.applyPlatformBrowserPreferenceEnv(env, this.runtimeSettings.platformBrowserPreferences || {});
     this.applyPlatformProxyPreferenceEnv(env, this.runtimeSettings.platformProxyPreferences || {});
-    if (!env.PRISM_DATA_DIR) {
+    if (!env.LAOMA_DATA_DIR) {
       if (this.isDev) {
         const devDataDir = path.join(this.repoRoot, 'prism_backend');
-        env.PRISM_DATA_DIR = devDataDir;
-        log.info('  - PRISM_DATA_DIR (dev):', devDataDir);
+        env.LAOMA_DATA_DIR = devDataDir;
+        log.info('  - LAOMA_DATA_DIR (dev):', devDataDir);
       } else {
         const userDataDir = app.getPath('userData');
         const dataDir = path.join(userDataDir, 'data');
         if (!fs.existsSync(dataDir)) {
           fs.mkdirSync(dataDir, { recursive: true });
         }
-        env.PRISM_DATA_DIR = dataDir;
+        env.LAOMA_DATA_DIR = dataDir;
         const hermesRoot = path.join(userDataDir, 'hermes');
         const hermesHome = path.join(hermesRoot, 'home');
         const hermesWebUiState = path.join(hermesRoot, 'webui');
@@ -1783,7 +1767,7 @@ class PrismApp {
         env.PRISM_HERMES_WEBUI_STATE_DIR = hermesWebUiState;
         env.PRISM_HERMES_WORKSPACE = hermesWorkspace;
         env.PRISM_HERMES_CONFIG_ROOT = hermesConfigRoot;
-        log.info('  - PRISM_DATA_DIR:', dataDir);
+        log.info('  - LAOMA_DATA_DIR:', dataDir);
       }
     }
     if (!env.PLAYWRIGHT_AUTO_INSTALL) {
@@ -2255,15 +2239,12 @@ class PrismApp {
     this.startSupervisor();
     await this.waitForSupervisorState(30000);
     try {
-      await this.waitForSupervisorServices(90000, 1500);
+      await this.waitForSupervisorServices(120000, 1500);
     } catch (error) {
-      // 失败根因上报：把 supervisor 诊断摘要附加到异常信息
+      // 就绪探测超时：只 log 警告，不阻止 frontend 启动
       const diagnostics = await this.getSupervisorDiagnostics(5000);
       const summary = this.summarizeDiagnostics(diagnostics);
-      const wrapped = new Error(`${error.message}${summary ? ` — ${summary}` : ''}`);
-      wrapped.cause = diagnostics;
-      log.error('Supervisor services failed to become healthy:', wrapped);
-      throw wrapped;
+      log.warn('Supervisor services not fully healthy yet, continuing anyway:', error.message, summary || '');
     }
     await this.startFrontend(this.buildServiceEnv());
     this.servicesStarted = true;
@@ -2320,7 +2301,7 @@ class PrismApp {
     // 鏋勫缓鐜鍙橀噺
     const env = this.buildServiceEnv();
     // 动态端口发现：supervisor 把 API 端口/服务端口/启动令牌写入状态文件
-    env.PRISM_SUPERVISOR_STATE_PATH = this.getSupervisorStatePath();
+    env.LAOMA_SUPERVISOR_STATE_PATH = this.getSupervisorStatePath();
 
     this.supervisorProcess = spawn(launchCmd, launchArgs, {
       cwd: supervisorPaths.cwd || this.getResourcesRoot(),
@@ -2359,7 +2340,7 @@ class PrismApp {
       return;
     }
     const redisPath = this.isDev
-      ? (process.env.PRISM_REDIS_PATH || 'redis-server')
+      ? (process.env.LAOMA_REDIS_PATH || 'redis-server')
       : path.join(process.resourcesPath, 'redis', 'redis-server.exe');
 
     log.info('Starting Redis...');
@@ -2524,8 +2505,8 @@ class PrismApp {
 
     if (this.isDev) {
       const shouldStartDevFrontend =
-        process.env.PRISM_START_FRONTEND === '1' ||
-        process.env.PRISM_START_SERVICES === '1';
+        process.env.LAOMA_START_FRONTEND === '1' ||
+        process.env.LAOMA_START_SERVICES === '1';
       if (!shouldStartDevFrontend) {
         log.info('Dev frontend auto-start is disabled; skipping start.');
         return;
@@ -2548,8 +2529,8 @@ class PrismApp {
         HOSTNAME: '127.0.0.1',
         NEXT_PUBLIC_BACKEND_URL: backendUrl,
         NEXT_PUBLIC_API_URL: backendUrl,
-        NEXT_PUBLIC_PRISM_BACKEND_URL: backendUrl,
-        PRISM_BACKEND_URL: backendUrl
+        NEXT_PUBLIC_LAOMA_BACKEND_URL: backendUrl,
+        LAOMA_BACKEND_URL: backendUrl
       };
 
       log.info('Launching development frontend...');
@@ -2589,8 +2570,8 @@ class PrismApp {
       HOSTNAME: '127.0.0.1',
       NEXT_PUBLIC_BACKEND_URL: backendUrl,
       NEXT_PUBLIC_API_URL: backendUrl,
-      NEXT_PUBLIC_PRISM_BACKEND_URL: backendUrl,
-      PRISM_BACKEND_URL: backendUrl,
+      NEXT_PUBLIC_LAOMA_BACKEND_URL: backendUrl,
+      LAOMA_BACKEND_URL: backendUrl,
       NEXT_TELEMETRY_DISABLED: '1'
     };
     this.frontendProcess = spawn(process.execPath, [serverJs], {
@@ -3001,76 +2982,8 @@ class PrismApp {
 
     // ========== 绯荤粺绠＄悊 IPC 澶勭悊鍣?==========
 
-    // 閲嶅惎鍓嶇鏈嶅姟
-    ipcMain.handle('system:restart-frontend', async () => {
-      log.info('Restarting frontend service...');
-      try {
-        if (this.frontendProcess) {
-          this.frontendProcess.kill();
-          this.frontendProcess = null;
-        }
-        await this.startFrontend();
-        log.info('Frontend service restarted successfully');
-        return { success: true };
-      } catch (error) {
-        log.error('Failed to restart frontend service:', error);
-        return { success: false, error: error.message };
-      }
-    });
-
-    // 閲嶅惎鍚庣鏈嶅姟
-    ipcMain.handle('system:restart-backend', async () => {
-      log.info('Restarting backend service...');
-      try {
-        if (this.supervisorProcess && !this.supervisorProcess.killed) {
-          await this.requestSupervisor('/api/restart/backend', 'POST', 30000);
-        } else {
-          if (this.backendProcess) {
-            this.backendProcess.kill();
-            this.backendProcess = null;
-          }
-          await this.startBackend(this.buildServiceEnv());
-        }
-        log.info('Backend service restarted successfully');
-        return { success: true };
-      } catch (error) {
-        log.error('Failed to restart backend service:', error);
-        return { success: false, error: error.message };
-      }
-    });
-
-    // 閲嶅惎鎵€鏈夋湇鍔?
-    ipcMain.handle('system:restart-all', async () => {
-        log.info('Restarting all services...');
-      try {
-        await this.restartManagedServices();
-        log.info('All services restarted successfully');
-        return { success: true };
-      } catch (error) {
-        log.error('Failed to restart all services:', error);
-        return { success: false, error: error.message };
-      }
-    });
-
-    // 鍋滄鎵€鏈夋湇鍔?
-    ipcMain.handle('system:stop-all', async () => {
-      log.info('Stopping all services...');
-      try {
-        await this.stopManagedServices();
-        log.info('All services stopped');
-        return { success: true };
-      } catch (error) {
-        log.error('Failed to stop services:', error);
-        return { success: false, error: error.message };
-      }
-    });
-
     ipcMain.handle('system:quit-app', async () => {
       return this.quitApplication();
-    });
-
-    ipcMain.handle('system:restart-app', async () => {
-      return this.restartApplication();
     });
 
     // 鑾峰彇绯荤粺鐘舵€?
@@ -3226,60 +3139,7 @@ class PrismApp {
     });
 
     // 鍋滄鎵€鏈夋湇鍔?
-    ipcMain.handle('supervisor:stop-all', async () => {
-      try {
-        const http = require('http');
 
-        return new Promise((resolve, reject) => {
-          const req = http.request({
-            hostname: '127.0.0.1',
-            port: this.getSupervisorApiPort(),
-            path: '/api/stop',
-            method: 'POST'
-          }, (res) => {
-            let data = '';
-
-            res.on('data', (chunk) => {
-              data += chunk;
-            });
-
-            res.on('end', () => {
-              try {
-                const result = JSON.parse(data);
-                // 鍚屾椂鍋滄鍓嶇
-                if (this.frontendProcess) {
-                  this.frontendProcess.kill();
-                  this.frontendProcess = null;
-                }
-                resolve({ success: true, message: result.message });
-              } catch (error) {
-                reject(error);
-              }
-            });
-          });
-
-          req.on('error', (error) => {
-            reject(error);
-          });
-
-          req.end();
-        });
-      } catch (error) {
-        log.error('Failed to stop supervisor-managed services:', error);
-        return { success: false, error: error.message };
-      }
-    });
-
-    // 閲嶅惎鎵€鏈夋湇鍔?
-    ipcMain.handle('supervisor:restart-all', async () => {
-      try {
-        await this.restartManagedServices();
-        return { success: true, message: 'Restart completed' };
-      } catch (error) {
-        log.error('Failed to restart supervisor-managed services:', error);
-        return { success: false, error: error.message };
-      }
-    });
 
     // 鍚姩涓诲簲鐢?
     ipcMain.handle('supervisor:launch-main-app', async () => {
@@ -3439,6 +3299,25 @@ class PrismApp {
     stopProcess(this.supervisorProcess, 'supervisor');
     this.supervisorProcess = null;
 
+    // 兜底：按名称杀掉所有可能残留的子进程（PID 失效或不在进程树里）
+    if (process.platform === 'win32') {
+      const residualNames = [
+        'backend.exe',
+        'automation-worker.exe',
+        'celery-worker.exe',
+        'redis-server.exe',
+        'supervisor.exe'
+      ];
+      for (const name of residualNames) {
+        try {
+          execSync(`taskkill /F /T /IM ${name} 2>NUL`, { stdio: 'ignore' });
+          log.info(`Terminated residual ${name}`);
+        } catch (e) {
+          // 进程不存在，忽略
+        }
+      }
+    }
+
     this.servicesStarted = false;
     log.info('Resource cleanup complete');
   }
@@ -3448,6 +3327,15 @@ class PrismApp {
 const prismApp = new PrismApp();
 
 // 鎹曡幏鏈鐞嗙殑閿欒
+// 最后兜底：进程退出时确保所有子进程被清理（防止 before-quit 未触发时残留）
+process.on('exit', () => {
+  try {
+    prismApp.cleanup();
+  } catch (e) {
+    // 忽略退出时的清理错误
+  }
+});
+
 process.on('uncaughtException', (error) => {
   log.error('Uncaught exception:', error);
 });

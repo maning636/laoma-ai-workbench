@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 echo ============================================
-echo   Prism Dev Quick Start
+echo   老马AI工作台 Dev Quick Start
 echo ============================================
 echo.
 
@@ -27,7 +27,7 @@ echo [OK] Environment check passed
 echo.
 
 REM Dev mode: do not auto-start services
-set "PRISM_START_SERVICES=0"
+set "LAOMA_START_SERVICES=0"
 
 echo Starting Electron (dev mode)...
 echo.

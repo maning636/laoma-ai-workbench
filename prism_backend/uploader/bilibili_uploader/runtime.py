@@ -12,6 +12,7 @@ from pathlib import Path
 from urllib.parse import urljoin
 
 import requests
+from fastapi_app.utils.subprocess_safe import safe_run
 
 
 GITHUB_RELEASE_API = "https://api.github.com/repos/biliup/biliup/releases/latest"
@@ -83,7 +84,7 @@ def fetch_latest_release() -> dict:
         GITHUB_RELEASE_API,
         headers={
             "Accept": "application/vnd.github+json",
-            "User-Agent": "Prism",
+            "User-Agent": "老马AI工作台",
         },
         timeout=30,
     )
@@ -99,7 +100,7 @@ def fetch_latest_release() -> dict:
 
 def fetch_latest_release_from_page() -> dict:
     """Resolve the official release asset without consuming GitHub API quota."""
-    headers = {"User-Agent": "Prism"}
+    headers = {"User-Agent": "老马AI工作台"}
     latest_page = requests.get(GITHUB_RELEASE_LATEST_PAGE, headers=headers, timeout=30)
     latest_page.raise_for_status()
     tag_name = latest_page.url.rstrip("/").rsplit("/", 1)[-1]
@@ -217,12 +218,8 @@ def run_biliup_command(arguments: list[str], interactive: bool = False) -> subpr
     binary_path = ensure_biliup_binary(force_check=False)
     command = [str(binary_path), *arguments]
     if interactive:
-        return subprocess.run(command, check=False)
-    return subprocess.run(
+        return safe_run(command, check=False, capture_output=False)
+    return safe_run(
         command,
         check=False,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
     )

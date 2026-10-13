@@ -1,21 +1,21 @@
 ---
-name: prism-project-layout
-description: "Prism 项目布局与调用指南：目录结构、全部后端 API 路由、prism CLI 用法、Hermes MCP 工具清单，以及各服务端口。"
+name: laoma-project-layout
+description: "老马AI工作台项目布局与调用指南：目录结构、全部后端 API 路由、prism CLI 用法、Hermes MCP 工具清单，以及各服务端口。"
 version: 1.0.0
-author: Prism
+author: 老马AI工作台
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
   hermes:
-    tags: [Prism, project-layout, api, cli, mcp, publishing]
+    tags: [老马AI工作台, project-layout, api, cli, mcp, publishing]
     related_skills: []
 prerequisites:
   commands: [prism]
 ---
 
-# Prism 项目布局与调用指南
+# 老马AI工作台项目布局与调用指南
 
-Prism 是一个多平台内容编排与发布项目（矩阵调度 + AI 服务 + 账号/代理/运行时管理），
+老马AI工作台是一个多平台内容编排与发布项目（矩阵调度 + AI 服务 + 账号/代理/运行时管理），
 技术栈为 FastAPI（后端）、Next.js（前端）、Celery/Redis（任务队列）、Patchright（浏览器自动化）、
 Electron（桌面端）、Hermes Agent（内置 AI 助手）。本技能描述项目布局，以及 Hermes 可用的
 **全部 API、CLI、MCP 工具**及其调用方式。
@@ -23,7 +23,7 @@ Electron（桌面端）、Hermes Agent（内置 AI 助手）。本技能描述�
 ## 1. 项目目录布局
 
 ```text
-Prism/
+laoma-ai-workbench/
 ├── prism_backend/          # FastAPI 后端
 │   ├── fastapi_app/
 │   │   ├── main.py         # 应用入口（docs_url=/api/docs, openapi_url=/api/openapi.json）

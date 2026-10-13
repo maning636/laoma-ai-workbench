@@ -155,15 +155,15 @@ export default function AccountActivityLog01() {
   const getEventBadge = (type: string) => {
     switch (type) {
       case "login":
-        return <Badge variant="outline" className="border-border text-white">Login</Badge>;
+        return <Badge variant="outline" className="border-border text-foreground">Login</Badge>;
       case "security":
-        return <Badge variant="outline" className="border-border text-white">Security</Badge>;
+        return <Badge variant="outline" className="border-border text-foreground">Security</Badge>;
       case "settings":
-        return <Badge variant="outline" className="border-border text-white">Settings</Badge>;
+        return <Badge variant="outline" className="border-border text-foreground">Settings</Badge>;
       case "api":
-        return <Badge variant="outline" className="border-border text-white">API</Badge>;
+        return <Badge variant="outline" className="border-border text-foreground">API</Badge>;
       case "content":
-        return <Badge variant="outline" className="border-border text-white">Content</Badge>;
+        return <Badge variant="outline" className="border-border text-foreground">Content</Badge>;
       default:
         return <Badge variant="outline">Other</Badge>;
     }
@@ -231,9 +231,9 @@ export default function AccountActivityLog01() {
                         <h3 className="font-semibold">{event.action}</h3>
                         {getEventBadge(event.type)}
                         {event.success ? (
-                          <CheckCircle className="h-4 w-4 text-white" />
+                          <CheckCircle className="h-4 w-4 text-foreground" />
                         ) : (
-                          <AlertCircle className="h-4 w-4 text-white" />
+                          <AlertCircle className="h-4 w-4 text-foreground" />
                         )}
                       </div>
                       <span className="text-xs text-muted-foreground whitespace-nowrap">
@@ -255,7 +255,7 @@ export default function AccountActivityLog01() {
                         <span className="truncate">{event.device}</span>
                       </div>
                       {event.critical && (
-                        <div className="flex items-center gap-1 text-white">
+                        <div className="flex items-center gap-1 text-foreground">
                           <AlertCircle className="h-3 w-3" />
                           <span>Critical event</span>
                         </div>

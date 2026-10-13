@@ -6,10 +6,6 @@ import { API_ENDPOINTS } from "@/lib/env"
 
 interface LoadingState {
   refreshStatus: boolean
-  restartAll: boolean
-  restartBackend: boolean
-  restartFrontend: boolean
-  stopAll: boolean
   quitApp: boolean
   clearMaterials: boolean
   clearAccounts: boolean
@@ -17,7 +13,6 @@ interface LoadingState {
   clearCache: boolean
   clearVideoData: boolean
   runSelfCheck: boolean
-  forceKill: boolean
   exportLogs: boolean
   setBrowserHeadless: boolean
   setAutomationRuntime: boolean
@@ -122,10 +117,6 @@ export function useSettingsActions() {
   const apiBase = API_ENDPOINTS.base || "http://localhost:7000"
   const [loading, setLoading] = useState<LoadingState>({
     refreshStatus: false,
-    restartAll: false,
-    restartBackend: false,
-    restartFrontend: false,
-    stopAll: false,
     quitApp: false,
     clearMaterials: false,
     clearAccounts: false,
@@ -133,7 +124,6 @@ export function useSettingsActions() {
     clearCache: false,
     clearVideoData: false,
     runSelfCheck: false,
-    forceKill: false,
     exportLogs: false,
     setBrowserHeadless: false,
     setAutomationRuntime: false,
@@ -351,86 +341,6 @@ export function useSettingsActions() {
     void refreshStatus({ silent: true })
   }, [refreshStatus])
 
-  const restartAll = async () => {
-    await handleAction("restartAll", async () => {
-      if (isElectron) {
-        const result = await (window as any).electronAPI.system.restartAll()
-        if (!result.success) {
-          throw new Error(result.error || "服务重启失败")
-        }
-      } else {
-        const response = await fetch(`${apiBase}/api/v1/system/supervisor/restart`, {
-          method: "POST",
-        })
-        if (!response.ok) {
-          const data = await response.json()
-          throw new Error(data.detail || "服务重启失败")
-        }
-      }
-      await refreshStatus({ silent: true })
-    }, "所有服务已重启")
-  }
-
-  const restartBackend = async () => {
-    await handleAction("restartBackend", async () => {
-      if (isElectron) {
-        const result = await (window as any).electronAPI.system.restartBackend()
-        if (!result.success) {
-          throw new Error(result.error || "后端重启失败")
-        }
-      } else {
-        const response = await fetch(`${apiBase}/api/v1/system/supervisor/restart/backend`, {
-          method: "POST",
-        })
-        if (!response.ok) {
-          const data = await response.json()
-          throw new Error(data.detail || "后端重启失败")
-        }
-      }
-      await refreshStatus({ silent: true })
-    }, "后端已重启")
-  }
-
-  const restartFrontend = async () => {
-    await handleAction("restartFrontend", async () => {
-      if (isElectron) {
-        const result = await (window as any).electronAPI.system.restartFrontend()
-        if (!result.success) {
-          throw new Error(result.error || "前端重启失败")
-        }
-      } else {
-        const response = await fetch(`${apiBase}/api/v1/system/restart-frontend`, {
-          method: "POST",
-        })
-        if (!response.ok) {
-          const data = await response.json()
-          throw new Error(data.detail || "前端重启失败")
-        }
-      }
-      await refreshStatus({ silent: true })
-    }, "前端已重启")
-  }
-
-  const stopAll = async () => {
-    await handleAction("stopAll", async () => {
-      if (isElectron) {
-        const result = await (window as any).electronAPI.system.stopAll()
-        if (!result.success) {
-          throw new Error(result.error || "停止服务失败")
-        }
-      } else {
-        const response = await fetch(`${apiBase}/api/v1/system/supervisor/stop`, {
-          method: "POST",
-        })
-        if (!response.ok) {
-          const data = await response.json()
-          throw new Error(data.detail || "停止服务失败")
-        }
-      }
-      await refreshStatus({ silent: true })
-    }, "所有服务已停止")
-  }
-
   const setBrowserHeadless = async (browserHeadless: boolean) => {
     await handleAction("setBrowserHeadless", async () => {
       if (!isElectron) {
@@ -447,7 +357,7 @@ export function useSettingsActions() {
         updateAppInfo({ runtimeSettings: { browserHeadless: payload.headless ?? browserHeadless } })
         toast({
           title: "设置已保存",
-          description: "重启后端后生效",
+          description: "退出并重新启动应用后生效",
         })
         return
       }
@@ -462,11 +372,6 @@ export function useSettingsActions() {
         runtimeSettings: result.settings,
         browserRuntimeInfo: result.browserRuntimeInfo,
       })
-
-      const restartResult = await electron.system.restartAll()
-      if (!restartResult.success) {
-        throw new Error(restartResult.error || "重启服务失败")
-      }
 
       await refreshStatus({ silent: true })
     }, browserHeadless ? "已启用无头模式" : "已关闭无头模式")
@@ -497,11 +402,6 @@ export function useSettingsActions() {
         runtimeSettings: result.settings,
         browserRuntimeInfo: result.browserRuntimeInfo,
       })
-
-      const restartResult = await electron.system.restartAll()
-      if (!restartResult.success) {
-        throw new Error(restartResult.error || "\u670d\u52a1\u91cd\u542f\u5931\u8d25")
-      }
 
       await refreshStatus({ silent: true })
     }, "\u5df2\u542f\u7528 Patchright")
@@ -537,13 +437,8 @@ export function useSettingsActions() {
         browserRuntimeInfo: result.browserRuntimeInfo,
       })
 
-      const restartResult = await electron.system.restartAll()
-      if (!restartResult.success) {
-        throw new Error(restartResult.error || "服务重启失败")
-      }
-
       await refreshStatus({ silent: true })
-    }, "平台浏览器设置已更新，服务已重启")
+    }, "平台浏览器设置已更新")
   }
 
   const setPlatformProxyPreference = async (
@@ -576,53 +471,8 @@ export function useSettingsActions() {
         browserRuntimeInfo: result.browserRuntimeInfo,
       })
 
-      const restartResult = await electron.system.restartAll()
-      if (!restartResult.success) {
-        throw new Error(restartResult.error || "服务重启失败")
-      }
-
       await refreshStatus({ silent: true })
-    }, "平台代理设置已更新，服务已重启")
-  }
-
-  const restartServicesAfterBrowserAssetChange = async () => {
-    const restartViaBackend = async () => {
-      const response = await fetch(`${apiBase}/api/v1/system/supervisor/restart`, {
-        method: "POST",
-      })
-      const data = await response.json().catch(() => ({}))
-      if (!response.ok) {
-        throw new Error(data?.detail || data?.error || "服务重启失败")
-      }
-      if (data?.status === "error") {
-        throw new Error(data?.message || "服务重启失败")
-      }
-      if (data?.status === "unavailable") {
-        throw new Error(data?.message || "服务重启暂不可用")
-      }
-      return true
-    }
-
-    if (isElectron) {
-      const electron = (window as any).electronAPI
-      if (electron.system?.restartAll) {
-        const restartResult = await electron.system.restartAll()
-        if (restartResult.success) {
-          return true
-        }
-      }
-    }
-
-    try {
-      return await restartViaBackend()
-    } catch (error: any) {
-      toast({
-        title: "浏览器资源已变更",
-        description: `${error?.message || "服务重启失败"}，请手动重启服务后再使用。`,
-        variant: "destructive",
-      })
-      return false
-    }
+    }, "平台代理设置已更新")
   }
 
   const installBrowserAsset = async (
@@ -638,20 +488,7 @@ export function useSettingsActions() {
 
       syncBrowserRuntimeInfo(result.browserRuntimeInfo)
 
-      let restartSucceeded = true
-      if (target === "patchright" || isElectron) {
-        restartSucceeded = await restartServicesAfterBrowserAssetChange()
-      }
-
-      if (restartSucceeded) {
-        await refreshStatus({ silent: true })
-      } else {
-        try {
-          await refreshStatus({ silent: true })
-        } catch {
-          // Services may still be restarting after a timeout; keep install successful.
-        }
-      }
+      await refreshStatus({ silent: true })
     }, `${label} \u5df2\u5b89\u88c5`)
   }
 
@@ -680,19 +517,7 @@ export function useSettingsActions() {
 
       syncBrowserRuntimeInfo(result.browserRuntimeInfo)
 
-      const restartSucceeded = (target === "patchright" || isElectron)
-        ? await restartServicesAfterBrowserAssetChange()
-        : true
-
-      if (restartSucceeded) {
-        await refreshStatus({ silent: true })
-      } else {
-        try {
-          await refreshStatus({ silent: true })
-        } catch {
-          // Services may still be restarting after a timeout; keep uninstall successful.
-        }
-      }
+      await refreshStatus({ silent: true })
     }, `${label} 已卸载`)
   }
 
@@ -794,26 +619,6 @@ export function useSettingsActions() {
     }, "自检已完成")
   }
 
-  const forceKillProcesses = async () => {
-    await handleAction("forceKill", async () => {
-      if (isElectron) {
-        const result = await (window as any).electronAPI.system.stopAll()
-        if (!result.success) {
-          throw new Error(result.error || "强制停止失败")
-        }
-      } else {
-        const response = await fetch(`${apiBase}/api/v1/system/supervisor/stop`, {
-          method: "POST",
-        })
-        if (!response.ok) {
-          const data = await response.json()
-          throw new Error(data.detail || "强制停止失败")
-        }
-      }
-      await refreshStatus({ silent: true })
-    }, "相关进程已停止")
-  }
-
   const exportLogs = async () => {
     await handleAction("exportLogs", async () => {
       const response = await fetch(`${apiBase}/api/v1/system/export-logs`, { method: "POST" })
@@ -826,7 +631,7 @@ export function useSettingsActions() {
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `prism-logs-${new Date().toISOString().split("T")[0]}.zip`
+      a.download = `laoma-logs-${new Date().toISOString().split("T")[0]}.zip`
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)
@@ -840,10 +645,6 @@ export function useSettingsActions() {
     loading,
     isElectronApp: isElectron,
     refreshStatus,
-    restartAll,
-    restartBackend,
-    restartFrontend,
-    stopAll,
     setBrowserHeadless,
     setAutomationRuntime,
     setPlatformBrowserPreference,
@@ -861,7 +662,6 @@ export function useSettingsActions() {
     clearCache,
     clearVideoData,
     runSelfCheck,
-    forceKillProcesses,
     exportLogs,
   }
 }

@@ -1,4 +1,4 @@
-# Prism Repo Layout And Cleanup
+# 老马AI工作台 Repo Layout And Cleanup
 
 This repository mixes long-lived source trees, local runtimes, and generated build output. Do not bulk-move top-level folders unless the call sites are verified first.
 

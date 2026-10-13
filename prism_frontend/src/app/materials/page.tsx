@@ -402,7 +402,7 @@ function MaterialsPageContent() {
             type="checkbox"
             checked={isAllSelected}
             onChange={handleToggleSelectAll}
-            className="h-4 w-4 rounded border-border/80 bg-black text-primary focus:ring-2 focus:ring-primary cursor-pointer"
+            className="h-4 w-4 rounded border-border/80 bg-popover text-primary focus:ring-2 focus:ring-primary cursor-pointer"
           />
         </div>
       ),
@@ -412,7 +412,7 @@ function MaterialsPageContent() {
             type="checkbox"
             checked={selectedIds.has(row.original.id)}
             onChange={() => handleToggleSelect(row.original.id)}
-            className="h-4 w-4 rounded border-border/80 bg-black text-primary focus:ring-2 focus:ring-primary cursor-pointer"
+            className="h-4 w-4 rounded border-border/80 bg-popover text-primary focus:ring-2 focus:ring-primary cursor-pointer"
           />
         </div>
       ),
@@ -499,7 +499,7 @@ function MaterialsPageContent() {
           <Button
             size="sm"
             variant="secondary"
-            className="h-8 px-3 rounded-lg bg-black hover:bg-accent/60 text-foreground border border-border/40"
+            className="h-8 px-3 rounded-lg bg-popover hover:bg-accent/60 text-foreground border border-border/40"
             onClick={() => setSelectedMaterial(row.original)}
           >
             <FileText className="h-3.5 w-3.5 mr-1.5" />
@@ -507,7 +507,7 @@ function MaterialsPageContent() {
           </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button size="icon" variant="ghost" className="h-8 w-8 text-foreground/40 hover:text-white hover:bg-black">
+              <Button size="icon" variant="ghost" className="h-8 w-8 text-foreground/40 hover:text-foreground hover:bg-popover">
                 <Trash2 className="h-4 w-4" />
               </Button>
             </AlertDialogTrigger>
@@ -536,7 +536,7 @@ function MaterialsPageContent() {
           <div className="flex gap-3">
             <Button
               variant="outline"
-              className="rounded-xl border-border/70 bg-black hover:bg-accent/50"
+              className="rounded-xl border-border/70 bg-popover hover:bg-accent/50"
               onClick={handleSync}
               disabled={isSyncing}
             >
@@ -594,7 +594,7 @@ function MaterialsPageContent() {
                         <Button
                           type="button"
                           variant="secondary"
-                          className="h-10 px-3 bg-black hover:bg-accent/50 text-foreground border border-border/40"
+                          className="h-10 px-3 bg-popover hover:bg-accent/50 text-foreground border border-border/40"
                           onClick={() => setShowNewGroup(v => !v)}
                         >
                           <Plus className={cn("h-4 w-4 transition-transform", showNewGroup ? "rotate-45" : "")} />
@@ -728,7 +728,7 @@ function MaterialsPageContent() {
                                           <div className="flex items-center gap-2 min-w-0 flex-1">
                                             <span className="text-sm text-foreground/80 truncate font-medium">{g}</span>
                                             {!backendGroup && (
-                                              <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-black text-foreground/30 border border-border/40">
+                                              <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-popover text-foreground/30 border border-border/40">
                                                 本地
                                               </span>
                                             )}
@@ -750,7 +750,7 @@ function MaterialsPageContent() {
                                               type="button"
                                               variant="ghost"
                                               size="icon"
-                                              className="h-7 w-7 text-foreground/40 hover:text-white hover:bg-black"
+                                              className="h-7 w-7 text-foreground/40 hover:text-foreground hover:bg-popover"
                                               disabled={groupActionBusy}
                                               onClick={async () => {
                                                 if (!confirm(`确认删除分组：${g} ？`)) return
@@ -808,13 +808,13 @@ function MaterialsPageContent() {
             <div className="flex items-center gap-2 bg-card p-1 rounded-xl border border-border/70">
               <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)} className="w-full">
                 <TabsList className="h-8 rounded-sm bg-background border border-border/70 backdrop-blur-sm">
-                  <TabsTrigger value="all" className="rounded-sm text-xs text-foreground/70 data-[state=active]:bg-foreground/90 data-[state=active]:text-background transition-colors">
+                  <TabsTrigger value="all" className="rounded-sm text-xs text-foreground/70 data-[state=active]:bg-primary data-[state=active]:text-foreground transition-colors">
                     全部
                   </TabsTrigger>
-                  <TabsTrigger value="pending" className="rounded-sm text-xs text-foreground/70 data-[state=active]:bg-foreground/90 data-[state=active]:text-background transition-colors">
+                  <TabsTrigger value="pending" className="rounded-sm text-xs text-foreground/70 data-[state=active]:bg-primary data-[state=active]:text-foreground transition-colors">
                     待发布
                   </TabsTrigger>
-                  <TabsTrigger value="published" className="rounded-sm text-xs text-foreground/70 data-[state=active]:bg-foreground/90 data-[state=active]:text-background transition-colors">
+                  <TabsTrigger value="published" className="rounded-sm text-xs text-foreground/70 data-[state=active]:bg-primary data-[state=active]:text-foreground transition-colors">
                     已发布
                   </TabsTrigger>
                 </TabsList>
@@ -850,7 +850,7 @@ function MaterialsPageContent() {
           <ScrollArea className="h-full">
             <div className="p-4 pt-0">
               {selectedIds.size > 0 && (
-                <div className="mb-3 flex items-center gap-3 p-2.5 bg-black border border-border">
+                <div className="mb-3 flex items-center gap-3 p-2.5 bg-popover border border-border">
                   <span className="text-xs text-foreground/80">
                     已选择 {selectedIds.size} 个素材
                   </span>

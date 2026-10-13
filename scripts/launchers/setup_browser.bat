@@ -3,7 +3,7 @@ setlocal
 chcp 65001 >nul
 
 echo ==========================================
-echo   Prism Browser Setup
+echo   老马AI工作台 Browser Setup
 echo ==========================================
 echo.
 
@@ -19,7 +19,7 @@ if exist "%ROOT%\prismenv\Scripts\python.exe" (
         echo Run:
         echo   start.bat
         echo or create the conda environment manually.
-        if not defined PRISM_NO_PAUSE pause
+        if not defined LAOMA_NO_PAUSE pause
         exit /b 1
     )
     set "PYTHON=python"
@@ -32,7 +32,7 @@ echo [2/4] Installing Python requirements...
 %PYTHON% -m pip install -r "%ROOT%\requirements.txt"
 if errorlevel 1 (
     echo [ERROR] Failed to install requirements.txt
-    if not defined PRISM_NO_PAUSE pause
+    if not defined LAOMA_NO_PAUSE pause
     exit /b 1
 )
 echo.
@@ -41,7 +41,7 @@ echo [3/4] Installing Hibbiki Chromium...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%\scripts\packaging\install_hibbiki_chromium.ps1" -ProjectRoot "%ROOT%" -Clean
 if errorlevel 1 (
     echo [ERROR] Failed to install Chromium
-    if not defined PRISM_NO_PAUSE pause
+    if not defined LAOMA_NO_PAUSE pause
     exit /b 1
 )
 echo.
@@ -51,11 +51,11 @@ set "PLAYWRIGHT_BROWSERS_PATH=%ROOT%\browsers"
 %PYTHON% -m patchright install firefox
 if errorlevel 1 (
     echo [ERROR] Failed to install Firefox
-    if not defined PRISM_NO_PAUSE pause
+    if not defined LAOMA_NO_PAUSE pause
     exit /b 1
 )
 echo.
 
 echo Browser setup complete.
 echo Open the settings page to switch runtime or verify browser assets.
-if not defined PRISM_NO_PAUSE pause
+if not defined LAOMA_NO_PAUSE pause

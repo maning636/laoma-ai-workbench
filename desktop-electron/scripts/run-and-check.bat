@@ -5,7 +5,7 @@ echo   启动打包程序并查看日志
 echo ============================================
 echo.
 
-set "APP=%~dp0..\dist-build\win-unpacked\Prism.exe"
+set "APP=%~dp0..\dist-build\win-unpacked\LaomaAI.exe"
 set "RES=%~dp0..\dist-build\win-unpacked\resources"
 
 if not exist "%APP%" (

@@ -1,7 +1,7 @@
 """
-Prism-Fusion AI 能力层
+LaomaAI-Fusion AI 能力层
 ━━━━━━━━━━━━━━━━━━━━━━
-在 Prism 原生 ai_service / ai_router 之上，补充以下 CAP 缺的能力：
+在 老马AI工作台 原生 ai_service / ai_router 之上，补充以下 CAP 缺的能力：
   - model_providers:  11+ 主流 LLM provider 注册表 + 自动探测
   - platform_styles:  7+ 平台差异化风格模板 + 前台 CRUD
   - image_generators: NanoBanana / DALL·E3 / 通义万象 / Flux + 自定义模型

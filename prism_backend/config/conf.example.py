@@ -34,7 +34,7 @@ def _search_app_root(start: Path) -> Path | None:
 
 # Prefer explicit app root from Electron or packagers, fall back to repo root.
 def _resolve_app_root() -> Path:
-    env_root = os.getenv("PRISM_APP_ROOT") or os.getenv("PRISM_RESOURCES_PATH")
+    env_root = os.getenv("LAOMA_APP_ROOT") or os.getenv("LAOMA_RESOURCES_PATH")
     if env_root:
         return Path(env_root).resolve()
     if getattr(sys, "frozen", False):

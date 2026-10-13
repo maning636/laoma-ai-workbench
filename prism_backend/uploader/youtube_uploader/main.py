@@ -1,4 +1,4 @@
-"""YouTube Studio uploader built on Prism's Patchright runtime.
+"""YouTube Studio uploader built on 老马AI工作台's Patchright runtime.
 
 Google sign-in has no reliable QR-code flow for this application.  Login is a
 visible, local-browser operation; its storage state is then reused by queued

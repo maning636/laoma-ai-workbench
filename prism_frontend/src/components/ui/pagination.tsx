@@ -62,7 +62,7 @@ export function Pagination({ page, pageCount, onPageChange, total, className }: 
               className={cn(
                 "h-7 min-w-7 px-1.5 text-xs",
                 p === page
-                  ? "bg-foreground text-background"
+                  ? "bg-popover text-foreground"
                   : "border border-border bg-card text-foreground/70 hover:text-foreground"
               )}
               onClick={() => onPageChange(p)}

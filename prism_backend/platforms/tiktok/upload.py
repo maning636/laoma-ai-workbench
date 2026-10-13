@@ -1,4 +1,4 @@
-"""TikTok adapter that exposes the legacy uploader through Prism's platform API."""
+"""TikTok adapter that exposes the legacy uploader through 老马AI工作台's platform API."""
 
 from __future__ import annotations
 

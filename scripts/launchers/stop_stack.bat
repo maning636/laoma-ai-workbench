@@ -7,7 +7,7 @@ set "REDIS_CLI=redis-cli"
 if exist "%ROOT%\prism_backend\Redis\redis-cli.exe" set "REDIS_CLI=%ROOT%\prism_backend\Redis\redis-cli.exe"
 
 echo ============================================
-echo   Stop All Prism Services
+echo   Stop All 老马AI工作台 Services
 echo ============================================
 echo.
 

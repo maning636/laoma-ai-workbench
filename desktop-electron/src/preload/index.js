@@ -2,20 +2,6 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 const invoke = (channel, ...args) => ipcRenderer.invoke(channel, ...args);
 
-const isMissingRestartAllHandler = (error) =>
-  String(error?.message || error || '').includes("No handler registered for 'system:restart-all'");
-
-const restartAllWithFallback = async () => {
-  try {
-    return await invoke('system:restart-all');
-  } catch (error) {
-    if (!isMissingRestartAllHandler(error)) {
-      throw error;
-    }
-    return invoke('supervisor:restart-all');
-  }
-};
-
 // 暴露安全的 API 给渲染进程
 contextBridge.exposeInMainWorld('electronAPI', {
   // 浏览器自动化运行时
@@ -52,11 +38,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 系统管理
   system: {
-    restartFrontend: () => invoke('system:restart-frontend'),
-    restartBackend: () => invoke('system:restart-backend'),
-    restartAll: () => restartAllWithFallback(),
-    restartApp: () => invoke('system:restart-app'),
-    stopAll: () => invoke('system:stop-all'),
     quitApp: () => invoke('system:quit-app'),
     getStatus: () => invoke('system:get-status'),
     clearVideoData: (options) => invoke('system:clear-video-data', options)
@@ -66,8 +47,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   supervisor: {
     getStatus: () => invoke('supervisor:get-status'),
     startAll: () => invoke('supervisor:start-all'),
-    stopAll: () => invoke('supervisor:stop-all'),
-    restartAll: () => invoke('supervisor:restart-all'),
     launchMainApp: () => invoke('supervisor:launch-main-app'),
     getDiagnostics: () => invoke('supervisor:get-diagnostics')
   },

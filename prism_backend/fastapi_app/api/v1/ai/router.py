@@ -561,6 +561,7 @@ async def run_script(request: ScriptRunRequest):
         import time
         from pathlib import Path
         from fastapi_app.core.config import settings
+        from fastapi_app.utils.subprocess_safe import safe_run
         
         # 查找脚本文件
         scripts_dir = settings.BASE_DIR / "scripts"
@@ -580,10 +581,8 @@ async def run_script(request: ScriptRunRequest):
         # 执行脚本
         start_time = time.time()
         
-        result = subprocess.run(
+        result = safe_run(
             ["python", str(script_path)] + request.args,
-            capture_output=True,
-            text=True,
             timeout=300,  # 5分钟超时
             cwd=str(settings.BASE_DIR)
         )

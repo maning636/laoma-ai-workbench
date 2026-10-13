@@ -7,7 +7,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repo = "Hibbiki/chromium-win64"
-$headers = @{ "User-Agent" = "Prism-build" }
+$headers = @{ "User-Agent" = "LaomaAI-build" }
 $releaseUrl = "https://api.github.com/repos/$repo/releases/latest"
 
 if ($Version) {

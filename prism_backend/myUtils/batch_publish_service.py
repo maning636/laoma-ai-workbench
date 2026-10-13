@@ -33,6 +33,44 @@ PLATFORM_SETTINGS_KEY_BY_CODE = {
 }
 
 
+def _record_success_receipt(platform, account_id, video_url, data: Dict) -> None:
+    """Phase 0.1: 发布成功后保存结构化回执"""
+    try:
+        from prism_core.receipts import build_success_receipt, save_receipt, platform_name_for
+        pn = platform_name_for(platform)
+        receipt = build_success_receipt(
+            platform=platform,
+            platform_name=pn,
+            account_id=str(account_id),
+            video_url=video_url,
+            attempt=data.get('attempt', 1),
+        )
+        save_receipt(receipt)
+    except Exception as e:
+        logger.warning(f"[Receipt] 保存成功回执失败（不影响发布）: {e}")
+
+
+def _record_failure_receipt(platform, account_id, error_code, error_msg, retryable=False, data: Dict = None) -> None:
+    """Phase 0.1: 发布失败后保存结构化回执"""
+    try:
+        from prism_core.receipts import build_error_receipt, save_receipt, platform_name_for, ErrorCode
+        pn = platform_name_for(platform)
+        ec = ErrorCode(error_code) if error_code in [e.value for e in ErrorCode] else ErrorCode.UNKNOWN
+        receipt = build_error_receipt(
+            platform=platform,
+            platform_name=pn,
+            account_id=str(account_id),
+            error_code=ec,
+            error_message=str(error_msg)[:500],
+            retryable=retryable,
+            requires_human_action=(error_code in ('CAPTCHA_REQUIRED', 'ACCOUNT_BLOCKED', 'LOGIN_REQUIRED', 'COOKIE_EXPIRED')),
+            attempt=data.get('attempt', 1) if data else 1,
+        )
+        save_receipt(receipt)
+    except Exception as e:
+        logger.warning(f"[Receipt] 保存失败回执失败（不影响异常抛出）: {e}")
+
+
 def _platform_settings_for(data: Dict, platform: int) -> Dict:
     """从 task_data 里取对应平台的 platform_settings（返回 {} 兜底）。"""
     try:
@@ -171,6 +209,8 @@ class BatchPublishService:
                 # 没有返回值，但没抛出异常，认为成功
                 logger.info(f"[Publish] 发布成功: {account_id} @ platform_{platform}")
                 cookie_manager.update_account(account_id, status='valid')
+                # Phase 0.1: 保存发布回执
+                _record_success_receipt(platform, account_id, None, data)
                 return {
                     "success": True,
                     "account_id": account_id,
@@ -202,6 +242,8 @@ class BatchPublishService:
                 logger.info(f"[Publish] 发布成功: {account_id} @ platform_{platform}")
                 # 更新账号状态为正常
                 cookie_manager.update_account(account_id, status='valid')
+                # Phase 0.1: 保存发布回执
+                _record_success_receipt(platform, account_id, result.get('video_url'), data)
                 return {
                     "success": True,
                     "account_id": account_id,
@@ -219,15 +261,19 @@ class BatchPublishService:
                 ) if result else '发布函数返回空'
                 raise Exception(error)
 
-        except CaptchaRequiredException:
-            # 验证码异常，需要特殊处理（任务队列会自动后移）
+        except CaptchaRequiredException as e:
+            _record_failure_receipt(platform, account_id, "CAPTCHA_REQUIRED", str(e), retryable=False, data=data)
             raise
-        except AccountBlockedException:
-            # 账号封禁异常，直接失败不重试
+        except AccountBlockedException as e:
+            _record_failure_receipt(platform, account_id, "ACCOUNT_BLOCKED", str(e), retryable=False, data=data)
+            raise
+        except FileNotFoundError as e:
+            _record_failure_receipt(platform, account_id, "VIDEO_NOT_FOUND", str(e), retryable=False, data=data)
             raise
         except Exception as e:
             logger.error(f"[Publish] 发布失败: {account_id} @ platform_{platform}")
             logger.error(f"   错误: {str(e)}")
+            _record_failure_receipt(platform, account_id, "UNKNOWN", str(e), retryable=True, data=data)
             raise
 
     async def handle_batch_publish(self, data: Dict) -> Dict:

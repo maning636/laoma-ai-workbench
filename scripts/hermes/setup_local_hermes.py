@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cross-platform Hermes runtime setup for Prism (macOS / Linux / Windows).
+"""Cross-platform Hermes runtime setup for 老马AI工作台 (macOS / Linux / Windows).
 
 The Windows-only ``setup-local-hermes.ps1`` prepares ``tools/hermes-agent`` +
 ``prismenv`` and stamps the runtime as ready. This script is the same job for

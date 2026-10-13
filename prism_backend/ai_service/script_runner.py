@@ -3,8 +3,9 @@ import sys
 import time
 from pathlib import Path
 from typing import List, Dict, Any
+from fastapi_app.utils.subprocess_safe import safe_run
 
-# Base directory: .../Prism
+# Base directory: .../老马AI工作台
 BASE_DIR = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = BASE_DIR / "prism_backend" / "scripts"
 
@@ -73,11 +74,8 @@ def run_script(script_name: str, args: List[str] | None = None) -> Dict[str, Any
 
     start = time.time()
     try:
-        completed = subprocess.run(
+        completed = safe_run(
             [sys.executable, str(script_path), *args],
-            capture_output=True,
-            text=True,
-            check=False,
             timeout=600,
         )
         duration = round(time.time() - start, 3)

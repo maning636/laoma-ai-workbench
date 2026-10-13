@@ -10,7 +10,7 @@ set "REDIS_CLI=redis-cli"
 if exist "%PROJECT_ROOT%prism_backend\Redis\redis-cli.exe" set "REDIS_CLI=%PROJECT_ROOT%prism_backend\Redis\redis-cli.exe"
 
 echo ============================================
-echo   Prism Full Startup
+echo   老马AI工作台 Full Startup
 echo ============================================
 echo.
 

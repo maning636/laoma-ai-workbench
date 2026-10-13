@@ -1,4 +1,4 @@
-"""Project-local Hermes CLI bridge for the Prism agent UI."""
+"""Project-local Hermes CLI bridge for the 老马AI工作台 agent UI."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from typing import Any, Callable, Dict, List, Literal, Optional
 
 from loguru import logger
 
+from fastapi_app.utils.subprocess_safe import safe_run
 from .hermes_config import (
     build_hermes_pythonpath,
     detect_git_bash_path,
@@ -38,7 +39,7 @@ _ANSI_RE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 
 # Project skills preloaded into every Hermes session by default. They live at
 # tools/hermes-home/skills/software-development/<name>/SKILL.md (the docs/
-# hermes-skills/<name>/SKILL.md is the repo source) and describe the Prism
+# hermes-skills/<name>/SKILL.md is the repo source) and describe the 老马AI工作台
 # layout/routes/CLI/MCP tools plus the platform 网感 title-topic copywriting
 # rules. Passing --skills makes them active guidance for the whole session
 # instead of only being discoverable on demand. Accepts a comma-separated list.
@@ -143,7 +144,7 @@ def _build_project_capabilities_block() -> str:
 
 def _build_prompt(goal: str, context: Optional[Dict[str, Any]]) -> str:
     sections = [
-        "You are Hermes Agent running inside the Prism project.",
+        "You are Hermes Agent running inside the 老马AI工作台 project.",
         f"Working directory: {get_workspace_root()}",
         "Answer in Chinese unless the user explicitly requests another language.",
         "You may use the Hermes CLI runtime together with the current repository, local scripts, and local backend APIs to complete the task.",
@@ -158,12 +159,18 @@ def _build_prompt(goal: str, context: Optional[Dict[str, Any]]) -> str:
     return "\n\n".join(sections)
 
 
-def _ensure_runtime_home(config: Optional[Dict[str, Any]] = None) -> Path:
+def _ensure_runtime_home(
+    config: Optional[Dict[str, Any]] = None,
+    *,
+    skip_skill_sync: bool = False,
+) -> Path:
     home_path = get_hermes_home_path()
     home_path.mkdir(parents=True, exist_ok=True)
 
     # Keep the preloaded project-layout skill in sync with its docs/ source.
-    sync_prism_project_skill()
+    # B10: 幂等调用允许显式跳过(例如 dashboard 冷启动时 agent 已初始化过)。
+    if not skip_skill_sync:
+        sync_prism_project_skill()
 
     config_yaml_path = home_path / "config.yaml"
     if config and config.get("llm"):
@@ -491,20 +498,42 @@ class HermesAgentWrapper:
 
 _hermes_agent_instance: Optional[HermesAgentWrapper] = None
 
+# B10 懒加载:agent 首次调用时初始化(见 get_hermes_agent)。
+# - _agent_init_lock 防止并发首次请求各自创建 instance / 各跑一次 initialize
+# - 未加锁的快速路径直接读 _hermes_agent_instance;锁内二次检查 (double-checked)
+_agent_init_lock = asyncio.Lock()
+_agent_initialized = False
+
+# B10 懒加载:dashboard 首次真正请求时启动,不在 startup 起后台 create_task。
+_dashboard_lock = asyncio.Lock()
+_dashboard_started = False
+
 
 async def get_hermes_agent() -> HermesAgentWrapper:
-    global _hermes_agent_instance
-    if _hermes_agent_instance is None:
-        _hermes_agent_instance = HermesAgentWrapper()
+    global _hermes_agent_instance, _agent_initialized
+    # 快速路径:已初始化直接返回,避免锁开销。
+    if _hermes_agent_instance is not None and _agent_initialized:
+        return _hermes_agent_instance
+    async with _agent_init_lock:
+        # 二次检查:可能已有并发请求初始化完成。
+        if _hermes_agent_instance is not None and _agent_initialized:
+            return _hermes_agent_instance
+        if _hermes_agent_instance is None:
+            _hermes_agent_instance = HermesAgentWrapper()
+        # 首次初始化约 4s (_ensure_runtime_ready 会 sync skill / 检查依赖等)。
+        # 多次 init 是幂等的,cleanup 后 reset 标志会再次触发。
         await _hermes_agent_instance.initialize()
-    return _hermes_agent_instance
+        _agent_initialized = True
+        return _hermes_agent_instance
 
 
 async def reset_hermes_agent() -> None:
-    global _hermes_agent_instance
-    if _hermes_agent_instance is not None:
-        await _hermes_agent_instance.cleanup()
-    _hermes_agent_instance = None
+    global _hermes_agent_instance, _agent_initialized
+    async with _agent_init_lock:
+        if _hermes_agent_instance is not None:
+            await _hermes_agent_instance.cleanup()
+        _hermes_agent_instance = None
+        _agent_initialized = False
 
 
 async def run_hermes_goal(
@@ -559,11 +588,11 @@ async def get_hermes_runtime_status(
 ) -> Dict[str, Any]:
     global _dashboard_process, _dashboard_backend, _webui_process
 
-    port = port if isinstance(port, int) and port > 0 else _get_runtime_port("PRISM_HERMES_DASHBOARD_PORT", 9119)
+    port = port if isinstance(port, int) and port > 0 else _get_runtime_port("LAOMA_HERMES_DASHBOARD_PORT", 9119)
     webui_port = (
         webui_port
         if isinstance(webui_port, int) and webui_port > 0
-        else _get_runtime_port("PRISM_HERMES_WEBUI_PORT", 8788)
+        else _get_runtime_port("LAOMA_HERMES_WEBUI_PORT", 8788)
     )
 
     runtime = get_runtime_summary()
@@ -639,7 +668,20 @@ async def _start_dashboard_backend(
             return await get_hermes_runtime_status()
 
     config = read_agent_config()
-    home_path = _ensure_runtime_home(config if config.get("llm") else None)
+
+    # B10: 去重复 _ensure_runtime_home — 若 HermesAgent 已完成初始化
+    # (initialize() 时已经跑过 _ensure_runtime_ready → _ensure_runtime_home
+    #  → sync_prism_project_skill),这里跳过重复的 sync,只保留 config/env 等
+    # 幂等的最小副作用。dashboard 冷启动时 agent 通常已被 main.py 初始化,
+    # 可减少约 1-2s。
+    agent_already_initialized = (
+        _hermes_agent_instance is not None
+        and getattr(_hermes_agent_instance, "_initialized", False)
+    )
+    home_path = _ensure_runtime_home(
+        config if config.get("llm") else None,
+        skip_skill_sync=agent_already_initialized,
+    )
     webui_state_path = get_hermes_webui_state_path()
     workspace_root = get_workspace_root()
 
@@ -722,26 +764,53 @@ async def start_hermes_dashboard(
     resolved_port = (
         port
         if isinstance(port, int) and port > 0
-        else _get_runtime_port("PRISM_HERMES_DASHBOARD_PORT", 9119)
+        else _get_runtime_port("LAOMA_HERMES_DASHBOARD_PORT", 9119)
     )
     return await _start_dashboard_backend(backend, resolved_port)
+
+
+async def ensure_hermes_dashboard_started(
+    port: Optional[int] = None,
+    backend_override: Optional[Literal["official", "webui"]] = None,
+) -> Dict[str, Any]:
+    """B10 懒加载:首次请求 Hermes Dashboard 时按需启动,后续调用直接复用。
+
+    - 与 B10 之前的 `startup_event → create_task(start_hermes_dashboard())` 语义等价,
+      但推迟到首次真正需要 dashboard 的 API 调用,让不使用 Hermes 的场景
+      startup 降到 2-3s(agent + dashboard 均不再启动)。
+    - `_dashboard_started` 与 `_dashboard_process` 生命周期绑定:
+      stop_hermes_dashboard 复位标志,后续请求会重新走启动路径。
+    - `_start_dashboard_backend` 内部已对「端口已开 / 进程仍在跑」做幂等返回,
+      所以这里即使 `_dashboard_started=False` 但外部进程已占端口,也不会重复启动。
+    """
+    global _dashboard_started
+    async with _dashboard_lock:
+        if _dashboard_started:
+            return await get_hermes_runtime_status(port)
+        runtime = await start_hermes_dashboard(port=port, backend_override=backend_override)
+        _dashboard_started = True
+        return runtime
 
 
 async def start_hermes_interfaces(
     dashboard_port: Optional[int] = None,
     webui_port: Optional[int] = None,
 ) -> Dict[str, Any]:
+    global _dashboard_started
     resolved_dashboard_port = (
         dashboard_port
         if isinstance(dashboard_port, int) and dashboard_port > 0
-        else _get_runtime_port("PRISM_HERMES_DASHBOARD_PORT", 9119)
+        else _get_runtime_port("LAOMA_HERMES_DASHBOARD_PORT", 9119)
     )
     resolved_webui_port = (
         webui_port
         if isinstance(webui_port, int) and webui_port > 0
-        else _get_runtime_port("PRISM_HERMES_WEBUI_PORT", 8788)
+        else _get_runtime_port("LAOMA_HERMES_WEBUI_PORT", 8788)
     )
     await _start_dashboard_backend("official", resolved_dashboard_port)
+    # B10 懒加载:官方 dashboard 通过 interfaces 路径启动后,同步标记,
+    # 让后续 ensure_hermes_dashboard_started 快速路径直接返回。
+    _dashboard_started = True
     return await _start_dashboard_backend("webui", resolved_webui_port)
 
 
@@ -755,11 +824,11 @@ async def _stop_spawned_process(
 
     try:
         if sys.platform == "win32":
-            subprocess.run(
+            safe_run(
                 ["taskkill", "/F", "/T", "/PID", str(process.pid)],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                check=False,
+                capture_output=False,
             )
             try:
                 await asyncio.wait_for(process.wait(), timeout=5)
@@ -782,6 +851,7 @@ async def stop_hermes_dashboard(
     backend: Optional[Literal["official", "webui"]] = None,
 ) -> Dict[str, Any]:
     global _dashboard_process, _dashboard_log_task, _dashboard_backend, _webui_process, _webui_log_task
+    global _dashboard_started
 
     if backend in (None, "official"):
         if _dashboard_process is not None and _dashboard_process.returncode is None:
@@ -811,4 +881,6 @@ async def stop_hermes_dashboard(
 
     if backend in (None, "official"):
         _dashboard_backend = None
+        # B10 懒加载:dashboard 停了就清标志,下次请求重新走启动路径。
+        _dashboard_started = False
     return await get_hermes_runtime_status()

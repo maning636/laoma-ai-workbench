@@ -8,8 +8,9 @@ from fastapi_app.models.campaign_new import Campaign, CreateCampaignRequest, Cam
 from fastapi_app.services.matrix_scheduler import get_matrix_scheduler
 from fastapi_app.api.v1.accounts.services import account_service
 from fastapi_app.core.logger import logger
+from fastapi_app.core import paths
 
-CAMPAIGNS_FILE = Path("data/campaigns.json")
+CAMPAIGNS_FILE = paths.get_data_dir() / "campaigns.json"
 
 class CampaignService:
     def __init__(self):

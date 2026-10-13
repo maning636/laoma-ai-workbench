@@ -35,7 +35,7 @@ def _search_app_root(start: Path) -> Path | None:
 
 # Prefer explicit app root from Electron or packagers, fall back to repo root.
 def _resolve_app_root() -> Path:
-    env_root = os.getenv("PRISM_APP_ROOT") or os.getenv("PRISM_RESOURCES_PATH")
+    env_root = os.getenv("LAOMA_APP_ROOT") or os.getenv("LAOMA_RESOURCES_PATH")
     if env_root:
         return Path(env_root).resolve()
     if getattr(sys, "frozen", False):
@@ -174,10 +174,10 @@ def _env_bool(name: str, default: bool) -> bool:
 PLAYWRIGHT_HEADLESS = _env_bool("PLAYWRIGHT_HEADLESS", True)
 
 # Shared uploader defaults.  The upstream refactored CLI names these values
-# explicitly; keeping aliases here lets Prism expose the same platform-level
+# explicitly; keeping aliases here lets 老马AI工作台 expose the same platform-level
 # contract without every caller reading environment variables itself.
 LOCAL_CHROME_HEADLESS = PLAYWRIGHT_HEADLESS
-DEBUG_MODE = _env_bool("PRISM_DEBUG_MODE", False)
+DEBUG_MODE = _env_bool("LAOMA_DEBUG_MODE", False)
 
 # Browser-based YouTube Studio uploads do not inherit the OS proxy reliably.
 # Set YT_PROXY in the runtime environment when a local proxy is required.

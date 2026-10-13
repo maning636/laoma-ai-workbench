@@ -25,11 +25,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 
+from fastapi_app.agent.hermes_config import get_hermes_home_path
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = REPO_ROOT / "prism_backend"
 FRONTEND_ROOT = REPO_ROOT / "prism_frontend"
 HERMES_SOURCE = REPO_ROOT / "tools" / "hermes-agent"
-HERMES_HOME = REPO_ROOT / "tools" / "hermes-home"
+HERMES_HOME = get_hermes_home_path()
 HERMES_WEBUI = REPO_ROOT / "tools" / "hermes-webui"
 LOG_DIR = REPO_ROOT / "logs"
 RUN_DIR = LOG_DIR / "run"

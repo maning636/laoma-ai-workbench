@@ -1,4 +1,4 @@
-"""Prism browser automation runtime.
+"""老马AI工作台 browser automation runtime.
 
 Patchright is the single production runtime.  Keeping the import behind this
 module gives platform adapters one stable interface without tying public APIs

@@ -120,7 +120,7 @@ export default function CmsPage() {
             className={cn(
                 "flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm transition",
                 active
-                    ? "border-border/80 bg-black text-foreground"
+                    ? "border-border/80 bg-popover text-foreground"
                     : "border-border/70 bg-card/40 text-muted-foreground hover:bg-accent/40"
             )}
         >
@@ -137,7 +137,7 @@ export default function CmsPage() {
                 actions={
                     <Button
                         variant="outline"
-                        className="rounded-xl border-border/70 bg-black hover:bg-accent/50"
+                        className="rounded-xl border-border/70 bg-popover hover:bg-accent/50"
                         onClick={() => void load()}
                     >
                         <RefreshCcw className="mr-2 h-4 w-4" />

@@ -214,7 +214,7 @@ LaunchScript/python-3.11.9-embed-amd64.zip
 /prism_backend/reverse_api/artifacts/
 /prism_backend/reverse_api/signing/.baseline-run/
 
-# Prism backend runtime data (Proxy Manager / browser profiles)
+# 老马AI工作台 backend runtime data (Proxy Manager / browser profiles)
 /prism_backend/data/ip_pool.json
 /prism_backend/browser_profiles/
 /prism_backend/data/browser_profiles/
@@ -241,3 +241,55 @@ prism_backend/logs/douyin_preview_screenshot.png
 
 #爬虫登录态配置(cookie/ttwid,运行时写入,不入库)
 prism_backend/douyin_tiktok_api/crawlers/**/config.yaml
+
+# =============================================================================
+# 运行时/调试产物 (P1a 补)
+# 说明:仅新增忽略规则,不删除任何文件;_review_*.md 与 _recon_*.md 保留入库。
+# =============================================================================
+
+# Dim Agent 沙箱目录
+/.dim-sandbox/
+
+# 调试产物 (OCR 截图、临时渲染输出等)
+/artifacts/
+
+# 根目录运行时数据 (旧规则只忽略 data/analytics|crawler_output|videos,此处补全量)
+/data/
+
+# prism_backend 运行时/构建目录
+/prism_backend/data/
+/prism_backend/_profile_build/
+/prism_backend/profiles/smoke_test/
+
+# 上游 hermes-agent / hermes-home / hermes-webui / easel-ref / persona-studio / deepseek-harness
+# (AGENT.md 明确不入库;旧规则只忽略子目录,此处补 tools/ 本身)
+/tools/
+
+# 一次性验证/修复脚本残留 (只加忽略,不删除)
+# 未加前导 / 的 pattern 覆盖根目录以及 prism_frontend/、prism_backend/ 下的同名文件
+verify_*.py
+verify_*_report.txt
+verify_result.txt
+fix_*.js
+_check.py
+scan_*.py
+_probe*.py
+_smoke_test.py
+_cors.py
+_taillog.ps1
+_sup_diff.txt
+prism_frontend/UI_BLACKSCREEN_ANALYSIS.md
+prism_backend/_final_check.py
+prism_backend/_import_check.py
+prism_backend/check_syntax.py
+
+# �û�����/�ƻ�����(2026-10-12 ����� C �̴洢)
+/_plan_drafts_backup/
+/_plan_productization_saas.md
+
+/_appdata_electron/
+/_appdata_����AI����̨_backup/
+
+/_caches/
+/_appdata_laoma_bid/
+/_electron_userdata/

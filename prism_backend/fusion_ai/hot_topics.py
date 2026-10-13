@@ -184,7 +184,7 @@ async def _fetch_zhihu_hot() -> List[Dict[str, Any]]:
     return [{
         "title": "（知乎热榜需登录 cookie 或浏览器抓取）", "heat_score": 0, "rank": 0,
         "source": "zhihu", "platform": "知乎", "fetched_at": _now(),
-        "note": "公共 API 已锁（403/404）。在 Prism 配置知乎登录 cookie 走 api/v4/topstory/hot-lists，或用 mediacrawler 浏览器抓取 https://www.zhihu.com/hot",
+        "note": "公共 API 已锁（403/404）。在 老马AI工作台配置知乎登录 cookie 走 api/v4/topstory/hot-lists，或用 mediacrawler 浏览器抓取 https://www.zhihu.com/hot",
     }]
 
 

@@ -8,10 +8,10 @@
  * - 回滚/历史版本：GitHub API 拉 release 列表 + generic feed 指向
  *   https://github.com/<owner>/<repo>/releases/download/<tag>/（allowDowngrade 可回滚）。
  *
- * 仓库可通过 env PRISM_GITHUB_REPO（默认 Laihiujin/Prism）覆盖。
+ * 仓库可通过 env LAOMA_GITHUB_REPO（默认 Laihiujin/laoma-ai-workbench）覆盖。
  */
 
-const REPOSITORY = (process.env.PRISM_GITHUB_REPO || 'Laihiujin/Prism').replace(/^https?:\/\/github\.com\//, '').replace(/\.git$/, '');
+const REPOSITORY = (process.env.LAOMA_GITHUB_REPO || 'Laihiujin/laoma-ai-workbench').replace(/^https?:\/\/github\.com\//, '').replace(/\.git$/, '');
 const [OWNER, REPO] = REPOSITORY.split('/').map((part) => part.trim()).filter(Boolean);
 const GH_API_RELEASES = `https://api.github.com/repos/${OWNER}/${REPO}/releases?per_page=100`;
 const GH_RELEASES_DOWNLOAD = `https://github.com/${OWNER}/${REPO}/releases/download`;
@@ -55,7 +55,7 @@ async function fetchAvailableReleases(currentVersion, fetchImpl = globalThis.fet
   try {
     const response = await fetchImpl(GH_API_RELEASES, {
       signal: controller.signal,
-      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Prism-Desktop' }
+      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'LaomaAI-Workbench' }
     });
     if (!response.ok) {
       throw new Error(`GitHub releases request failed: ${response.status}`);

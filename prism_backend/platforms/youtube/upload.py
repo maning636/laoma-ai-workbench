@@ -1,4 +1,4 @@
-"""YouTube adapter exposed through Prism's uniform platform registry."""
+"""YouTube adapter exposed through 老马AI工作台's uniform platform registry."""
 
 from __future__ import annotations
 

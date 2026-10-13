@@ -1,4 +1,4 @@
-Prism
+老马AI工作台
 
 Copyright (c) 2026 Laihuijin
 
@@ -27,3 +27,10 @@ HermesAgent
 Copyright (c) 2025 Nous Research
 License: MIT License.
 Source: https://github.com/nousresearch/hermes-agent
+
+Easel (reference copy, not vendored)
+Copyright and license: retained under the upstream Apache License 2.0.
+Attribution: Zhejiang University ZJU-REAL Lab.
+Source: https://github.com/ZJU-REAL/Easel
+Reference copy: tools/easel-ref/app.py (FastAPI 后端契约副本，抽取时间 2026-09-15，版本 v0.2.1 附近)
+Not directly vendored; Prism-Fusion 仅参考 API 契约，未复制 Easel 源码到运行路径。详见 vendor/VENDOR.md。

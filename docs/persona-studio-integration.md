@@ -1,9 +1,9 @@
 # Persona Studio 集成指南
 
-最终架构：**Prism + Persona Studio + Patchright + Proxy Manager**
+最终架构：**老马AI工作台 + Persona Studio + Patchright + Proxy Manager**
 
 Persona Studio（[TechQaiser/persona-studio](https://github.com/TechQaiser/persona-studio)，MIT）是
-开源自托管反检测浏览器与 Profile 管理器，负责 Prism 的 **Browser Identity / Fingerprint / Profile 层**：
+开源自托管反检测浏览器与 Profile 管理器，负责 老马AI工作台的 **Browser Identity / Fingerprint / Profile 层**：
 
 - 相干指纹生成（OS/UA/GPU/屏幕/时区/语言 彼此一致）
 - Profile 持久化（Cookie / LocalStorage / IndexedDB 随 Profile 留存）
@@ -11,7 +11,7 @@ Persona Studio（[TechQaiser/persona-studio](https://github.com/TechQaiser/perso
 - 引擎可选：`cloak`(CloakBrowser) / `camoufox` / `patchright` / `playwright`
 - 代理注入 + 出口 IP/泄漏检测
 
-Prism **不**自研指纹、Profile 存储、指纹伪造 —— 全部委托 Persona Studio。
+老马AI工作台 **不**自研指纹、Profile 存储、指纹伪造 —— 全部委托 Persona Studio。
 
 ---
 
@@ -19,18 +19,18 @@ Prism **不**自研指纹、Profile 存储、指纹伪造 —— 全部委托 Pe
 
 | 层 | 归属 |
 |---|---|
-| 账号 / 平台 / 任务 / Celery / Redis | Prism（保留） |
-| Proxy Manager（proxies、sticky 绑定、健康检测） | Prism（自研） |
+| 账号 / 平台 / 任务 / Celery / Redis | 老马AI工作台（保留） |
+| Proxy Manager（proxies、sticky 绑定、健康检测） | 老马AI工作台（自研） |
 | Browser Identity / Fingerprint / Profile | **Persona Studio** |
-| 浏览器执行（平台 Adapter 驱动） | Prism Patchright（`connect_over_cdp`） |
+| 浏览器执行（平台 Adapter 驱动） | 老马AI工作台 Patchright（`connect_over_cdp`） |
 
 固定链路：
 
 ```
 Account
-  → persona_profile_id（Prism 账号表）
+  → persona_profile_id（老马AI工作台 账号表）
   → Persona Profile（指纹 + 持久会话）
-  → Sticky Proxy（Prism Proxy Manager 注入）
+  → Sticky Proxy（老马AI工作台 Proxy Manager 注入）
   → Patchright（connect_over_cdp 驱动）
   → Platform Adapter（发布/登录/数据回收）
 ```
@@ -43,7 +43,7 @@ Account
 git clone https://github.com/TechQaiser/persona-studio.git
 cd persona-studio/engine
 
-# 用 Prism 的 venv 或独立 venv 安装
+# 用 老马AI工作台的 venv 或独立 venv 安装
 pip install -e ".[api,launch]"
 playwright install chromium      # 需要浏览器二进制
 
@@ -51,20 +51,20 @@ playwright install chromium      # 需要浏览器二进制
 persona serve                    # 默认 http://127.0.0.1:8787
 ```
 
-引擎选择（推荐 patchright，与 Prism 现有运行时一致）：
+引擎选择（推荐 patchright，与 老马AI工作台 现有运行时一致）：
 
 ```bash
 persona default-engine patchright
 # 或每个 Profile 单独指定：persona create <name> --engine patchright
 ```
 
-> 不装 Persona Studio 时，Prism 自动回退 **PatchrightBackend 直连模式**
+> 不装 Persona Studio 时，老马AI工作台 自动回退 **PatchrightBackend 直连模式**
 > （每账号独立 `data/browser_profiles/<account>/` persistent context），
 > 功能不中断，只是少了相干指纹/持久会话增强。
 
 ---
 
-## Prism 侧配置（环境变量 / Settings）
+## 老马AI工作台 侧配置（环境变量 / Settings）
 
 | 配置 | 默认 | 说明 |
 |---|---|---|
@@ -134,6 +134,6 @@ GET  /api/v1/ip-pool/persona/status         # Persona 服务状态
 
 - 登录、发布、数据回收统一走同一 `persona_profile_id + proxy_id`（账号表持久绑定）。
 - 3Proxy / gluetun / sing-box 只产出标准 HTTP/SOCKS5 endpoint，登记进 Proxy Manager，
-  不进入 Prism 核心业务。
+  不进入 老马AI工作台 核心业务。
 - MCP 不作为正式执行依赖；如后续需要 AI Browser Agent，通过 Persona attach 的
   CDP endpoint 扩展（预留 `PersonaBackend` 即可）。

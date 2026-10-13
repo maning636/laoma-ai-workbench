@@ -1,9 +1,9 @@
 """
 BrowserBackend 薄适配层（Browser Identity / Fingerprint / Profile 层）。
 
-最终架构：Prism + Persona Studio + Patchright + Proxy Manager。
-- Prism 不自研指纹/BrowserProfile 持久化（交给 Persona Studio）。
-- 一个 Prism Account ↔ 一个 Persona Profile（account.persona_profile_id）。
+最终架构：老马AI工作台 + Persona Studio + Patchright + Proxy Manager。
+- 老马AI工作台 不自研指纹/BrowserProfile 持久化（交给 Persona Studio）。
+- 一个 老马AI工作台 Account ↔ 一个 Persona Profile（account.persona_profile_id）。
 - 平台 Adapter 不感知具体 Browser Backend，只通过本层获取 context/page。
 
 后端：
@@ -203,11 +203,11 @@ class PatchrightBackend(BrowserBackend):
 class PersonaBackend(BrowserBackend):
     """Persona Studio 后端（Browser Identity / Fingerprint / Profile 层）。
 
-    Prism 不自研指纹/Profile 持久化，全部交给 Persona Studio：
-    - account_id ↔ persona_profile_id 一一映射（Prism 账号表维护）
+    老马AI工作台 不自研指纹/Profile 持久化，全部交给 Persona Studio：
+    - account_id ↔ persona_profile_id 一一映射（老马AI工作台 账号表维护）
     - Persona 负责指纹生成、Profile 存储、Cookie/LocalStorage 持久会话、
       引擎选择（cloak/camoufox/patchright/playwright）、代理注入
-    - Prism 通过 Persona HTTP API attach CDP，再用 patchright connect_over_cdp
+    - 老马AI工作台通过 Persona HTTP API attach CDP，再用 patchright connect_over_cdp
       驱动浏览器执行平台 Adapter（Platform Adapter 无感知）
 
     链路：Account → Persona Profile → Fingerprint → Sticky Proxy → Patchright → Platform Adapter

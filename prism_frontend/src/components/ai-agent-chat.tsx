@@ -322,9 +322,9 @@ export function AIAgentChat() {
     if (message instanceof HumanMessage) {
       return (
         <div key={index} className="flex justify-end">
-          <div className={clsx(base, "bg-white text-foreground max-w-[80%]")}>
+          <div className={clsx(base, "bg-white text-[#20242A] max-w-[80%]")}>
             <div>{message.content as string}</div>
-            <div className="mt-1 text-[10px] text-foreground/80 text-right">{formatTime(timestamp)}</div>
+            <div className="mt-1 text-[10px] text-[#20242A]/80 text-right">{formatTime(timestamp)}</div>
           </div>
         </div>
       )
@@ -338,36 +338,36 @@ export function AIAgentChat() {
         <div key={index} className="flex justify-start">
           <div className={clsx(base, "bg-foreground/90 text-background border border-border/70 max-w-[80%]")}>
             <div className="flex items-center gap-2 text-xs font-semibold text-background/70 mb-1">
-              <Sparkles className="h-4 w-4 text-white" />
+              <Sparkles className="h-4 w-4" />
               小轴
               {timestamp && <span className="text-[10px] text-background/60">{formatTime(timestamp)}</span>}
             </div>
             <div className="prose prose-sm max-w-none whitespace-pre-wrap leading-relaxed">{message.content as string}</div>
             {hasToolCall && (
               <div className="mt-3 rounded-xl border border-dashed border-border/70 bg-card p-3">
-                <div className="flex items-center gap-2 text-xs font-semibold text-background/70">
-                  <PlayCircle className="h-4 w-4 text-white" />
+                <div className="flex items-center gap-2 text-xs font-semibold text-foreground/70">
+                  <PlayCircle className="h-4 w-4" />
                   准备调用工具: {toolCall?.name}
                 </div>
-                <pre className="mt-2 text-[11px] bg-foreground rounded-lg p-2 border border-border/70 overflow-auto">
+                <pre className="mt-2 text-[11px] bg-foreground text-background rounded-lg p-2 border border-border/70 overflow-auto">
                   {JSON.stringify(toolCall?.args || {}, null, 2)}
                 </pre>
                 <div className="mt-2 flex gap-2">
                   <button
                     onClick={() => handleToolCallConfirm(toolCall)}
-                    className="px-3 py-1.5 rounded-lg bg-white text-foreground text-xs hover:bg-white disabled:opacity-60"
+                    className="px-3 py-1.5 rounded-lg bg-white text-[#20242A] text-xs hover:bg-[#F5F3F0] disabled:opacity-60"
                     disabled={toolCallState === "confirmed" || isProcessing}
                   >
                     允许执行
                   </button>
                   <button
                     onClick={() => handleToolCallReject(toolCall)}
-                    className="px-3 py-1.5 rounded-lg bg-white text-foreground text-xs hover:bg-white disabled:opacity-60"
+                    className="px-3 py-1.5 rounded-lg bg-white text-[#20242A] text-xs hover:bg-[#F5F3F0] disabled:opacity-60"
                     disabled={toolCallState !== "none" || isProcessing}
                   >
                     拒绝
                   </button>
-                  <span className="text-[11px] text-background/60 flex items-center">
+                  <span className="text-[11px] text-foreground/60 flex items-center">
                     状态: {toolCallState === "none" ? "待确认" : toolCallState === "confirmed" ? "已执行" : "已拒绝"}
                   </span>
                 </div>
@@ -380,11 +380,11 @@ export function AIAgentChat() {
 
     return (
       <div key={index} className="flex justify-start">
-        <div className={clsx(base, "bg-white text-black border border-border max-w-[80%]")}>
-          <div className="flex items-center gap-2 text-xs font-semibold text-white mb-1">
+        <div className={clsx(base, "bg-white text-[#20242A] border border-border max-w-[80%]")}>
+          <div className="flex items-center gap-2 text-xs font-semibold text-[#20242A]/70 mb-1">
             <Ban className="h-4 w-4" />
             工具响应
-            {timestamp && <span className="text-[10px] text-white">{formatTime(timestamp)}</span>}
+            {timestamp && <span className="text-[10px] text-[#20242A]/60">{formatTime(timestamp)}</span>}
           </div>
           <pre className="text-[12px] whitespace-pre-wrap break-words leading-relaxed">
             {(message as any).content as string}
@@ -398,8 +398,8 @@ export function AIAgentChat() {
     <div className="h-full w-full flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-background">AI 脚本助手</h1>
-          <p className="text-sm text-background/60">使用 LangGraph + 工具调用自动化脚本</p>
+          <h1 className="text-2xl font-semibold text-foreground">AI 脚本助手</h1>
+          <p className="text-sm text-foreground/60">使用 LangGraph + 工具调用自动化脚本</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -419,11 +419,11 @@ export function AIAgentChat() {
       </div>
 
       {!hasAgent && (
-        <div className="rounded-2xl border border-dashed border-border/70 bg-foreground p-6 text-center">
-          <p className="text-background/80 text-sm">请先配置 OpenAI 兼容的 Endpoint / Key 才能使用 AI 工具。</p>
+        <div className="rounded-2xl border border-dashed border-border/70 bg-popover p-6 text-center">
+          <p className="text-foreground/80 text-sm">请先配置 OpenAI 兼容的 Endpoint / Key 才能使用 AI 工具。</p>
           <button
             onClick={() => setShowSettings(true)}
-            className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white text-foreground text-sm hover:bg-white"
+            className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white text-[#20242A] text-sm hover:bg-[#F5F3F0]"
           >
             <Settings className="h-4 w-4" />
             打开设置
@@ -432,7 +432,7 @@ export function AIAgentChat() {
       )}
 
       {hasAgent && messages.length === 0 && (
-        <div className="rounded-2xl border border-border/70 bg-foreground p-6">
+        <div className="rounded-2xl border border-border/70 bg-popover p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {presetPrompts.map((p) => (
               <button
@@ -445,8 +445,8 @@ export function AIAgentChat() {
                     <Sparkles className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-background group-hover:text-white">{p.title}</p>
-                    <p className="text-xs text-background/60 mt-1">{p.description}</p>
+                    <p className="text-sm font-semibold text-foreground group-hover:text-primary">{p.title}</p>
+                    <p className="text-xs text-foreground/60 mt-1">{p.description}</p>
                   </div>
                 </div>
               </button>
@@ -462,8 +462,8 @@ export function AIAgentChat() {
         {messages.map((m, idx) => renderMessage(m, idx))}
         {isProcessing && (
           <div className="flex justify-start">
-            <div className="rounded-2xl px-4 py-3 text-sm bg-foreground border border-border/70 shadow max-w-[70%]">
-              <div className="flex items-center gap-2 text-background/60">
+            <div className="rounded-2xl px-4 py-3 text-sm bg-popover border border-border/70 shadow max-w-[70%]">
+              <div className="flex items-center gap-2 text-foreground/60">
                 <RefreshCcw className="h-4 w-4 animate-spin" />
                 正在思考/执行...
               </div>
@@ -472,7 +472,7 @@ export function AIAgentChat() {
         )}
       </div>
 
-      <div className="rounded-2xl border border-border/70 bg-foreground p-3">
+      <div className="rounded-2xl border border-border/70 bg-popover p-3">
         <div className="flex items-center gap-3">
           <textarea
             value={inputMessage}
@@ -492,7 +492,7 @@ export function AIAgentChat() {
           <button
             onClick={() => sendMessage()}
             disabled={!inputMessage.trim() || !hasAgent || isProcessing}
-            className="h-11 px-4 rounded-xl bg-white text-foreground text-sm inline-flex items-center gap-2 disabled:opacity-60"
+            className="h-11 px-4 rounded-xl bg-white text-[#20242A] text-sm inline-flex items-center gap-2 disabled:opacity-60 hover:bg-[#F5F3F0]"
           >
             <Send className="h-4 w-4" />
             发送
@@ -502,23 +502,23 @@ export function AIAgentChat() {
 
       {showSettings && (
         <div className="fixed inset-0 bg-card/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-foreground rounded-2xl shadow-2xl w-full max-w-lg border border-border/70">
+          <div className="bg-popover rounded-2xl shadow-2xl w-full max-w-lg border border-border/70">
             <div className="p-6 space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-semibold text-background">模型设置</h3>
-                  <p className="text-xs text-background/60 mt-1">配置 OpenAI 兼容接口，信息仅保存在浏览器</p>
+                  <h3 className="text-lg font-semibold text-foreground">模型设置</h3>
+                  <p className="text-xs text-foreground/60 mt-1">配置 OpenAI 兼容接口，信息仅保存在浏览器</p>
                 </div>
                 <button
                   onClick={() => setShowSettings(false)}
-                  className="rounded-full p-2 hover:bg-card text-background/60"
+                  className="rounded-full p-2 hover:bg-accent/30 text-foreground/60"
                 >
                   ✕
                 </button>
               </div>
 
               <div className="space-y-3">
-                <label className="text-sm text-background/80">
+                <label className="text-sm text-foreground/80">
                   Endpoint
                   <input
                     type="text"
@@ -528,7 +528,7 @@ export function AIAgentChat() {
                     className="mt-1 w-full rounded-lg border border-border/70 px-3 py-2 text-sm"
                   />
                 </label>
-                <label className="text-sm text-background/80">
+                <label className="text-sm text-foreground/80">
                   API Key
                   <input
                     type="password"
@@ -538,7 +538,7 @@ export function AIAgentChat() {
                     className="mt-1 w-full rounded-lg border border-border/70 px-3 py-2 text-sm"
                   />
                 </label>
-                <label className="text-sm text-background/80">
+                <label className="text-sm text-foreground/80">
                   模型
                   <div className="flex gap-2 mt-1">
                     <input
@@ -571,13 +571,13 @@ export function AIAgentChat() {
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   onClick={() => setShowSettings(false)}
-                  className="px-4 py-2 rounded-lg border border-border/70 text-sm hover:bg-card"
+                  className="px-4 py-2 rounded-lg border border-border/70 text-sm hover:bg-accent/30"
                 >
                   取消
                 </button>
                 <button
                   onClick={saveSettings}
-                  className="px-4 py-2 rounded-lg bg-white text-foreground text-sm hover:bg-white"
+                  className="px-4 py-2 rounded-lg bg-primary text-foreground text-sm hover:bg-primary/90"
                 >
                   保存
                 </button>

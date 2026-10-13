@@ -1,5 +1,5 @@
 /**
- * Prism - Core Renderer
+ * 老马AI工作台 - Core Renderer
  * 精致化标签管理与自动化环境适配
  */
 
@@ -604,7 +604,7 @@ class TabManager {
         webview.setAttribute('preload', new URL('webview-preload.js', window.location.href).toString());
         if (!pinned) {
             const userAgent = options.userAgent || navigator.userAgent
-                .replace(/\sPrism\/[^\s]+/g, '')
+                .replace(/\s老马AI工作台\/[^\s]+/g, '')
                 .replace(/\sElectron\/[^\s]+/g, '');
             webview.setAttribute('useragent', userAgent);
         }
@@ -852,7 +852,7 @@ class TabManager {
         }
 
         if (tab?.pinned) {
-            return 'Prism';
+            return '老马AI工作台';
         }
 
         return tab?.title || '无标题会话';
@@ -933,50 +933,6 @@ function showToast(message, type = 'info') {
     document.body.appendChild(toast);
 
     setTimeout(() => toast.remove(), 3000);
-}
-
-async function restartAllServices() {
-    try {
-        const response = await fetch(`${API_BASE}/supervisor/restart`, { method: 'POST' });
-        if (response.ok) {
-            showToast('✅ 所有服务已重启');
-        } else {
-            const data = await response.json();
-            throw new Error(data.detail || '重启失败');
-        }
-    } catch (error) {
-        showToast('❌ ' + error.message, 'error');
-    }
-}
-
-async function restartBackendService() {
-    try {
-        const response = await fetch(`${API_BASE}/supervisor/restart/backend`, { method: 'POST' });
-        if (response.ok) {
-            showToast('✅ 后端服务已重启');
-        } else {
-            const data = await response.json();
-            throw new Error(data.detail || '重启失败');
-        }
-    } catch (error) {
-        showToast('❌ ' + error.message, 'error');
-    }
-}
-
-async function stopAllServices() {
-    if (!confirm('确认停止所有服务？')) return;
-
-    try {
-        const response = await fetch(`${API_BASE}/supervisor/stop`, { method: 'POST' });
-        if (response.ok) {
-            showToast('⏹ 所有服务已停止');
-        } else {
-            const data = await response.json();
-            throw new Error(data.detail || '停止失败');
-        }
-    } catch (error) {
-        showToast('❌ ' + error.message, 'error');
-    }
 }
 
 async function clearMaterialsData() {
@@ -1082,7 +1038,7 @@ async function exportSystemLogs() {
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `prism-logs-${new Date().toISOString().split('T')[0]}.zip`;
+            a.download = `laoma-logs-${new Date().toISOString().split('T')[0]}.zip`;
             document.body.appendChild(a);
             a.click();
             window.URL.revokeObjectURL(url);
@@ -1096,66 +1052,6 @@ async function exportSystemLogs() {
         showToast('❌ 导出失败: ' + error.message, 'error');
     }
 }
-
-async function forceKillAllProcesses() {
-    if (!confirm('确认强制终止所有进程？')) return;
-
-    try {
-        const response = await fetch(`${API_BASE}/supervisor/stop`, { method: 'POST' });
-
-        if (response.ok) {
-            showToast('✅ 进程已强制终止');
-        } else {
-            throw new Error('终止失败');
-        }
-    } catch (error) {
-        showToast('❌ 终止失败: ' + error.message, 'error');
-    }
-}
-
-restartAllServices = async function () {
-    try {
-        if (window.electronAPI?.system?.restartAll) {
-            const result = await window.electronAPI.system.restartAll();
-            if (!result?.success) {
-                throw new Error(result?.error || '服务重启失败');
-            }
-        } else {
-            const response = await fetch(`${API_BASE}/supervisor/restart`, { method: 'POST' });
-            if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.detail || '服务重启失败');
-            }
-        }
-
-        showToast('所有服务已重启');
-    } catch (error) {
-        showToast(`重启失败: ${error.message}`, 'error');
-    }
-};
-
-stopAllServices = async function () {
-    if (!confirm('确认停止所有服务？')) return;
-
-    try {
-        if (window.electronAPI?.system?.stopAll) {
-            const result = await window.electronAPI.system.stopAll();
-            if (!result?.success) {
-                throw new Error(result?.error || '停止服务失败');
-            }
-        } else {
-            const response = await fetch(`${API_BASE}/supervisor/stop`, { method: 'POST' });
-            if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.detail || '停止服务失败');
-            }
-        }
-
-        showToast('所有服务已停止');
-    } catch (error) {
-        showToast(`停止失败: ${error.message}`, 'error');
-    }
-};
 
 function bootstrapShell() {
     if (window.__tabManagerInstance) {

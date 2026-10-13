@@ -242,7 +242,7 @@ export function CcSwitchPanel() {
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <Card className="border-border/70 bg-transparent">
+      <Card className="border-border/70">
         <CollapsibleTrigger asChild>
           <button
             type="button"
@@ -272,11 +272,11 @@ export function CcSwitchPanel() {
         {/* 状态行 */}
         <div className="flex flex-wrap items-center gap-2">
           {loading ? (
-            <Badge variant="secondary" className="bg-foreground/10">
+            <Badge variant="secondary" className="bg-muted">
               <Loader2 className="mr-1 h-3 w-3 animate-spin" /> 检测中…
             </Badge>
           ) : status?.available ? (
-            <Badge className="gap-1 bg-black text-white">
+            <Badge className="gap-1 bg-popover text-foreground">
               <CheckCircle2 className="h-3.5 w-3.5" /> cc-switch 已连接
             </Badge>
           ) : (
@@ -287,7 +287,7 @@ export function CcSwitchPanel() {
           <span className="text-xs text-muted-foreground break-all">
             {status?.db_path || "~/.cc-switch/cc-switch.db"}
           </span>
-          <Button size="sm" variant="secondary" className="ml-auto bg-foreground/10" onClick={() => void refresh()}>
+          <Button size="sm" variant="secondary" className="ml-auto bg-muted" onClick={() => void refresh()}>
             <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
             刷新
           </Button>
@@ -343,7 +343,7 @@ export function CcSwitchPanel() {
                 key={provider.id}
                 className={cn(
                   "rounded-2xl border p-4 transition-all",
-                  provider.is_current ? "border-border bg-black" : "border-border/70 bg-card/30"
+                  provider.is_current ? "border-border bg-popover" : "border-border/70 bg-card/30"
                 )}
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -351,12 +351,12 @@ export function CcSwitchPanel() {
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-foreground">{provider.name}</span>
                       {provider.api_mode && (
-                        <Badge variant="secondary" className="bg-foreground/10 text-xs text-muted-foreground">
+                        <Badge variant="secondary" className="bg-muted text-xs text-muted-foreground">
                           {provider.api_mode}
                         </Badge>
                       )}
                       {provider.is_current && (
-                        <Badge className="bg-black text-white">CC Switch 当前选中</Badge>
+                        <Badge className="bg-popover text-foreground">CC Switch 当前选中</Badge>
                       )}
                     </div>
                     <div className="mt-1 break-all text-xs text-muted-foreground">
@@ -365,7 +365,7 @@ export function CcSwitchPanel() {
                     {provider.models && provider.models.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {provider.models.map((m) => (
-                          <Badge key={m.id} variant="secondary" className="bg-black text-foreground/80 text-xs">
+                          <Badge key={m.id} variant="secondary" className="bg-popover text-foreground/80 text-xs">
                             {m.name || m.id}
                           </Badge>
                         ))}
@@ -396,7 +396,7 @@ export function CcSwitchPanel() {
                       <Button
                         size="sm"
                         variant="secondary"
-                        className="h-8 rounded-lg text-xs bg-foreground/10"
+                        className="h-8 rounded-lg text-xs bg-muted"
                         onClick={() => void fetchModels(provider.id)}
                         disabled={fetchingId !== null || testingId !== null}
                       >
@@ -410,7 +410,7 @@ export function CcSwitchPanel() {
                       <Button
                         size="sm"
                         variant="secondary"
-                        className="h-8 rounded-lg text-xs bg-foreground/10"
+                        className="h-8 rounded-lg text-xs bg-muted"
                         onClick={() => void testModel(provider.id, selectedModels[provider.id] || provider.models?.[0]?.id)}
                         disabled={fetchingId !== null || testingId !== null}
                       >

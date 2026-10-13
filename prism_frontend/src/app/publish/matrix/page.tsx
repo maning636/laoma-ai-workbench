@@ -106,9 +106,9 @@ const INTERVAL_OPTIONS: {
 
 const PREVIEW_ACCOUNTS = ["A账号", "B账号", "C账号"]
 const PREVIEW_COLORS = [
-  "bg-black border-border text-white",
-  "bg-black border-border text-white",
-  "bg-black border-border text-white"
+  "bg-popover border-border text-foreground",
+  "bg-popover border-border text-foreground",
+  "bg-popover border-border text-foreground"
 ]
 
 interface PublishPlan {
@@ -966,7 +966,7 @@ export default function PublishPage() {
     }
     return (
       <details key={`config-${platform}`} className="group min-w-0">
-        <summary className="flex cursor-pointer list-none items-center justify-between border border-border/70 bg-black px-4 py-3 text-sm text-foreground [&::-webkit-details-marker]:hidden">
+        <summary className="flex cursor-pointer list-none items-center justify-between border border-border/70 bg-popover px-4 py-3 text-sm text-foreground [&::-webkit-details-marker]:hidden">
           <span>{titles[platform] || platform}</span>
           <span className="text-muted-foreground transition-transform group-open:rotate-180">⌄</span>
         </summary>
@@ -986,7 +986,7 @@ export default function PublishPage() {
               variant="outline"
               onClick={() => savePlanMutation.mutate()}
               disabled={savePlanMutation.isPending || plan.platforms.length === 0}
-              className="border-border/70 bg-black hover:bg-accent/50 text-foreground"
+              className="border-border/70 bg-popover hover:bg-accent/50 text-foreground"
             >
               {savePlanMutation.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -998,7 +998,7 @@ export default function PublishPage() {
             <Button
               onClick={() => publishMutation.mutate()}
               disabled={publishMutation.isPending || plan.platforms.length === 0}
-              className="border-border/70 bg-black hover:bg-accent/50 text-foreground"
+              className="border-border/70 bg-popover hover:bg-accent/50 text-foreground"
             >
               {publishMutation.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1049,7 +1049,7 @@ export default function PublishPage() {
           <Button
             variant="outline"
             size="sm"
-            className="h-8 border-border/70 bg-black hover:bg-accent/50 text-foreground"
+            className="h-8 border-border/70 bg-popover hover:bg-accent/50 text-foreground"
             onClick={() => setMaterialPickerOpen(true)}
           >
             <Plus className="w-3 h-3 mr-2" />
@@ -1072,12 +1072,12 @@ export default function PublishPage() {
                     className="flex items-start gap-4 p-4 rounded-xl border border-border/70 bg-card/20 hover:bg-card/30 transition-all group"
                   >
                     {/* 序号 */}
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-black flex items-center justify-center text-xs text-muted-foreground font-medium">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-popover flex items-center justify-center text-xs text-muted-foreground font-medium">
                       {globalIndex + 1}
                     </div>
 
                     {/* 首帧预览（不叠加 AI 封面） */}
-                    <div className="relative w-24 h-32 rounded-lg overflow-hidden border border-border/70 shrink-0 bg-black">
+                    <div className="relative w-24 h-32 rounded-lg overflow-hidden border border-border/70 shrink-0 bg-popover">
                       {(() => {
                         const firstFrame = firstFrameById[String(m.id)]
                         if (firstFrame) {
@@ -1156,7 +1156,7 @@ export default function PublishPage() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-8 text-white hover:bg-black hover:text-white"
+                        className="h-8 text-foreground hover:bg-popover hover:text-foreground"
                         onClick={() => setPlan(prev => ({ ...prev, materials: prev.materials.filter(id => id !== String(m.id)) }))}
                       >
                         <Trash2 className="w-3 h-3 mr-1.5" />
@@ -1185,7 +1185,7 @@ export default function PublishPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-7 text-xs border-border text-white hover:bg-black"
+                  className="h-7 text-xs border-border text-foreground hover:bg-popover"
                   onClick={handleBatchAIGenerate}
                   disabled={isGeneratingAI}
                 >
@@ -1219,7 +1219,7 @@ export default function PublishPage() {
             <Button
               size="sm"
               variant="outline"
-              className="h-8 border-border/70 bg-black hover:bg-accent/50 text-foreground"
+              className="h-8 border-border/70 bg-popover hover:bg-accent/50 text-foreground"
               onClick={() => setAccountDrawerOpen(true)}
             >
               <Plus className="w-3 h-3 mr-2" />
@@ -1239,7 +1239,7 @@ export default function PublishPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-6 text-xs text-white hover:text-white hover:bg-black"
+                    className="h-6 text-xs text-foreground hover:text-foreground hover:bg-popover"
                     onClick={() => setPlan(prev => ({ ...prev, accounts: [] }))}
                   >
                     清空
@@ -1251,10 +1251,10 @@ export default function PublishPage() {
                     return (
                       <div
                         key={account.id}
-                        className="flex items-center gap-3 p-3 rounded-xl border border-primary/50 bg-black relative group"
+                        className="flex items-center gap-3 p-3 rounded-xl border border-primary/50 bg-popover relative group"
                       >
                         <div className="relative w-10 h-10 shrink-0">
-                          <div className="w-10 h-10 rounded-full bg-black flex items-center justify-center border border-border/70 overflow-hidden">
+                          <div className="w-10 h-10 rounded-full bg-popover flex items-center justify-center border border-border/70 overflow-hidden">
                             {account.avatar ? (
                               <img
                                 src={account.avatar}
@@ -1266,7 +1266,7 @@ export default function PublishPage() {
                               <span className="text-sm font-medium">{(displayName || "U").slice(0, 1)}</span>
                             )}
                           </div>
-                          <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-black border border-border/70 flex items-center justify-center p-0.5">
+                          <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-popover border border-border/70 flex items-center justify-center p-0.5">
                             <Image
                               src={PLATFORMS.find(p => p.key === (account.platform as any))?.icon ?? "/Tiktok.svg"}
                               alt={account.platform ?? "平台"}
@@ -1288,7 +1288,7 @@ export default function PublishPage() {
                           onClick={() => toggleAccount(account.id)}
                           className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
                         >
-                          <X className="w-3.5 h-3.5 text-muted-foreground hover:text-white" />
+                          <X className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" />
                         </button>
                       </div>
                     )
@@ -1339,7 +1339,7 @@ export default function PublishPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Label className="text-foreground/70">发布时间</Label>
-                <Badge variant="outline" className="rounded-full border-border/80 bg-black text-[11px] text-foreground/70">
+                <Badge variant="outline" className="rounded-full border-border/80 bg-popover text-[11px] text-foreground/70">
                   必选
                 </Badge>
               </div>
@@ -1354,8 +1354,8 @@ export default function PublishPage() {
                 className={cn(
                   "group rounded-2xl border p-4 text-left transition-all",
                   plan.publishTiming === "immediate"
-                    ? "border-primary/50 bg-black shadow-[0_0_0_1px_rgba(94,234,212,0.2)]"
-                    : "border-border/70 bg-black hover:border-border/80"
+                    ? "border-primary/50 bg-popover shadow-[0_0_0_1px_rgba(94,234,212,0.2)]"
+                    : "border-border/70 bg-popover hover:border-border/80"
                 )}
               >
                 <div className="flex items-center gap-3">
@@ -1380,7 +1380,7 @@ export default function PublishPage() {
                 className={cn(
                   "group rounded-2xl border p-4 text-left transition-all",
                   plan.publishTiming === "scheduled"
-                    ? "border-primary/50 bg-black shadow-[0_0_0_1px_rgba(94,234,212,0.2)]"
+                    ? "border-primary/50 bg-popover shadow-[0_0_0_1px_rgba(94,234,212,0.2)]"
                     : "border-border/70 bg-card hover:border-border/80"
                 )}
               >
@@ -1433,7 +1433,7 @@ export default function PublishPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Label className="text-foreground/70">间隔方式</Label>
-                <Badge variant="outline" className="rounded-full border-border/80 bg-black text-[11px] text-foreground/70">
+                <Badge variant="outline" className="rounded-full border-border/80 bg-popover text-[11px] text-foreground/70">
                   矩阵节奏
                 </Badge>
               </div>
@@ -1463,7 +1463,7 @@ export default function PublishPage() {
                       className={cn(
                         "group rounded-2xl border p-4 text-left transition-all",
                         active
-                          ? "border-primary/50 bg-black shadow-[0_0_0_1px_rgba(94,234,212,0.2)]"
+                          ? "border-primary/50 bg-popover shadow-[0_0_0_1px_rgba(94,234,212,0.2)]"
                           : "border-border/70 bg-card hover:border-border/80"
                       )}
                     >
@@ -1500,7 +1500,7 @@ export default function PublishPage() {
                                 <div
                                   key={`${option.key}-slot-${rowIdx}-${slotIdx}`}
                                   className={cn(
-                                    "flex h-8 items-center justify-center rounded-lg border border-dashed border-border/70 bg-black text-[11px]",
+                                    "flex h-8 items-center justify-center rounded-lg border border-dashed border-border/70 bg-popover text-[11px]",
                                     slot && `${PREVIEW_COLORS[slotIdx % PREVIEW_COLORS.length]} border-solid font-medium`
                                   )}
                                 >
@@ -1539,7 +1539,7 @@ export default function PublishPage() {
 
       {/* Material Picker Dialog */}
       <Dialog open={materialPickerOpen} onOpenChange={setMaterialPickerOpen}>
-        <DialogContent className="max-w-3xl bg-black border-border/70 text-foreground">
+        <DialogContent className="max-w-3xl bg-popover border-border/70 text-foreground">
           <DialogHeader>
             <DialogTitle>选择素材</DialogTitle>
           </DialogHeader>
@@ -1580,7 +1580,7 @@ export default function PublishPage() {
                           return <Image src={toBackendFileUrl(firstFrame)} alt={m.title || "Material"} fill className="object-cover" unoptimized />
                         }
                         return (
-                          <div className="w-full h-full bg-black flex items-center justify-center">
+                          <div className="w-full h-full bg-popover flex items-center justify-center">
                             <Video className="w-8 h-8 text-foreground/20" />
                           </div>
                         )
@@ -1673,7 +1673,7 @@ export default function PublishPage() {
       <Sheet open={accountDrawerOpen} onOpenChange={setAccountDrawerOpen}>
         <SheetContent
           side="right"
-          className="w-[95vw] sm:w-[85vw] lg:w-[75vw] xl:w-[1000px] sm:max-w-none bg-black border-border/70 text-foreground overflow-y-auto"
+          className="w-[95vw] sm:w-[85vw] lg:w-[75vw] xl:w-[1000px] sm:max-w-none bg-popover border-border/70 text-foreground overflow-y-auto"
         >
           <SheetHeader>
             <SheetTitle className="text-foreground">选择账号</SheetTitle>
@@ -1700,7 +1700,7 @@ export default function PublishPage() {
             </div>
 
             {/* 已选账号统计 */}
-            <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-black border border-primary/20">
+            <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-popover border border-primary/20">
               <div className="text-sm text-foreground/80">
                 已选择 <span className="font-semibold text-primary">{plan.accounts.length}</span> 个账号
               </div>
@@ -1708,7 +1708,7 @@ export default function PublishPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 text-xs text-white hover:text-white hover:bg-black"
+                  className="h-6 text-xs text-foreground hover:text-foreground hover:bg-popover"
                   onClick={() => setPlan(prev => ({ ...prev, accounts: [] }))}
                 >
                   全部取消
@@ -1775,7 +1775,7 @@ export default function PublishPage() {
                         key={account.id}
                         className={cn(
                           "grid grid-cols-[40px_60px_1fr_150px_100px_80px_60px] gap-3 px-4 py-3 items-center hover:bg-accent/40 transition-colors cursor-pointer",
-                          isSelected && "bg-black",
+                          isSelected && "bg-popover",
                           isExpired && "opacity-60"
                         )}
                         onClick={() => toggleAccount(account.id)}
@@ -1785,7 +1785,7 @@ export default function PublishPage() {
                         </div>
                         <div className="relative w-10 h-10">
                           <div className={cn(
-                            "w-10 h-10 rounded-full bg-black flex items-center justify-center border overflow-hidden",
+                            "w-10 h-10 rounded-full bg-popover flex items-center justify-center border overflow-hidden",
                             isExpired ? "border-border" : "border-border/70"
                           )}>
                             {account.avatar ? (
@@ -1799,7 +1799,7 @@ export default function PublishPage() {
                               <span className="text-sm font-medium">{(displayName || "U").slice(0, 1)}</span>
                             )}
                           </div>
-                          <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-black border border-border/70 flex items-center justify-center p-0.5">
+                          <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-popover border border-border/70 flex items-center justify-center p-0.5">
                             <Image
                               src={PLATFORMS.find(p => p.key === (account.platform as any))?.icon ?? "/Tiktok.svg"}
                               alt={account.platform ?? "平台"}
@@ -1828,7 +1828,7 @@ export default function PublishPage() {
                             variant={statusVariant}
                             className={cn(
                               "text-[10px] h-5 px-1.5",
-                              statusVariant === "outline" && "bg-black border-border text-white"
+                              statusVariant === "outline" && "bg-popover border-border text-foreground"
                             )}
                           >
                             {statusText}
@@ -1869,7 +1869,7 @@ export default function PublishPage() {
                     size="sm"
                     onClick={() => setAccountDrawerPage(p => Math.max(1, p - 1))}
                     disabled={accountDrawerPage === 1}
-                    className="h-7 text-xs border-border/70 bg-black hover:bg-accent/50"
+                    className="h-7 text-xs border-border/70 bg-popover hover:bg-accent/50"
                   >
                     上一页
                   </Button>
@@ -1881,7 +1881,7 @@ export default function PublishPage() {
                     size="sm"
                     onClick={() => setAccountDrawerPage(p => Math.min(totalDrawerPages, p + 1))}
                     disabled={accountDrawerPage === totalDrawerPages}
-                    className="h-7 text-xs border-border/70 bg-black hover:bg-accent/50"
+                    className="h-7 text-xs border-border/70 bg-popover hover:bg-accent/50"
                   >
                     下一页
                   </Button>

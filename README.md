@@ -1,7 +1,7 @@
-# Prism 棱镜/映射
+# 老马AI工作台
 > 创作一次，映射全平台。
 
-Prism一个 AI 驱动的多平台内容编排与自动化发布系统；
+老马AI工作台一个 AI 驱动的多平台内容编排与自动化发布系统；
 面向多账号、多素材、多平台的内容分发场景，提供从计划生成、任务调度到执行监控与数据回收的全链路能力；
 
 ---
@@ -28,7 +28,7 @@ Prism一个 AI 驱动的多平台内容编排与自动化发布系统；
 
 ## 项目定位
 
-Prism 是一个“矩阵投放 / 分发中台”，把「账号、素材、计划、排期、执行、监控、回收」统一到可编排的任务系统中：
+老马AI工作台是一个“矩阵投放 / 分发中台”，把「账号、素材、计划、排期、执行、监控、回收」统一到可编排的任务系统中：
 - 适合多平台、多账号的规模化分发与运营底座；
 - 不强行覆盖剪辑/混剪/内容工厂，可作为外部生产链路的对接层；
 - 设计参考行业常见“编-投-管-回”闭环，但项目更聚焦于“投 + 管 + 回”；
@@ -71,18 +71,18 @@ Prism 是一个“矩阵投放 / 分发中台”，把「账号、素材、计�
 
 ### 1) Persona Studio —— 浏览器身份 / 指纹 / Profile 层
 
-集成 [Persona Studio](https://github.com/TechQaiser/persona-studio)（MIT，开源自托管反检测浏览器与 Profile 管理器）作为 Prism 的 **Browser Identity / Fingerprint / Profile 层**：
+集成 [Persona Studio](https://github.com/TechQaiser/persona-studio)（MIT，开源自托管反检测浏览器与 Profile 管理器）作为 老马AI工作台的 **Browser Identity / Fingerprint / Profile 层**：
 
 - **相干指纹生成**：OS / UA / GPU / 屏幕 / 时区 / 语言彼此一致，避免“macOS UA 配 NVIDIA GPU”这类一眼假组合；
 - **Profile 持久化**：Cookie / LocalStorage / IndexedDB 随 Profile 留存，登录一次、下次启动仍在；
 - **持久会话**：账号登录态跨任务复用，无需重复扫码；
-- **引擎可选**：`cloak`(CloakBrowser) / `camoufox` / `patchright` / `playwright`（默认与 Prism 运行时一致的 `patchright`）；
+- **引擎可选**：`cloak`(CloakBrowser) / `camoufox` / `patchright` / `playwright`（默认与 老马AI工作台运行时一致的 `patchright`）；
 - **代理注入 + 出口 IP / 泄漏检测**。
 
-Prism **不自研**指纹、Profile 存储、指纹伪造，全部交给 Persona Studio；不安装时自动回退 **Patchright 直连模式**（每账号独立 `data/browser_profiles/<account>/` persistent context），功能不中断，仅少相干指纹/持久会话增强。
+老马AI工作台 **不自研**指纹、Profile 存储、指纹伪造，全部交给 Persona Studio；不安装时自动回退 **Patchright 直连模式**（每账号独立 `data/browser_profiles/<account>/` persistent context），功能不中断，仅少相干指纹/持久会话增强。
 
 - 账号表 `cookie_accounts` 增加 `persona_profile_id`（默认 = account_id）、`browser_backend`（patchright / persona）、`proxy_id`；
-- 一个 Prism 账号 ↔ 一个 Persona Profile；
+- 一个 老马AI工作台 账号 ↔ 一个 Persona Profile；
 - Persona serve：`http://127.0.0.1:8787`（`PERSONA_API_URL`）。
 
 ### 2) per-country 代理网关 + 每账号代理绑定
@@ -105,13 +105,13 @@ Prism **不自研**指纹、Profile 存储、指纹伪造，全部交给 Persona
 
 ### 3) 代理管理（Proxy Manager / IP 池）
 
-Prism 自研的代理管理：
+老马AI工作台 自研的代理管理：
 - 登记标准 HTTP/SOCKS5 endpoint，自动健康检测（延迟 / 可用性）；
 - **sticky 固定绑定**：`proxy_id` 权威落账号表，同一账号始终走同一代理；
 - 批量导入 / 导出、自动绑定（从空闲池按 region 匹配）、`max_bindings` 上限；
 - 每账号环境视图（`GET /api/v1/accounts/{id}/environment`）：展示 Browser + Proxy + Runtime 状态。
 
-> 3Proxy / gluetun / sing-box 等只产出标准 HTTP/SOCKS5 endpoint 登记进 Proxy Manager，不进入 Prism 核心业务。
+> 3Proxy / gluetun / sing-box 等只产出标准 HTTP/SOCKS5 endpoint 登记进 Proxy Manager，不进入 老马AI工作台 核心业务。
 
 ### 4) 浏览器运行时管理（系统 Chrome / 无头 / 运行时切换）
 
@@ -129,7 +129,7 @@ Prism 自研的代理管理：
 `/tools` 页面统一管理可一键安装的开发工具，按 **skill / MCP / 插件 / 组件** 分类：
 - 已收录：`deepseek-harness`、`ccswitch`、`computer-use-linux`、`hermes-agent`、`persona-studio`；
 - **一键安装 / 卸载**：克隆 + 构建（如 persona dashboard 构建）；
-- **启动 / 调用**：已装桌面应用（如 CC Switch）可从 Prism 直接打开；
+- **启动 / 调用**：已装桌面应用（如 CC Switch）可从 老马AI工作台 直接打开；
 - **Hermes 技能软启用 / 停用**：技能（`SKILL.md`）在 `active` 与 `_disabled` 目录间移动，**不物理删除**；
 - 后端：`GET /api/v1/tools`、`/{id}/install`、`/{id}/uninstall`、`/{id}/launch`、`/{id}/build`、`/{id}/toggle`。
 
@@ -139,12 +139,12 @@ Prism 自研的代理管理：
 - **抖音登录模式**：`browser`（正式 / 当前模拟）↔ `http`（逆向 HTTP 测试）；
 - **浏览器后端**：`patchright` / `persona`；
 - **无头模式**：`PLAYWRIGHT_HEADLESS`；
-- 相关 `.env`：`PRISM_DOUYIN_LOGIN_MODE`、`PRISM_BROWSER_BACKEND_DEFAULT`。
+- 相关 `.env`：`LAOMA_DOUYIN_LOGIN_MODE`、`LAOMA_BROWSER_BACKEND_DEFAULT`。
 
 ### 7) 账号登录体验改进
 
 - **二维码登录**：支持取消（停止连接/轮询）与重试；支持从本机 Chrome 导入已登录账号；
-- **从本机 Chrome 导入**：复制本机 Chrome 的 Cookies/Local State 到 Prism 专用 profile（非无痕），无需关闭 Chrome，若平台已登录则直接读取登录态入库；
+- **从本机 Chrome 导入**：复制本机 Chrome 的 Cookies/Local State 到 老马AI工作台 专用 profile（非无痕），无需关闭 Chrome，若平台已登录则直接读取登录态入库；
 - **TikTok / YouTube**：恢复上游 SAU 交互式登录，修复 `--no-sandbox` 崩溃、cookie 抓取与账号入库（user_id 兜底 + account_id）；
 - **Toast 自动关闭**：修复 Radix 暂停态导致通知不自动关闭的问题。
 
@@ -227,17 +227,17 @@ tools/             # 自托管组件（hermes-agent / hermes-webui / persona-stu
 
 | 层 | 归属 |
 |---|---|
-| 账号 / 平台 / 任务 / Celery / Redis | Prism |
+| 账号 / 平台 / 任务 / Celery / Redis | 老马AI工作台 |
 | 代理网关（per-country 端口 7771–7776） | mihomo（Persona proxies） |
-| Proxy Manager（proxies、sticky 绑定、健康检测） | Prism |
+| Proxy Manager（proxies、sticky 绑定、健康检测） | 老马AI工作台 |
 | Browser Identity / Fingerprint / Profile | Persona Studio |
-| 浏览器执行（平台 Adapter 驱动） | Prism Patchright（`connect_over_cdp`） |
+| 浏览器执行（平台 Adapter 驱动） | 老马AI工作台 Patchright（`connect_over_cdp`） |
 
 固定链路：
 
 ```text
 Account
-  → persona_profile_id（Prism 账号表）
+  → persona_profile_id（老马AI工作台 账号表）
   → Persona Profile（指纹 + 持久会话）
   → Sticky Proxy（Proxy Manager 注入 / per-country 代理）
   → Patchright（connect_over_cdp 驱动）
@@ -284,7 +284,7 @@ cd ..
 
 必须检查两类配置：
 
-- 根目录 `.env`：端口、Redis、浏览器路径、前后端连接地址、`PLAYWRIGHT_HEADLESS`、`PRISM_BROWSER_BACKEND_DEFAULT`、`PRISM_DOUYIN_LOGIN_MODE`。
+- 根目录 `.env`：端口、Redis、浏览器路径、前后端连接地址、`PLAYWRIGHT_HEADLESS`、`LAOMA_BROWSER_BACKEND_DEFAULT`、`LAOMA_DOUYIN_LOGIN_MODE`。
 - `prism_backend\config\llm_config.toml`：HermesAgent 的 provider / model / api_key / base_url。
 
 浏览器依赖：
@@ -378,7 +378,7 @@ macOS 推荐用 **PM2** 统一管理全套进程，避免 nohup 多进程难维�
 | `persona-proxy` | 独立官方 mihomo 网关 | http://127.0.0.1:7771-7776 |
 
 > `start-pm2.sh` 会先清理残留进程避免端口占用，再启动并打印 `pm2 list`。
-> `ecosystem-mac.config.js` 显式设置 `PRISM_BROWSER_BACKEND_DEFAULT=persona`，即 macOS 默认走 Persona 身份层。
+> `ecosystem-mac.config.js` 显式设置 `LAOMA_BROWSER_BACKEND_DEFAULT=persona`，即 macOS 默认走 Persona 身份层。
 
 常用命令：
 
@@ -412,7 +412,7 @@ prism douyin upload-video \
   --file ./video.mp4 \
   --title "示例标题" \
   --description "示例简介" \
-  --tags "Prism,自动发布"
+  --tags "老马AI工作台,自动发布"
 ```
 
 定时发布使用本地时间，格式为 `YYYY-MM-DD HH:MM`：
@@ -425,13 +425,13 @@ prism xiaohongshu upload-video \
   --schedule "2026-08-18 20:30"
 ```
 
-国际平台首次使用需在运行 Prism 的本机浏览器中完成账号登录；登录态会以 storage state 保存并供任务队列复用：
+国际平台首次使用需在运行 老马AI工作台的本机浏览器中完成账号登录；登录态会以 storage state 保存并供任务队列复用：
 
 ```bash
 prism tiktok login --account creator
 prism youtube login --account creator
 prism youtube upload-video --account creator --file ./video.mp4 --title "Example" \
-  --description "Video description" --tags "Prism,automation" --visibility unlisted
+  --description "Video description" --tags "老马AI工作台,automation" --visibility unlisted
 ```
 
 ### Gemini Computer Use 受控恢复（可选）
@@ -520,19 +520,20 @@ POST /api/v1/tools/{tool_id}/toggle     # 软启用/停用技能
 
 ## 项目支持与采用
 
-Prism 的能力建设受益于开源生态；下列项目的代码、架构或实现思路被采用、移植或作为实现参考：
+老马AI工作台的能力建设受益于开源生态；下列项目的代码、架构或实现思路被采用、移植或作为实现参考：
 
 - [social-auto-upload](https://github.com/dreammis/social-auto-upload)：上游 CLI 自动发布基础；MIT License。
 - [Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)：抖音 / TikTok 解析与数据能力参考；Apache License 2.0。
 - [HermesAgent](https://github.com/nousresearch/hermes-agent)：本地 AI Agent 运行时与集成参考；MIT License。
 - [Persona Studio](https://github.com/TechQaiser/persona-studio)：浏览器身份 / 指纹 / Profile 层；MIT License。
+- [Easel](https://github.com/ZJU-REAL/Easel)（浙大 ZJU-REAL Lab）：内容创作工作台 API 契约参考源，副本存放于 [tools/easel-ref/](tools/easel-ref/)；Apache License 2.0。本项目未直接 vendor 完整 Easel，仅参考 API 契约；归属、抽取版本与本地改动详见 [vendor/VENDOR.md](vendor/VENDOR.md)。
 
-对应第三方归属和许可证说明保留在 [NOTICE.txt](NOTICE.txt)。
+对应第三方归属和许可证说明保留在 [NOTICE.txt](NOTICE.txt)，逐项细节见 [vendor/VENDOR.md](vendor/VENDOR.md)。
 
 ---
 
 ## 许可
-Prism 自身代码基于 Apache License 2.0 开源。项目中保留的 MIT 与 Apache-2.0 上游组件继续分别适用其原始许可证；Apache-2.0 与 MIT 组件可共同分发，但必须保留上游版权、许可证和 NOTICE 归属。
+老马AI工作台 自身代码基于 Apache License 2.0 开源。项目中保留的 MIT 与 Apache-2.0 上游组件继续分别适用其原始许可证；Apache-2.0 与 MIT 组件可共同分发，但必须保留上游版权、许可证和 NOTICE 归属。
 
 ## Community
 
@@ -544,4 +545,4 @@ Prism 自身代码基于 Apache License 2.0 开源。项目中保留的 MIT 与 
 
 | | | |
 |-|-|-|
-| ![1d1114b7-9c71-4c18-91df-0a462bed5405](https://github.com/user-attachments/assets/f0c38071-f69a-4262-a339-182c090d4c41) | ![dac9dc35-e027-42e8-b6aa-81f3211906da](https://github.com/user-attachments/assets/761ae5f1-8350-49d6-bba6-de2f01f1b73e) | ![Prism 交流群二维码](docs/prism-qq-group-qr.jpg) |
+| ![1d1114b7-9c71-4c18-91df-0a462bed5405](https://github.com/user-attachments/assets/f0c38071-f69a-4262-a339-182c090d4c41) | ![dac9dc35-e027-42e8-b6aa-81f3211906da](https://github.com/user-attachments/assets/761ae5f1-8350-49d6-bba6-de2f01f1b73e) | ![老马AI工作台 交流群二维码](docs/prism-qq-group-qr.jpg) |

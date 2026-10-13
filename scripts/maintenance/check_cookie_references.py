@@ -17,7 +17,7 @@ def check_cookie_references():
     checked_files = []
 
     # 要检查的目录
-    backend_dir = Path("E:/Prism/prism_backend")
+    backend_dir = Path("E:/laoma-ai-workbench/prism_backend")
 
     # 排除目录
     exclude_dirs = {

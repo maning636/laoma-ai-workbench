@@ -9,7 +9,7 @@ from .models import ReversePublishResult
 
 @dataclass(frozen=True)
 class ReverseSession:
-    """Runtime-only credentials supplied by Prism's account/session service."""
+    """Runtime-only credentials supplied by 老马AI工作台's account/session service."""
 
     account_id: str
     headers: Mapping[str, str]

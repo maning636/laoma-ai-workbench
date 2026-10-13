@@ -68,13 +68,13 @@ export function ExecutionHistory() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "completed":
-        return <CheckCircle2 className="h-4 w-4 text-white" />
+        return <CheckCircle2 className="h-4 w-4 text-foreground" />
       case "failed":
-        return <XCircle className="h-4 w-4 text-white" />
+        return <XCircle className="h-4 w-4 text-foreground" />
       case "running":
-        return <Loader2 className="h-4 w-4 animate-spin text-white" />
+        return <Loader2 className="h-4 w-4 animate-spin text-foreground" />
       default:
-        return <Clock className="h-4 w-4 text-white" />
+        return <Clock className="h-4 w-4 text-foreground" />
     }
   }
 

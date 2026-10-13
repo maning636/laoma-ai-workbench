@@ -24,9 +24,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [pathname])
 
   return (
-    <div className="relative flex h-screen w-screen overflow-hidden bg-background text-foreground selection:bg-black selection:text-foreground md:min-h-screen md:w-full">
+    <div className="relative flex h-screen w-screen overflow-hidden bg-background text-foreground selection:bg-popover selection:text-foreground md:min-h-screen md:w-full">
       {/* Pure black minimal background */}
-      <div className="fixed inset-0 z-0 pointer-events-none bg-black" />
+      <div className="fixed inset-0 z-0 pointer-events-none bg-popover" />
 
       {/* Desktop sidebar */}
       <div className="hidden sm:flex relative z-20">
@@ -60,11 +60,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Suspense>
           {hermesActive && <HermesEmbeddedHost active />}
           {hermesChatActive && (
-            <div className="absolute inset-0 z-10 bg-black">
+            <div className="absolute inset-0 z-10 bg-popover">
               <iframe
                 src="http://127.0.0.1:9119/chat"
                 title="HermesChat"
-                className="block h-full w-full border-0 bg-black"
+                className="block h-full w-full border-0 bg-popover"
               />
             </div>
           )}

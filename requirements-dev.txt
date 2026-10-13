@@ -1,5 +1,5 @@
 # ============================================
-# Prism - 开发/测试依赖
+# 老马AI工作台 - 开发/测试依赖
 # 运行生产服务不需要；仅本地开发、测试、迁移、代码检查使用。
 # 安装：pip install -r requirements.txt -r requirements-dev.txt
 # ============================================
@@ -8,6 +8,8 @@
 pytest
 pytest-asyncio
 pytest-cov
+# fastapi.testclient 的异步/HTTP 支持依赖 httpx
+httpx
 
 # ---- 数据库迁移 ----
 alembic==1.18.4
@@ -15,3 +17,4 @@ alembic==1.18.4
 # ---- 代码风格/检查 ----
 black
 flake8
+ruff

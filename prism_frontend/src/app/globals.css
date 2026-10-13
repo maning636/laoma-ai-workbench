@@ -5,201 +5,267 @@
 /* Streamdown styles for MessageResponse component */
 @source "../node_modules/streamdown/dist/*.js";
 
+/* ════════════════════════════════════════════════════════════════════
+   老马AI工作台 · 新粗野主义 (Neo-Brutalism) 主题
+   配色取自参考设计：米黄底 + 粗黑边框 + 硬阴影 + 亮色点缀
+   ════════════════════════════════════════════════════════════════════ */
+
 @layer base {
   :root {
-    /* Strict black and white only — no gray */
-    --background: 0 0% 0%;
-    --foreground: 0 0% 100%;
+    /* 米黄底 #FFF6E5 */
+    --background: 42 100% 95%;
+    /* 墨黑文字 #0F0F0F */
+    --foreground: 0 0% 6%;
 
-    --card: 0 0% 3%;
-    --card-foreground: 0 0% 100%;
+    /* 白色卡片 #FFFFFF */
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 6%;
 
-    --popover: 0 0% 0%;
-    --popover-foreground: 0 0% 100%;
+    /* 白色弹出层 */
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 6%;
 
-    /* Buttons are monochrome: white surface, black text */
-    --primary: 0 0% 100%;
-    --primary-foreground: 0 0% 0%;
+    /* 亮黄主按钮 #FFD429 */
+    --primary: 51 100% 58%;
+    --primary-foreground: 0 0% 6%;
 
-    --secondary: 0 0% 0%;
+    /* 亮粉次按钮 #FF5FA2 */
+    --secondary: 338 100% 68%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 0 0% 0%;
-    --muted-foreground: 0 0% 58%;
+    /* 浅米黄静音背景 */
+    --muted: 42 60% 92%;
+    --muted-foreground: 0 0% 42%;
 
-    --accent: 0 0% 9%;
+    /* 蓝色强调 #3D7BFF */
+    --accent: 220 100% 62%;
     --accent-foreground: 0 0% 100%;
 
-    /* Destructive is a plain white button, no red / no gray */
-    --destructive: 0 0% 100%;
-    --destructive-foreground: 0 0% 0%;
+    /* 亮粉危险按钮 #FF5FA2 */
+    --destructive: 338 100% 68%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 17%;
-    --input: 0 0% 0%;
-    --ring: 0 0% 100%;
+    /* 柔和深灰边框 */
+    --border: 220 15% 45%;
+    --input: 220 15% 45%;
+    /* 亮黄聚焦环 */
+    --ring: 51 100% 58%;
 
-    /* Terminal accent pure white (was green) */
-    --terminal: 0 0% 100%;
-    --terminal-foreground: 0 0% 0%;
+    --terminal: 0 0% 6%;
+    --terminal-foreground: 0 0% 100%;
 
-    --radius: 0.25rem;
+    --radius: 0.375rem;
 
-    --chart-1: 0 0% 100%;
-    --chart-2: 0 0% 100%;
-    --chart-3: 0 0% 100%;
-    --chart-4: 0 0% 100%;
-    --chart-5: 0 0% 100%;
+    /* 新粗野主义点缀色（HSL 格式，供自定义组件使用） */
+    --nb-pink: 338 100% 68%;
+    --nb-yellow: 51 100% 58%;
+    --nb-blue: 220 100% 62%;
+    --nb-green: 147 68% 50%;
+    --nb-ink: 0 0% 6%;
+    --nb-paper: 42 100% 95%;
+    --nb-white: 0 0% 100%;
+
+    --chart-1: 51 100% 58%;
+    --chart-2: 338 100% 68%;
+    --chart-3: 220 100% 62%;
+    --chart-4: 147 68% 50%;
+    --chart-5: 0 0% 6%;
   }
 
   .dark {
-    --background: 0 0% 0%;
-    --foreground: 0 0% 100%;
-
-    --card: 0 0% 3%;
-    --card-foreground: 0 0% 100%;
-
-    --popover: 0 0% 0%;
-    --popover-foreground: 0 0% 100%;
-
-    --primary: 0 0% 100%;
-    --primary-foreground: 0 0% 0%;
-
-    --secondary: 0 0% 0%;
+    /* 暗色模式：仍用米黄底（新粗野主义不区分明暗） */
+    --background: 42 100% 95%;
+    --foreground: 0 0% 6%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 6%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 6%;
+    --primary: 51 100% 58%;
+    --primary-foreground: 0 0% 6%;
+    --secondary: 338 100% 68%;
     --secondary-foreground: 0 0% 100%;
-
-    --muted: 0 0% 0%;
-    --muted-foreground: 0 0% 58%;
-
-    --accent: 0 0% 9%;
+    --muted: 42 60% 92%;
+    --muted-foreground: 0 0% 42%;
+    --accent: 220 100% 62%;
     --accent-foreground: 0 0% 100%;
-
-    --destructive: 0 0% 100%;
-    --destructive-foreground: 0 0% 0%;
-
-    --border: 0 0% 17%;
-    --input: 0 0% 0%;
-    --ring: 0 0% 100%;
-
-    --terminal: 0 0% 100%;
-    --terminal-foreground: 0 0% 0%;
-
-    --chart-1: 0 0% 100%;
-    --chart-2: 0 0% 100%;
-    --chart-3: 0 0% 100%;
-    --chart-4: 0 0% 100%;
-    --chart-5: 0 0% 100%;
+    --destructive: 338 100% 68%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 15% 45%;
+    --input: 220 15% 45%;
+    --ring: 51 100% 58%;
+    --terminal: 0 0% 6%;
+    --terminal-foreground: 0 0% 100%;
+    --chart-1: 51 100% 58%;
+    --chart-2: 338 100% 68%;
+    --chart-3: 220 100% 62%;
+    --chart-4: 147 68% 50%;
+    --chart-5: 0 0% 6%;
   }
 }
 
 @layer utilities {
-  /* Terminal-dark monospace / light text for logs, ids, status, metrics */
   .font-terminal {
     font-family: var(--font-mono), ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
   }
-
   .text-terminal {
     color: hsl(var(--terminal));
   }
 
-  /* SaaS frosted surface */
+  /* 新粗野主义：硬阴影工具类 */
+  .nb-shadow-s { box-shadow: 4px 4px 0 hsl(var(--nb-ink)); }
+  .nb-shadow-m { box-shadow: 6px 6px 0 hsl(var(--nb-ink)); }
+  .nb-shadow-l { box-shadow: 8px 8px 0 hsl(var(--nb-ink)); }
+  .nb-border   { border: 3px solid hsl(var(--nb-ink)); }
+  .nb-border-2 { border: 2px solid hsl(var(--nb-ink)); }
+
+  /* 新粗野主义：米黄底表面（替代旧的毛玻璃） */
   .bg-glass {
-    background-color: hsl(var(--background) / 0.72);
-    backdrop-filter: blur(16px) saturate(140%);
-    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    background-color: hsl(var(--nb-paper));
   }
-
-  /* SaaS elevated glass panel */
   .bg-glass-strong {
-    background-color: hsl(var(--background) / 0.85);
-    backdrop-filter: blur(20px) saturate(160%);
-    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    background-color: hsl(var(--nb-white));
   }
 
-  /* SaaS hairline top highlight for cards */
+  /* ── 全局修复：bg-foreground 在近黑主题下变成黑底，改为亮黄底 + 墨色文字 ── */
+  /* 精确匹配 .bg-foreground（不匹配 bg-foreground/[0.02] 等透明度变体） */
+  .bg-foreground {
+    background-color: hsl(var(--nb-yellow)) !important;
+    color: hsl(var(--nb-ink)) !important;
+  }
+  .bg-foreground:hover:not([data-state="checked"]) {
+    background-color: hsl(var(--nb-yellow)) !important;
+    color: hsl(var(--nb-ink)) !important;
+  }
+  /* bg-foreground/ 透明度变体：根据透明度分级处理 */
+  /* 低透明度 (<20%) → 浅米色背景，适合按钮/标签底色 */
+  [class*="bg-foreground/5"],
+  [class*="bg-foreground/10"],
+  [class*="bg-foreground/[0.015]"],
+  [class*="bg-foreground/[0.02]"] {
+    background-color: hsl(var(--nb-paper)) !important;
+  }
+  /* 中等透明度 (40%-60%) → 浅黄色背景 */
+  [class*="bg-foreground/50"],
+  [class*="bg-foreground/60"] {
+    background-color: hsl(var(--nb-yellow) / 0.3) !important;
+    color: hsl(var(--nb-ink)) !important;
+  }
+  /* 高透明度 (70%-90%) → 亮黄背景 + 墨色文字 */
+  [class*="bg-foreground/70"],
+  [class*="bg-foreground/80"],
+  [class*="bg-foreground/90"] {
+    background-color: hsl(var(--nb-yellow)) !important;
+    color: hsl(var(--nb-ink)) !important;
+  }
+  /* hover 状态下的变体处理 */
+  [class*="bg-foreground/"]:hover:not([data-state="checked"]) {
+    background-color: hsl(var(--nb-yellow) / 0.8) !important;
+    color: hsl(var(--nb-ink)) !important;
+  }
+  /* bg-black 全局映射到柔和中性灰：
+     - 纯色 bg-black（如代码块、气泡背景）→ 中灰蓝 #A8AFBA，避免刺眼黑块
+     - 半透明遮罩（modal / lightbox backdrop）→ 亮浅灰 + 低透明，保留遮罩效果但不压暗主视觉
+  */
+  .bg-black { background-color: hsl(220 15% 60%) !important; }
+  .bg-black\/80 { background-color: hsl(220 15% 70% / 0.4) !important; }
+  .bg-black\/70 { background-color: hsl(220 15% 70% / 0.35) !important; }
+  .bg-black\/60 { background-color: hsl(220 15% 70% / 0.3) !important; }
+  .bg-black\/50 { background-color: hsl(220 15% 70% / 0.25) !important; }
+  .bg-black\/40 { background-color: hsl(220 15% 70% / 0.2) !important; }
+  .bg-black\/30 { background-color: hsl(220 15% 70% / 0.15) !important; }
+  .bg-black\/20 { background-color: hsl(220 15% 70% / 0.1) !important; }
+  .bg-white { background-color: hsl(var(--nb-white)) !important; }
   .hairline-top {
-    box-shadow: inset 0 1px 0 0 hsl(var(--border) / 0.6);
+    box-shadow: inset 0 3px 0 0 hsl(var(--nb-ink));
   }
-
-  /* SaaS ambient card glow on hover */
   .card-glow {
-    transition: border-color 0.25s ease, box-shadow 0.25s ease, background-color 0.25s ease;
+    transition: transform 0.18s cubic-bezier(0.22,1,0.36,1), box-shadow 0.18s ease, border-color 0.18s ease;
   }
   .card-glow:hover {
-    border-color: hsl(var(--primary) / 0.35);
-    box-shadow:
-      0 0 0 1px hsl(var(--primary) / 0.12),
-      0 8px 32px -12px hsl(var(--primary) / 0.25);
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0 hsl(var(--nb-ink));
   }
-
-  /* Soft inner fade for Aurora ambient background */
   .bg-ambient-fade {
-    background: radial-gradient(
-      120% 80% at 50% 0%,
-      hsl(var(--primary) / 0.06),
-      transparent 60%
-    );
+    background: radial-gradient(120% 80% at 50% 0%, hsl(var(--nb-yellow) / 0.08), transparent 60%);
   }
 }
 
-/* Global scrollbar hiding */
-::-webkit-scrollbar {
-  display: none;
-}
-* {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
-}
+/* ── 全局滚动条 ── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: hsl(var(--nb-paper)); }
+::-webkit-scrollbar-thumb { background: hsl(var(--nb-ink)); border-radius: 0; }
+::-webkit-scrollbar-thumb:hover { background: hsl(var(--nb-pink)); }
+* { -ms-overflow-style: none; scrollbar-width: auto; }
 
+/* ── body 全局样式 ── */
 body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
-  font-family: var(--font-mono), ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
-  font-size: 13px;
+  font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 14px;
   letter-spacing: -0.012em;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Hermes-inspired console surfaces: compact, squared, and information-dense. */
-.bg-glass, .bg-glass-strong { background-color: hsl(0 0% 2% / 0.96); }
-.rounded-xl, .rounded-2xl, .rounded-lg { border-radius: 0.2rem; }
+/* ── 新粗野主义：全局组件样式覆盖 ── */
 
-/* Strict Hermes console geometry: no rounded surfaces anywhere. */
-*, *::before, *::after {
-  border-radius: 0 !important;
+/* 圆角统一为 0.375rem（不再强制方角，也不再大圆角） */
+[class*="rounded-lg"],
+[class*="rounded-xl"],
+[class*="rounded-2xl"],
+[class*="rounded-md"] {
+  border-radius: 0.375rem !important;
 }
 
-/* Match Hermes' compact console typography without shrinking page titles. */
-.text-sm { font-size: 0.8125rem; line-height: 1.2rem; }
-.text-xs { font-size: 0.6875rem; line-height: 1rem; }
-.text-lg { font-size: 1rem; }
+/* 按钮：轻柔的 hover 阴影 */
+button[class*="bg-"]:not([class*="bg-transparent"]):not([class*="bg-none"]):hover,
+a[class*="bg-"]:not([class*="bg-transparent"]):hover {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+button[class*="bg-"]:not([class*="bg-transparent"]):active,
+a[class*="bg-"]:active {
+  box-shadow: none;
+}
 
-/* ── Hermes-style compact data table (small font, thin border) ────────────── */
-/* Mirrors Hermes .csv-table / .mcp-* card rows: 1px theme border, 11-12px type,
-   dense padding, no rounded corners (console geometry is forced square above). */
+/* 输入框：使用主题边框色，不加 !important */
+input[class*="border"],
+textarea[class*="border"],
+select[class*="border"] {
+  border-radius: 0.375rem;
+}
+input[class*="border"]:focus,
+textarea[class*="border"]:focus {
+  outline: none;
+}
+
+/* ── Hermes 风格数据表（更新配色） ── */
 .hm-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 12px;
   line-height: 1.35;
+  border: 2px solid hsl(var(--nb-ink));
 }
 .hm-table th {
   font-size: 10.5px;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: hsl(var(--muted-foreground));
+  color: hsl(var(--nb-ink));
   text-align: left;
-  padding: 6px 10px;
-  border-bottom: 1px solid hsl(var(--border) / 0.9);
+  padding: 8px 10px;
+  border-bottom: 2px solid hsl(var(--nb-ink));
+  background: hsl(var(--nb-yellow));
   white-space: nowrap;
 }
 .hm-table td {
-  padding: 6px 10px;
-  border-bottom: 1px solid hsl(var(--border) / 0.45);
+  padding: 8px 10px;
+  border-bottom: 1px solid hsl(var(--nb-ink) / 0.2);
   color: hsl(var(--foreground) / 0.85);
   vertical-align: middle;
 }
 .hm-table tbody tr:hover td {
-  background-color: hsl(var(--accent) / 0.22);
+  background-color: hsl(var(--nb-yellow) / 0.2);
 }
 .hm-table td.hm-cell-mono,
 .hm-table th.hm-cell-mono {
@@ -209,7 +275,7 @@ body {
 .hm-table .hm-dim { color: hsl(var(--muted-foreground)); }
 .hm-table .hm-num { font-variant-numeric: tabular-nums; }
 
-/* Hermes-style pill badge (transport / status / meta chips). */
+/* ── 药丸标签（更新配色） ── */
 .hm-pill {
   display: inline-flex;
   align-items: center;
@@ -219,36 +285,39 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   line-height: 1;
-  padding: 3px 8px;
+  padding: 4px 10px;
   border-radius: 999px;
-  border: 1px solid hsl(var(--border));
-  color: hsl(var(--muted-foreground));
+  border: 2px solid hsl(var(--nb-ink));
+  color: hsl(var(--nb-ink));
+  background: hsl(var(--nb-white));
   white-space: nowrap;
 }
-.hm-pill--active   { color: hsl(var(--terminal)); border-color: hsl(var(--terminal) / 0.4); }
-.hm-pill--warn     { color: hsl(var(--foreground)); border-color: hsl(var(--foreground) / 0.35); }
-.hm-pill--muted    { color: hsl(var(--muted-foreground)); border-color: hsl(var(--border)); }
+.hm-pill--active   { color: hsl(var(--nb-ink)); background: hsl(var(--nb-yellow)); border-color: hsl(var(--nb-ink)); }
+.hm-pill--warn     { color: hsl(var(--nb-white)); background: hsl(var(--nb-pink)); border-color: hsl(var(--nb-ink)); }
+.hm-pill--muted    { color: hsl(var(--muted-foreground)); background: hsl(var(--nb-white)); border-color: hsl(var(--nb-ink) / 0.3); }
 .hm-pill--mono     { font-family: var(--font-mono), ui-monospace, "SF Mono", Menlo, monospace; }
 
-/* Small ghost button used inside Hermes-style rows/cards. */
+/* ── 小按钮（更新配色） ── */
 .hm-btn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   font-size: 10.5px;
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1;
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid hsl(var(--border));
-  color: hsl(var(--foreground) / 0.85);
-  background: transparent;
+  padding: 6px 12px;
+  border-radius: 0.375rem;
+  border: 2px solid hsl(var(--nb-ink));
+  color: hsl(var(--nb-ink));
+  background: hsl(var(--nb-white));
   cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  box-shadow: 3px 3px 0 hsl(var(--nb-ink));
 }
-.hm-btn:hover { background: hsl(var(--accent) / 0.5); border-color: hsl(var(--foreground) / 0.3); }
-.hm-btn--primary { color: hsl(var(--primary-foreground)); background: hsl(var(--primary)); border-color: hsl(var(--primary)); }
-.hm-btn--primary:hover { background: hsl(var(--primary) / 0.85); }
-.hm-btn--danger { color: hsl(var(--foreground)); border-color: hsl(var(--foreground) / 0.3); }
-.hm-btn--danger:hover { background: hsl(var(--accent) / 0.5); }
-.hm-btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+.hm-btn:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 hsl(var(--nb-ink)); background: hsl(var(--nb-yellow)); }
+.hm-btn:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 hsl(var(--nb-ink)); }
+.hm-btn--primary { color: hsl(var(--nb-ink)); background: hsl(var(--nb-green)); border-color: hsl(var(--nb-ink)); }
+.hm-btn--primary:hover { background: hsl(var(--nb-yellow)); }
+.hm-btn--danger { color: hsl(var(--nb-white)); background: hsl(var(--nb-pink)); border-color: hsl(var(--nb-ink)); }
+.hm-btn--danger:hover { background: hsl(var(--nb-ink)); color: hsl(var(--nb-white)); }
+.hm-btn[disabled] { opacity: 0.45; cursor: not-allowed; box-shadow: none; transform: none; }

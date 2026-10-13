@@ -15,8 +15,8 @@ from typing import Iterable, Set
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-PRISM_BACKEND = REPO_ROOT / "prism_backend"
-MYUTILS_DIR = PRISM_BACKEND / "myUtils"
+LAOMA_BACKEND = REPO_ROOT / "prism_backend"
+MYUTILS_DIR = LAOMA_BACKEND / "myUtils"
 
 
 def iter_py_files(root: Path) -> Iterable[Path]:
@@ -64,7 +64,7 @@ def main() -> int:
     }
 
     referenced: Set[str] = set()
-    for py in iter_py_files(PRISM_BACKEND):
+    for py in iter_py_files(LAOMA_BACKEND):
         if MYUTILS_DIR in py.parents:
             continue
         referenced |= imported_myutils_modules(py)

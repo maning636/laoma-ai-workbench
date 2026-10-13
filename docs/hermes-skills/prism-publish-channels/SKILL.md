@@ -1,18 +1,18 @@
 ---
-name: prism-publish-channels
-description: "Prism 视频号发布：登录、校验、视频发布（及无图文）与 CLI/API/MCP 工具契约。"
+name: laoma-publish-channels
+description: "老马AI工作台 视频号发布：登录、校验、视频发布（及无图文）与 CLI/API/MCP 工具契约。"
 version: 1.0.0
-author: Prism
+author: 老马AI工作台
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
   hermes:
-    tags: [Prism, publish, channels]
-    related_skills: [prism-project-layout]
+    tags: [老马AI工作台, publish, channels]
+    related_skills: [laoma-project-layout]
 prerequisites:
   commands: [prism]
 ---
-# Prism 视频号发布
+# 老马AI工作台 视频号发布
 
 在 视频号 上发布内容。能力已注册为独立工具，三层自动暴露：**MCP tool**、
 **API**（`POST /api/v1/tool-catalog/<name>`）、**CLI**（`prism tool invoke <name>` / `prism channels ...`）。

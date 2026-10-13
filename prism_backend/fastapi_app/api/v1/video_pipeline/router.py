@@ -1,6 +1,6 @@
 """
 视频流水线 API —— HyperFrames（HTML+GSAP→MP4）引擎，作为 Easel slideshow/ffmpeg 之外的
-**第二条并行流水线**。编排逻辑对标 F:\\自媒体 /video-producer（7 阶段：决策→内容→视觉
+**第二条并行流水线**。编排逻辑对标 video-producer 编排库（路径由 core_paths 解析，非硬编码绝对路径；7 阶段：决策→内容→视觉
 →素材→合成→输出→复盘）；本路由先落地 Flow 无关的引擎层：把一个 HyperFrames composition
 渲染成 MP4 并自动入素材库。
 
@@ -24,6 +24,8 @@ from fastapi.responses import PlainTextResponse
 
 from fastapi_app.core.config import settings
 from fastapi_app.core.logger import logger
+from fastapi_app.core import paths as core_paths
+from fastapi_app.utils.subprocess_safe import safe_run
 
 router = APIRouter(prefix="/video-pipeline", tags=["视频流水线"])
 
@@ -44,7 +46,7 @@ def _build_env() -> dict:
     # Node 输出含中文/emoji，GBK 控制台会崩
     env["NODE_NO_WARNINGS"] = "1"
     # 计划任务后端 PATH 可能精简，确保 nodejs 在 PATH 上（npx.cmd/node.exe 解析依赖它）
-    node_dir = str(Path("C:/Program Files/nodejs"))
+    node_dir = str(core_paths.get_nodejs_dir())
     path_sep = ";" if sys.platform == "win32" else ":"
     cur_path = env.get("PATH", "")
     if node_dir not in cur_path.split(path_sep):
@@ -61,8 +63,8 @@ def _resolve_npx() -> str:
     found = shutil.which("npx")
     if found:
         return found
-    for cand in (Path("C:/Program Files/nodejs/npx.cmd"),
-                 Path("C:/Program Files/nodejs/npx.exe"),
+    for cand in (Path(core_paths.get_nodejs_dir()) / "npx.cmd",
+                 Path(core_paths.get_nodejs_dir()) / "npx.exe",
                  Path(str(Path.home() / "AppData/Roaming/nvm"))):
         if cand.exists():
             return str(cand)
@@ -72,12 +74,11 @@ def _resolve_npx() -> str:
 def _probe_hyperframes() -> dict:
     """探测 npx hyperframes 版本。"""
     try:
-        proc = subprocess.run(
+        proc = safe_run(
             [_resolve_npx(), "hyperframes", "--version"],
-            capture_output=True,
             timeout=30,
-            env=_build_env(),
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0,
+            env_extra=_build_env(),
+            capture_output=True,
         )
         out = (proc.stdout or b"").decode("utf-8", errors="ignore").strip()
         err = (proc.stderr or b"").decode("utf-8", errors="ignore").strip()
@@ -103,15 +104,15 @@ async def list_engines():
         {
             "id": "openmontage",
             "label": "OpenMontage（Remotion Composer）",
-            "path": "F:/自媒体/OpenMontage",
-            "installed": Path("F:/自媒体/OpenMontage").exists(),
+            "path": str(core_paths.get_openmontage_dir()),
+            "installed": core_paths.get_openmontage_dir().exists(),
             "default": False,
         },
         {
             "id": "moneyprinter",
             "label": "MoneyPrinterTurbo（AI 一键成片）",
-            "path": "F:/自媒体/MoneyPrinterTurbo",
-            "installed": Path("F:/自媒体/MoneyPrinterTurbo").exists(),
+            "path": str(core_paths.get_moneyprinter_dir()),
+            "installed": core_paths.get_moneyprinter_dir().exists(),
             "default": False,
         },
     ]
@@ -136,13 +137,12 @@ def _run_hyperframes_render(composition_dir: Path, quality: str, fps: int, varia
     # 渲染前可选 lint（失败不阻断，只记日志）
     for check in ("lint", "validate"):
         try:
-            subprocess.run(
+            safe_run(
                 [_resolve_npx(), "hyperframes", check],
                 cwd=str(composition_dir),
                 capture_output=True,
                 timeout=60,
-                env=_build_env(),
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0,
+                env_extra=_build_env(),
             )
         except Exception as e:
             logger.warning(f"[VideoPipeline] hyperframes {check} 跳过: {e}")
@@ -154,13 +154,12 @@ def _run_hyperframes_render(composition_dir: Path, quality: str, fps: int, varia
         cmd += [f"--variables={json.dumps(variables, ensure_ascii=False)}"]
     logger.info(f"[VideoPipeline] render cwd={composition_dir} variables={'yes' if variables else 'no'} cmd={' '.join(cmd)}")
     started = time.time()
-    proc = subprocess.run(
+    proc = safe_run(
         cmd,
         cwd=str(composition_dir),
         capture_output=True,
         timeout=_RENDER_TIMEOUT_SECONDS,
-        env=_build_env(),
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0,
+        env_extra=_build_env(),
     )
     elapsed = round(time.time() - started, 1)
     stdout = (proc.stdout or b"").decode("utf-8", errors="ignore")
@@ -195,7 +194,7 @@ async def render(
 ):
     """HyperFrames composition → MP4 → 自动入素材库，返回 file_ids。
 
-    composition 路径可指向素材库模板目录（E:\\FDE\\fde-landing-delivery\\templates\\{id}），
+    composition 路径可指向素材库模板目录（templates/{id}，路径经 core_paths.get_template_lib_dir() 解析），
     配合 variables 传参：`npx hyperframes render --variables '{...}'`。
     """
     if not composition_dir and not composition_zip:
@@ -290,7 +289,7 @@ async def render(
 
 
 # ============================================================
-# 8 阶段视频编排（对标 F:\自媒体\OpenMontage\pipeline_defs\animated-explainer.yaml）
+# 8 阶段视频编排（对标 OpenMontage 的 pipeline_defs/animated-explainer.yaml，路径经 core_paths.get_openmontage_dir() 解析）
 # ============================================================
 from fastapi_app.api.v1.video_pipeline.orchestrator import (
     STAGES,

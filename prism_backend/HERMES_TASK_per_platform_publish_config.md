@@ -8,7 +8,7 @@
 
 ## 一、任务背景
 
-Prism 是矩阵发布工具，前台每个平台（抖音/快手/小红书/B站/视频号）在
+老马AI工作台是矩阵发布工具，前台每个平台（抖音/快手/小红书/B站/视频号）在
 `prism_frontend/src/app/publish/components/PlatformConfigs.tsx` 里都有**独立配置面板**。
 这些面板字段此前是**纯 UI**（本地 `useState`，提交即丢），现在要：
 1. 让面板字段写回 plan（已完成，见下）。

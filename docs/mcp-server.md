@@ -1,4 +1,4 @@
-# Prism MCP / CLI 契约 / 平台注册表
+# 老马AI工作台 MCP / CLI 契约 / 平台注册表
 
 本页记录三块与「AI 工具 / 智能体接入」相关的能力：
 
@@ -8,7 +8,7 @@
 
 设计参考 MatrixMedia（`hanliang97/MatrixMedia`）的「外部命令 + argv + 退出码 +
 JSON stdout」约定，目标：任何支持 shell 的 AI 编排工具（OpenClaw / Claude Code /
-Codex / Dify / n8n / WorkBuddy 等）都能直接接入 Prism，无需业务方耦合。
+Codex / Dify / n8n / WorkBuddy 等）都能直接接入 老马AI工作台，无需业务方耦合。
 
 ---
 
@@ -31,7 +31,7 @@ python prism_cli.py mcp            # 专用 MCP 服务（4 个工具）
 python -m fastapi_app.agent.mcp_server   # 声明式 MCP（68 个工具，含这 4 个）
 ```
 
-MCP 客户端通过 stdio 拉起上命令即可。后端默认地址 `PRISM_BACKEND_URL`
+MCP 客户端通过 stdio 拉起上命令即可。后端默认地址 `LAOMA_BACKEND_URL`
 （默认 `http://127.0.0.1:7000`），发布走 `/api/v1/publish/batch`（Celery +
 浏览器模式，不涉及 HTTP 逆向登录）。
 

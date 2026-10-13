@@ -6,7 +6,7 @@ from pathlib import Path
 from prism_cli import build_parser
 
 
-class PrismCliContractTests(unittest.TestCase):
+class LaomaCliContractTests(unittest.TestCase):
     def setUp(self) -> None:
         self.parser = build_parser()
         self.fixture = str(Path(__file__).resolve())

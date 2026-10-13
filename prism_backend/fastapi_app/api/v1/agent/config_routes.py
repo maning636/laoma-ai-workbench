@@ -9,10 +9,10 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from ....agent.hermes_agent import (
+    ensure_hermes_dashboard_started,
     get_hermes_runtime_status,
     reset_hermes_agent,
     run_hermes_goal,
-    start_hermes_dashboard,
     start_hermes_interfaces,
     stop_hermes_dashboard,
 )
@@ -27,6 +27,7 @@ from ....agent.hermes_config import (
     write_agent_config,
 )
 from ....core.logger import logger
+from ....core import paths
 from ....schemas.common import Response
 from ....agent.hermes_update import (
     apply_update,
@@ -63,6 +64,15 @@ class AgentConfigResponse(BaseModel):
     max_turns: int = 12
     is_configured: bool = False
     runtime: Dict[str, Any] = Field(default_factory=dict)
+    skills_dir: Optional[str] = None  # P2 新增：skills 根目录（无网络，来自 core.paths.get_skills_dir()）
+
+
+async def _skills_dir() -> Optional[str]:
+    """读取 skills 根目录；失败时返回 None，避免影响主流程。"""
+    try:
+        return str(paths.get_skills_dir())
+    except Exception:
+        return None
 
 
 class DashboardStartRequest(BaseModel):
@@ -88,6 +98,7 @@ async def _build_response(config: Dict[str, Any]) -> AgentConfigResponse:
         max_turns=int(runtime.get("max_turns") or 12),
         is_configured=bool(llm),
         runtime=await get_hermes_runtime_status(),
+        skills_dir=await _skills_dir(),
     )
 
 
@@ -100,6 +111,7 @@ async def get_agent_config():
             data=AgentConfigResponse(
                 is_configured=False,
                 runtime=await get_hermes_runtime_status(),
+                skills_dir=await _skills_dir(),
             ),
         )
     return Response(success=True, data=await _build_response(config))
@@ -256,19 +268,40 @@ async def update_hermes():
 
 @router.post("/hermes/dashboard/start")
 async def start_dashboard(request: DashboardStartRequest):
+    """B10 懒加载:官方 dashboard 走 ensure_hermes_dashboard_started(),
+    首次请求触发 ~18s 启动,后续请求直接复用已启动进程。
+
+    - backend=official / 默认路径:懒加载包装,合并并发首次请求到一次启动。
+    - backend=webui 或显式请求 dashboard+webui(webui_port 传值):仍走
+      start_hermes_interfaces(),因 B10 懒加载范围仅覆盖官方 dashboard。
+    - API 签名不变;旧代码在无参数默认路径下会走 start_hermes_interfaces,
+      实际只启动了官方 dashboard(B10 前 webui_port 无默认值)。此处对齐 B10,
+      默认路径改为直接走懒加载包装,减少冗余。
+    """
     backend = str(request.backend or "").strip().lower() or None
     if backend in {"official", "webui"}:
-        runtime = await start_hermes_dashboard(
-            request.port,
-            backend_override=backend,
-        )
+        if backend == "official":
+            runtime = await ensure_hermes_dashboard_started(
+                request.port,
+                backend_override=backend,
+            )
+        else:
+            runtime = await start_hermes_interfaces(
+                dashboard_port=request.port,
+                webui_port=request.webui_port or request.port,
+            )
         label = "Hermes WebUI" if backend == "webui" else "Hermes Dashboard"
-    else:
+    elif request.webui_port is not None:
+        # 显式要求同时启动 dashboard + webui。
         runtime = await start_hermes_interfaces(
             dashboard_port=request.port,
             webui_port=request.webui_port,
         )
         label = "Hermes Dashboard and WebUI"
+    else:
+        # 默认(无 backend, 无 webui_port):仅启动官方 dashboard,走懒加载。
+        runtime = await ensure_hermes_dashboard_started(request.port)
+        label = "Hermes Dashboard"
     return Response(
         success=True,
         data={

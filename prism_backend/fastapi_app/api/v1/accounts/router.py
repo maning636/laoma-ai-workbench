@@ -8,6 +8,7 @@ import subprocess
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+from fastapi_app.utils.subprocess_safe import safe_run
 
 from ....schemas.account import (
     AccountResponse,
@@ -401,12 +402,13 @@ async def _open_bilibili_creator_center_with_biliup(
 
     # 抑制 biliup.exe 的标准输出，防止日志爆炸
     await asyncio.to_thread(
-        subprocess.run,
+        safe_run,
         cmd,
         check=True,
         cwd=str(biliup_exe.parent),
         stdout=subprocess.DEVNULL,  # 抑制标准输出
         stderr=subprocess.DEVNULL,  # 抑制标准错误
+        capture_output=False,
     )
 
     cookie_data = json.loads(cookie_path.read_text(encoding="utf-8"))
@@ -720,7 +722,7 @@ async def get_account_environment(account_id: str):
                 "user_id": account.get("user_id"),
             },
             "browser": {
-                "backend": binding.get("browser_backend") or settings.PRISM_BROWSER_BACKEND_DEFAULT,
+                "backend": binding.get("browser_backend") or settings.LAOMA_BROWSER_BACKEND_DEFAULT,
                 "persona_profile_id": binding.get("persona_profile_id"),
                 "persona_online": persona_online,
                 "engine": "patchright",
@@ -775,7 +777,7 @@ async def get_account_runtime(account_id: str):
                 "acquired_at": lock_status.get("acquired_at"),
                 "expires_at": lock_status.get("expires_at"),
                 "ttl_remaining": lock_status.get("ttl_remaining"),
-                "browser_backend": binding.get("browser_backend") or settings.PRISM_BROWSER_BACKEND_DEFAULT,
+                "browser_backend": binding.get("browser_backend") or settings.LAOMA_BROWSER_BACKEND_DEFAULT,
                 "active_local": active_local,
             },
         }
@@ -892,7 +894,7 @@ async def start_account_browser(account_id: str, request: _BrowserActionRequest)
     try:
         binding = cookie_manager.get_account_binding(account_id) or {}
         proxy_id = binding.get("proxy_id")
-        backend_name = binding.get("browser_backend") or settings.PRISM_BROWSER_BACKEND_DEFAULT
+        backend_name = binding.get("browser_backend") or settings.LAOMA_BROWSER_BACKEND_DEFAULT
 
         from fastapi_app.services.browser_backend import get_browser_backend
         from fastapi_app.services.persona_proxies import resolve_proxy as resolve_persona_proxy

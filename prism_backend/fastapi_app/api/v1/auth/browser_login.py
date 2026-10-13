@@ -47,7 +47,7 @@ def _cookie_file_path(platform: str, account: str) -> Path:
 
 async def _import_from_chrome_profile(platform: str, account: str, cookie_path: Path) -> bool:
     """从本机 Chrome 已登录会话导入：复制 Chrome 的 Cookies/Local State 到
-    一个 Prism 专用 profile 目录（非无痕），用其起 Chrome，若平台已登录则
+    一个 老马AI工作台 专用 profile 目录（非无痕），用其起 Chrome，若平台已登录则
     读取登录态写入 cookie 文件。Chrome 正在运行时也不冲突（用的是副本）。
     """
     import shutil
@@ -274,7 +274,7 @@ async def browser_login_import_chrome(
     platform: str = Query(..., description="平台: tiktok / youtube"),
     account_id: str = Query(..., description="账号ID"),
 ):
-    """复制本机 Chrome 的 Cookies/Local State 到 Prism 专用 profile，起浏览器
+    """复制本机 Chrome 的 Cookies/Local State 到 老马AI工作台 专用 profile，起浏览器
     读取已登录会话并入库（非无痕，不需要 Chrome 关闭）。"""
     platform = (platform or "").lower()
     if platform not in _BROWSER_LOGIN_PLATFORMS:

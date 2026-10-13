@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from fastapi_app.models.matrix_task import MatrixTask, TaskStatus
 from fastapi_app.core.logger import logger
+from fastapi_app.core import paths
 
 
 class MatrixScheduler:
@@ -30,7 +31,7 @@ class MatrixScheduler:
         
         # 任务索引（快速查找）
         self.task_index: Dict[str, MatrixTask] = {}
-        self.tasks_file = Path("data/matrix_tasks.json")
+        self.tasks_file = paths.get_data_dir() / "matrix_tasks.json"
         self._load_tasks()
 
     def _load_tasks(self):

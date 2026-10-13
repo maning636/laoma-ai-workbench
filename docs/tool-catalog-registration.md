@@ -1,6 +1,6 @@
 # 声明式工具注册中心（Tool Catalog）—— 把能力暴露为 MCP/API/CLI
 
-Prism 的能力要暴露给 **Prism MCP / Hermes MCP**（`tools/list` + `tools/call`）、
+老马AI工作台的能力要暴露给 **老马AI工作台 MCP / Hermes MCP**（`tools/list` + `tools/call`）、
 **HTTP API**、**CLI**，不需要各写一份。只需在**单一事实源**里登记一条
 `ToolSpec`，**三层自动覆盖**。
 
@@ -10,7 +10,7 @@ Prism 的能力要暴露给 **Prism MCP / Hermes MCP**（`tools/list` + `tools/c
         ▼
 prism_backend/fastapi_app/services/tool_catalog.py   ← 唯一要手改的文件
         │  自动生成，全部只读
-        ├─► agent/mcp_server.py         —— MCP tools/list + tools/call  （Prism & Hermes MCP）
+        ├─► agent/mcp_server.py         —— MCP tools/list + tools/call  （老马AI工作台 & Hermes MCP）
         ├─► api/v1/tool_catalog/router.py —— GET/POST /api/v1/tool-catalog/<name>
         ├─► prism_cli.py                 —— prism tool list / prism tool invoke <name>
         └─► prism_frontend/app/tools/page.tsx —— 开发者工具页「业务工具」Tab（调 /api/v1/tool-catalog）
@@ -100,7 +100,7 @@ _register(ToolSpec(
 
 ## 三、三个入口怎么用
 
-### MCP（Prism & Hermes 共用）
+### MCP（老马AI工作台 & Hermes 共用）
 ```bash
 python -m fastapi_app.agent.mcp_server     # stdio，已注册进 tools/hermes-home/config.yaml
 ```

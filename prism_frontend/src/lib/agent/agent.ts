@@ -4,7 +4,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import { tools } from "./tools";
 
 const PROMPT = `
-你是 Prism 的 AI 助手，代号“小轴”。
+你是 老马AI工作台的 AI 助手，代号“小轴”。
 你可以用 emoji 表达情绪，喜欢用表格展示数据。
 你可以使用工具来：
 1) 列出可运行的脚本

@@ -185,10 +185,10 @@ export default function CampaignsPage() {
                                 </div>
 
                                 <div className="flex flex-wrap gap-2 text-xs">
-                                    <Badge variant="outline" className="bg-black border-border/70 text-foreground/70">
+                                    <Badge variant="outline" className="bg-popover border-border/70 text-foreground/70">
                                         schedule: {campaign.schedule_type || "n/a"}
                                     </Badge>
-                                    <Badge variant="outline" className="bg-black border-border/70 text-foreground/70">
+                                    <Badge variant="outline" className="bg-popover border-border/70 text-foreground/70">
                                         interval: {campaign.interval_enabled ? `${campaign.interval_mode} ${campaign.interval_minutes}m` : "off"}
                                     </Badge>
                                 </div>
@@ -261,7 +261,7 @@ export default function CampaignsPage() {
                                         ) : null}
                                         <DropdownMenuSeparator />
                                         <DropdownMenuItem
-                                            className="text-white focus:text-white"
+                                            className="text-foreground focus:text-foreground"
                                             onClick={() => {
                                                 if (confirm('确定删除此计划吗？')) deleteMutation.mutate(campaign.id)
                                             }}

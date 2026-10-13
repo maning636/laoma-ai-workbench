@@ -1,18 +1,18 @@
 ---
-name: prism-publish-bilibili
-description: "Prism B站发布：登录、校验、视频发布（及无图文）与 CLI/API/MCP 工具契约。"
+name: laoma-publish-bilibili
+description: "老马AI工作台 B站发布：登录、校验、视频发布（及无图文）与 CLI/API/MCP 工具契约。"
 version: 1.0.0
-author: Prism
+author: 老马AI工作台
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
   hermes:
-    tags: [Prism, publish, bilibili]
-    related_skills: [prism-project-layout]
+    tags: [老马AI工作台, publish, bilibili]
+    related_skills: [laoma-project-layout]
 prerequisites:
   commands: [prism]
 ---
-# Prism B站发布
+# 老马AI工作台 B站发布
 
 在 B站 上发布内容。能力已注册为独立工具，三层自动暴露：**MCP tool**、
 **API**（`POST /api/v1/tool-catalog/<name>`）、**CLI**（`prism tool invoke <name>` / `prism bilibili ...`）。

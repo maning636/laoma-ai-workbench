@@ -116,7 +116,7 @@ export function PresetManagement({ onSelect }: PresetManagementProps) {
                 </div>
                 <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
                     <DialogTrigger asChild>
-                        <Button className="rounded-2xl bg-black hover:bg-accent/60 text-foreground border-0">
+                        <Button className="rounded-2xl bg-popover hover:bg-accent/60 text-foreground border-0">
                             <Plus className="w-4 h-4 mr-2" />
                             新建预设
                         </Button>
@@ -133,7 +133,7 @@ export function PresetManagement({ onSelect }: PresetManagementProps) {
                                     value={formData.name}
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                     placeholder="例如：日常发布模板"
-                                    className="rounded-2xl bg-black"
+                                    className="rounded-2xl bg-popover"
                                 />
                             </div>
                             <div>
@@ -142,7 +142,7 @@ export function PresetManagement({ onSelect }: PresetManagementProps) {
                                     value={formData.description}
                                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                                     placeholder="选填，描述这个预设的用途"
-                                    className="rounded-2xl min-h-[60px] bg-black"
+                                    className="rounded-2xl min-h-[60px] bg-popover"
                                 />
                             </div>
                             <div>
@@ -171,7 +171,7 @@ export function PresetManagement({ onSelect }: PresetManagementProps) {
                                     value={formData.default_title}
                                     onChange={(e) => setFormData({ ...formData, default_title: e.target.value })}
                                     placeholder="选填，预设的默认标题"
-                                    className="rounded-2xl bg-black"
+                                    className="rounded-2xl bg-popover"
                                 />
                             </div>
                             <div>
@@ -180,7 +180,7 @@ export function PresetManagement({ onSelect }: PresetManagementProps) {
                                     value={formData.default_tags}
                                     onChange={(e) => setFormData({ ...formData, default_tags: e.target.value })}
                                     placeholder="多个标签用逗号分隔，如：生活,记录,日常"
-                                    className="rounded-2xl bg-black"
+                                    className="rounded-2xl bg-popover"
                                 />
                             </div>
                         </div>
@@ -199,9 +199,9 @@ export function PresetManagement({ onSelect }: PresetManagementProps) {
             {isLoading ? (
                 <div className="p-6 text-muted-foreground">加载中...</div>
             ) : presets.length === 0 ? (
-                <Card className="bg-black border-border/70">
+                <Card className="bg-popover border-border/70">
                     <CardContent className="p-10 text-center">
-                        <div className="mx-auto w-12 h-12 rounded-full bg-black flex items-center justify-center mb-4">
+                        <div className="mx-auto w-12 h-12 rounded-full bg-popover flex items-center justify-center mb-4">
                             <Settings className="h-6 w-6 text-foreground/40" />
                         </div>
                         <h3 className="font-medium mb-2">暂无预设</h3>
@@ -215,7 +215,7 @@ export function PresetManagement({ onSelect }: PresetManagementProps) {
             ) : (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {presets.map((preset: any) => (
-                        <Card key={preset.id} className="bg-black border-border/70 hover:bg-accent/[0.07] transition-colors">
+                        <Card key={preset.id} className="bg-popover border-border/70 hover:bg-accent/[0.07] transition-colors">
                             <CardHeader>
                                 <div className="flex items-start justify-between">
                                     <div className="flex-1">
@@ -274,7 +274,7 @@ export function PresetManagement({ onSelect }: PresetManagementProps) {
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            className="rounded-xl text-white hover:text-white hover:bg-black"
+                                            className="rounded-xl text-foreground hover:text-foreground hover:bg-popover"
                                             onClick={() => {
                                                 if (confirm("确定要删除这个预设吗？")) {
                                                     deleteMutation.mutate(preset.id)

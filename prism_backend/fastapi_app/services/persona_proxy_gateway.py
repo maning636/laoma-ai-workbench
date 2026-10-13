@@ -45,7 +45,7 @@ _BAD_MARKERS = ("- UDP", "[ IPv6", "[ 0.5x")
 
 CONFIG_HEADER = """# Persona 代理网关 (独立官方 mihomo) —— 由后端自动生成
 # 每个订阅节点分配独立端口（8001 起），均为 HTTP+SOCKS mixed 代理。
-# 更新请用 Prism「代理网关」页面，勿手改（会被覆盖）。
+# 更新请用 老马AI工作台「代理网关」页面，勿手改（会被覆盖）。
 
 port: 0
 socks-port: 0

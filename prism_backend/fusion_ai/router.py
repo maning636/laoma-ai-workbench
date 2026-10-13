@@ -1,5 +1,5 @@
 """
-Prism-Fusion 统一路由
+LaomaAI-Fusion 统一路由
 ━━━━━━━━━━━━━━━━━━━━
 将 fusion_ai 所有模块暴露到 /api/fusion/* 前缀下。
 在 fastapi_app/api/v1/router.py 中 include_router 注册。
@@ -24,6 +24,7 @@ from typing import Dict, Any, List, Optional
 import json
 
 from fastapi_app.core.logger import logger
+from fastapi_app.core import paths as core_paths
 
 from .provider_registry import (
     list_providers, detect_provider, get_provider_config, build_model_list,
@@ -65,7 +66,7 @@ from .config_center import (
 )
 from .nl_query import NLQueryEngine, get_engine
 
-router = APIRouter(prefix="/fusion", tags=["Prism-Fusion"])
+router = APIRouter(prefix="/fusion", tags=["LaomaAI-Fusion"])
 
 
 # ============================================================
@@ -95,7 +96,6 @@ async def fusion_health():
 import os as _os
 import re as _re
 import time as _time
-from pathlib import Path as _Path
 
 
 def _resolve_hermes_config() -> dict:
@@ -104,7 +104,7 @@ def _resolve_hermes_config() -> dict:
         import yaml
     except ImportError:
         raise HTTPException(status_code=500, detail="服务端缺少 pyyaml，无法读取模型配置")
-    cfg_path = _Path("D:/工作台/Prism-Fusion/tools/hermes-home/config.yaml")
+    cfg_path = core_paths.get_hermes_runtime_config_path()
     if not cfg_path.is_file():
         raise HTTPException(status_code=500, detail=f"未找到模型配置文件: {cfg_path}")
     try:

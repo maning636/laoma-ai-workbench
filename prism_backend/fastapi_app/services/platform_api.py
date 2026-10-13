@@ -1,5 +1,5 @@
 """
-Prism 后端 HTTP 客户端 —— 供 tool_catalog / mcp_server 复用。
+老马AI工作台后端 HTTP 客户端 —— 供 tool_catalog / mcp_server 复用。
 
 避免在多处重复「调用本机 FastAPI 后端」的代码：
 - tool_catalog 登记的能力（`prism tool list` / `prism tool invoke`）
@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-BACKEND_URL = os.getenv("PRISM_BACKEND_URL", "http://127.0.0.1:7000").rstrip("/")
+BACKEND_URL = os.getenv("LAOMA_BACKEND_URL", "http://127.0.0.1:7000").rstrip("/")
 
 
 def _short(value: Any, limit: int = 500) -> Any:

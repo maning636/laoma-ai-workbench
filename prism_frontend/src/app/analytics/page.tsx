@@ -304,13 +304,13 @@ export default function AnalyticsPage() {
                         <Button
                             variant="outline"
                             size="sm"
-                            className="h-8 border-border/70 bg-black px-2.5 hover:bg-accent/50"
+                            className="h-8 border-border/70 bg-popover px-2.5 hover:bg-accent/50"
                             onClick={() => setAccountDrawerOpen(true)}
                         >
                             <FilterIcon className="mr-1.5 h-3.5 w-3.5" />
                             筛选账号
                             {selectedAccounts.length > 0 && (
-                                <Badge className="ml-2 bg-black text-primary border-primary/30">
+                                <Badge className="ml-2 bg-popover text-primary border-primary/30">
                                     {selectedAccounts.length}
                                 </Badge>
                             )}
@@ -318,7 +318,7 @@ export default function AnalyticsPage() {
                         <Button
                             variant="outline"
                             size="sm"
-                            className="h-9 border-border/70 bg-black hover:bg-accent/50"
+                            className="h-9 border-border/70 bg-popover hover:bg-accent/50"
                             onClick={() => handleExport('csv')}
                         >
                             <Download className="mr-1.5 h-3.5 w-3.5" />
@@ -327,7 +327,7 @@ export default function AnalyticsPage() {
                         <Button
                             variant="outline"
                             size="sm"
-                            className="h-9 border-border/70 bg-black hover:bg-accent/50"
+                            className="h-9 border-border/70 bg-popover hover:bg-accent/50"
                             onClick={() => handleExport('excel')}
                         >
                             <Download className="mr-2 h-4 w-4" />
@@ -353,7 +353,7 @@ export default function AnalyticsPage() {
                                     }
                                 }}
                                 className={`px-2 py-1 text-[11px] font-medium transition-all ${timePreset === preset.value
-                                    ? "bg-black text-primary border border-primary/30"
+                                    ? "bg-popover text-primary border border-primary/30"
                                     : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                                     }`}
                             >
@@ -390,7 +390,7 @@ export default function AnalyticsPage() {
                 <Card className="border-border/60 bg-card/20">
                     <CardContent className="py-16">
                         <div className="text-center space-y-4">
-                            <div className="w-20 h-20 mx-auto rounded-full bg-black flex items-center justify-center">
+                            <div className="w-20 h-20 mx-auto rounded-full bg-popover flex items-center justify-center">
                                 <FilterIcon className="w-10 h-10 text-primary/50" />
                             </div>
                             <div>
@@ -401,7 +401,7 @@ export default function AnalyticsPage() {
                                 <Button
                                     variant="outline"
                                     onClick={() => setAccountDrawerOpen(true)}
-                                    className="border-primary/30 text-primary hover:bg-black"
+                                    className="border-primary/30 text-primary hover:bg-popover"
                                 >
                                     <FilterIcon className="mr-2 h-4 w-4" />
                                     选择账号
@@ -467,7 +467,7 @@ export default function AnalyticsPage() {
                                         <button
                                             key={key}
                                             onClick={() => setChartMetric(key as any)}
-                                            className={`px-2 py-1 text-[11px] font-medium transition-all ${chartMetric === key ? "bg-black text-foreground" : "text-foreground/40 hover:text-foreground/80"}`}
+                                            className={`px-2 py-1 text-[11px] font-medium transition-all ${chartMetric === key ? "bg-popover text-foreground" : "text-foreground/40 hover:text-foreground/80"}`}
                                         >
                                             {config.label}
                                         </button>
@@ -506,7 +506,7 @@ export default function AnalyticsPage() {
             <Sheet open={accountDrawerOpen} onOpenChange={setAccountDrawerOpen}>
                 <SheetContent
                     side="right"
-                    className="w-[95vw] sm:w-[90vw] lg:w-[75vw] xl:w-[700px] sm:max-w-none bg-black border-border/70 text-foreground overflow-w-auto"
+                    className="w-[95vw] sm:w-[90vw] lg:w-[75vw] xl:w-[700px] sm:max-w-none bg-popover border-border/70 text-foreground overflow-w-auto"
                 >
                     <SheetHeader>
                         <SheetTitle className="text-foreground">选择账号</SheetTitle>
@@ -531,7 +531,7 @@ export default function AnalyticsPage() {
                                             className={cn(
                                                 "flex items-center gap-2 px-4 py-2 rounded-lg border transition-all text-sm font-medium",
                                                 isSelected
-                                                    ? "bg-black border-primary/40 text-foreground"
+                                                    ? "bg-popover border-primary/40 text-foreground"
                                                     : "bg-card/30 border-border/70 text-muted-foreground hover:bg-accent/40"
                                             )}
                                         >
@@ -564,7 +564,7 @@ export default function AnalyticsPage() {
                         </div>
 
                         {/* Selected Count and Actions */}
-                        <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-black border border-primary/20">
+                        <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-popover border border-primary/20">
                             <div className="text-sm text-foreground/80">
                                 已选择 <span className="font-semibold text-primary">{selectedAccounts.length}</span> / {drawerFilteredAccounts.length} 个账号
                             </div>
@@ -572,7 +572,7 @@ export default function AnalyticsPage() {
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="h-6 text-xs text-primary hover:text-primary/80 hover:bg-black"
+                                    className="h-6 text-xs text-primary hover:text-primary/80 hover:bg-popover"
                                     onClick={() => {
                                         const allIds = drawerFilteredAccounts.map((acc: any) => accountIdOf(acc))
                                         setSelectedAccounts(allIds)
@@ -584,7 +584,7 @@ export default function AnalyticsPage() {
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="h-6 text-xs text-white hover:text-white hover:bg-black"
+                                        className="h-6 text-xs text-foreground hover:text-foreground hover:bg-popover"
                                         onClick={() => setSelectedAccounts([])}
                                     >
                                         取消全选
@@ -619,13 +619,13 @@ export default function AnalyticsPage() {
                                                 key={accountId}
                                                 className={cn(
                                                     "grid grid-cols-[40px_60px_1fr_150px_100px_60px] gap-3 px-4 py-3 items-center hover:bg-accent/40 transition-colors cursor-pointer",
-                                                    isSelected && "bg-black"
+                                                    isSelected && "bg-popover"
                                                 )}
                                                 onClick={() => toggleAccount(accountId)}
                                             >
                                                 <div className="text-center text-xs text-foreground/40">{globalIndex}</div>
                                                 <div className="relative w-10 h-10">
-                                                    <div className="w-10 h-10 rounded-full bg-black flex items-center justify-center border border-border/70 overflow-hidden">
+                                                    <div className="w-10 h-10 rounded-full bg-popover flex items-center justify-center border border-border/70 overflow-hidden">
                                                         {account.avatar ? (
                                                             <img
                                                                 src={account.avatar}
@@ -637,7 +637,7 @@ export default function AnalyticsPage() {
                                                             <span className="text-sm font-medium">{displayName.slice(0, 1)}</span>
                                                         )}
                                                     </div>
-                                                    <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-black border border-border/70 flex items-center justify-center p-0.5">
+                                                    <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-popover border border-border/70 flex items-center justify-center p-0.5">
                                                         <Image
                                                             src={PLATFORMS.find(p => p.value === account.platform)?.icon ?? "/Tiktok.svg"}
                                                             alt={account.platform}
@@ -691,7 +691,7 @@ export default function AnalyticsPage() {
                                         size="sm"
                                         onClick={() => setAccountDrawerPage(p => Math.max(1, p - 1))}
                                         disabled={accountDrawerPage === 1}
-                                        className="h-7 text-xs border-border/70 bg-black"
+                                        className="h-7 text-xs border-border/70 bg-popover"
                                     >
                                         上一页
                                     </Button>
@@ -701,7 +701,7 @@ export default function AnalyticsPage() {
                                         size="sm"
                                         onClick={() => setAccountDrawerPage(p => Math.min(totalDrawerPages, p + 1))}
                                         disabled={accountDrawerPage === totalDrawerPages}
-                                        className="h-7 text-xs border-border/70 bg-black"
+                                        className="h-7 text-xs border-border/70 bg-popover"
                                     >
                                         下一页
                                     </Button>

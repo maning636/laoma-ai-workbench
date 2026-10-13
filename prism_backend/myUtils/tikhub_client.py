@@ -254,7 +254,7 @@ class TikHubClient:
             final[actual] = value
 
         client = self._ensure_client()
-        headers = {"Authorization": f"Bearer {self.api_key}", "User-Agent": "Prism/1.0"}
+        headers = {"Authorization": f"Bearer {self.api_key}", "User-Agent": "laoma-ai-workbench/1.0"}
         url = f"{self.api_root}{path}"
         if method == "POST":
             resp = await client.post(url, json=final, headers=headers)

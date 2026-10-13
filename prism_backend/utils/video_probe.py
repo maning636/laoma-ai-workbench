@@ -4,6 +4,7 @@ import shutil
 import subprocess
 from pathlib import Path
 from typing import Any, Optional
+from fastapi_app.utils.subprocess_safe import safe_run
 
 
 def _safe_int(value: Any) -> Optional[int]:
@@ -81,7 +82,7 @@ def probe_video_metadata(file_path: str, *, timeout_sec: int = 10) -> dict:
         }
 
     try:
-        proc = subprocess.run(
+        proc = safe_run(
             [
                 "ffprobe",
                 "-v",
@@ -94,8 +95,6 @@ def probe_video_metadata(file_path: str, *, timeout_sec: int = 10) -> dict:
                 "json",
                 str(p),
             ],
-            capture_output=True,
-            text=True,
             timeout=timeout_sec,
         )
         if proc.returncode != 0 or not proc.stdout:

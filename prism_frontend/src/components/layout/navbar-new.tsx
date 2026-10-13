@@ -317,7 +317,7 @@ export function NavbarNew({ className, onMenuClick }: NavbarProps) {
           <Input
             value={inputValue}
             placeholder="Search... 输入 / 跳转页面"
-            className="h-8 w-full rounded-sm border-border bg-background/80 pl-9 pr-12 text-xs text-foreground shadow-none backdrop-blur-md transition-all focus:w-[22rem] focus:border-foreground/45 focus:bg-background"
+            className="h-8 w-full rounded-sm border-border bg-background/80 pl-9 pr-12 text-xs text-foreground shadow-none backdrop-blur-md transition-all focus:w-[22rem] focus:border-primary/45 focus:bg-background"
             onChange={(event) => handleChange(event.target.value)}
             onFocus={() => setIsFocused(true)}
             onBlur={() => {

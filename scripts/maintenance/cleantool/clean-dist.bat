@@ -3,13 +3,13 @@ chcp 65001 >nul
 setlocal enabledelayedexpansion
 
 REM =====================================================
-REM Prism Clean Distribution v5 Builder
+REM 老马AI工作台 Clean Distribution v5 Builder
 REM Clean and prepare dist-v5 package
 REM =====================================================
 
 echo.
 echo ========================================
-echo  Prism dist Clean Build
+echo  老马AI工作台 dist Clean Build
 echo ========================================
 echo.
 

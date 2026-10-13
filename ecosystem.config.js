@@ -72,8 +72,8 @@ module.exports = {
       user: 'deploy',
       host: 'your-server.com',
       ref: 'origin/master',
-      repo: 'git@github.com:your-username/Prism.git',
-      path: '/opt/Prism',
+      repo: 'git@github.com:your-username/laoma-ai-workbench.git',
+      path: '/opt/laoma-ai-workbench',
       'post-deploy': 'npm install && pm2 reload ecosystem.config.js --env production'
     }
   }

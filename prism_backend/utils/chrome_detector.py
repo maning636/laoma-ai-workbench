@@ -344,14 +344,14 @@ def check_browser_availability() -> dict:
 
 
 def _repo_root() -> Path:
-    """项目根目录（Prism）。chrome_detector.py 位于 prism_backend/utils/ 下。"""
+    """项目根目录（老马AI工作台）。chrome_detector.py 位于 prism_backend/utils/ 下。"""
     return Path(__file__).resolve().parents[2]
 
 
 def _scan_repo_browsers() -> list:
     """
     遍历仓库工具浏览器目录下真实存在的浏览器可执行文件（按当前平台）。
-    Prism 现在的浏览器组件装到 prism_backend/tools/browsers/（tools 组件），
+    老马AI工作台 现在的浏览器组件装到 prism_backend/tools/browsers/（tools 组件），
     同时兼容历史仓库根目录 browsers/。
     返回 dict 列表：{name, kind, path, source='repo'}；找不到返回 []。
     （目录只含 DEPENDENCIES_VALIDATED/INSTALLATION_COMPLETE 等标记而无 exe 的视为未安装，不返回。）

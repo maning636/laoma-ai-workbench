@@ -29,7 +29,7 @@ class PrismApp {
   }
 
   async initialize() {
-    log.info('🚀 Prism 启动..');
+    log.info('🚀 老马AI工作台启动...');
 
     // 等待 Electron 准备就绪
     await app.whenReady();
@@ -39,8 +39,8 @@ class PrismApp {
     // 1. 设置 Playwright 浏览器路
     this.setupPlaywrightPath();
 
-    // 2. 启动后端/前端服务（生产默认启动，开发可PRISM_START_SERVICES=1 强制
-    const shouldStartServices = process.env.PRISM_START_SERVICES === '1' || !this.isDev;
+    // 2. 启动后端/前端服务（生产默认启动，开发可LAOMA_START_SERVICES=1 强制
+    const shouldStartServices = process.env.LAOMA_START_SERVICES === '1' || !this.isDev;
     if (shouldStartServices) {
       await this.startServices();
     }
@@ -54,7 +54,7 @@ class PrismApp {
     // 5. 设置应用事件
     this.setupAppEvents();
 
-    log.info('Prism 启动完成');
+    log.info('老马AI工作台启动完成');
   }
 
   setupPlaywrightPath() {
@@ -265,7 +265,7 @@ class PrismApp {
       PORT: '3000',
       HOSTNAME: '127.0.0.1',
       NEXT_PUBLIC_BACKEND_URL: 'http://127.0.0.1:7000',
-      PRISM_BACKEND_URL: 'http://127.0.0.1:7000',
+      LAOMA_BACKEND_URL: 'http://127.0.0.1:7000',
       NEXT_TELEMETRY_DISABLED: '1'
     };
     this.frontendProcess = spawn(process.execPath, [serverJs], {

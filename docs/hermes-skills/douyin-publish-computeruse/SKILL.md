@@ -1,21 +1,21 @@
 ---
 name: douyin-publish-computeruse
-description: "用 Computer-Use（真实浏览器）+ 已登录抖音账号访问创作者中心发布页，抓取并补全抖音发布界面的全部功能到 Prism 上传器；含浏览器/登录态触发方式、官方遮挡提示与位置权限处理。"
+description: "用 Computer-Use（真实浏览器）+ 已登录抖音账号访问创作者中心发布页，抓取并补全抖音发布界面的全部功能到 老马AI工作台上传器；含浏览器/登录态触发方式、官方遮挡提示与位置权限处理。"
 version: 1.0.0
-author: Prism
+author: 老马AI工作台
 license: MIT
 platforms: [macos, windows, linux]
 metadata:
   hermes:
-    tags: [Prism, douyin, publish, uploader, computer-use, browser-automation, creator-center]
-    related_skills: [prism-project-layout]
+    tags: [老马AI工作台, douyin, publish, uploader, computer-use, browser-automation, creator-center]
+    related_skills: [laoma-project-layout]
 prerequisites:
   commands: [prism, python]
 ---
 
 # 抖音发布功能补全（Computer-Use 探索）
 
-Prism 的抖音上传器（`prism_backend/uploader/douyin_uploader/main_refactored.py`）已实现部分发布功能，
+老马AI工作台的抖音上传器（`prism_backend/uploader/douyin_uploader/main_refactored.py`）已实现部分发布功能，
 但前端「抖音配置」面板仍有若干字段**无后端实现**。本技能用 **Computer-Use（真实浏览器）+ 已登录账号**
 打开抖音创作者中心发布页，逐项把真实 UI 交互抓下来，再补进上传器。**核心原则：不要凭空猜 DOM。**
 

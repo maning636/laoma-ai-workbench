@@ -390,7 +390,7 @@ export default function IPPoolPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                         <Button
                             variant="outline"
-                            className="rounded-xl border-border/70 bg-black hover:bg-accent/50"
+                            className="rounded-xl border-border/70 bg-popover hover:bg-accent/50"
                             onClick={() => checkAllHealthMutation.mutate()}
                             disabled={checkAllHealthMutation.isPending}
                         >
@@ -399,7 +399,7 @@ export default function IPPoolPage() {
                         </Button>
                         <Button
                             variant="outline"
-                            className="rounded-xl border-border/70 bg-black hover:bg-accent/50"
+                            className="rounded-xl border-border/70 bg-popover hover:bg-accent/50"
                             onClick={() => exportMutation.mutate()}
                             disabled={exportMutation.isPending}
                         >
@@ -408,7 +408,7 @@ export default function IPPoolPage() {
                         </Button>
                         <Button
                             variant="outline"
-                            className="rounded-xl border-border/70 bg-black hover:bg-accent/50"
+                            className="rounded-xl border-border/70 bg-popover hover:bg-accent/50"
                             onClick={() => setIsImportDialogOpen(true)}
                             disabled={importMutation.isPending}
                         >
@@ -460,7 +460,7 @@ export default function IPPoolPage() {
                 <span className="font-medium">Browser Identity</span>
                 {personaStatus?.result?.online ? (
                     <>
-                        <Badge variant="secondary" className="text-xs bg-black text-white border-border">
+                        <Badge variant="secondary" className="text-xs bg-popover text-foreground border-border">
                             Persona Studio 在线
                         </Badge>
                         <span className="text-xs text-muted-foreground">
@@ -469,7 +469,7 @@ export default function IPPoolPage() {
                     </>
                 ) : (
                     <>
-                        <Badge variant="secondary" className="text-xs bg-black text-white border-border">
+                        <Badge variant="secondary" className="text-xs bg-popover text-foreground border-border">
                             Persona Studio 离线
                         </Badge>
                         <span className="text-xs text-muted-foreground">
@@ -539,10 +539,10 @@ export default function IPPoolPage() {
                                                 variant="secondary"
                                                 className={cn(
                                                     "text-xs",
-                                                    ip.status === 'available' && "bg-black text-white border-border",
-                                                    ip.status === 'in_use' && "bg-black text-white border-border",
-                                                    ip.status === 'failed' && "bg-black text-white border-border",
-                                                    ip.status === 'banned' && "bg-black text-white border-border",
+                                                    ip.status === 'available' && "bg-popover text-foreground border-border",
+                                                    ip.status === 'in_use' && "bg-popover text-foreground border-border",
+                                                    ip.status === 'failed' && "bg-popover text-foreground border-border",
+                                                    ip.status === 'banned' && "bg-popover text-foreground border-border",
                                                 )}
                                             >
                                                 {ip.status === 'available' ? '可用' :
@@ -611,7 +611,7 @@ export default function IPPoolPage() {
                                                     {ip.provider === "qg.net" && (
                                                         <DropdownMenuItem
                                                             onClick={() => deleteIPMutation.mutate(ip.id)}
-                                                            className="text-white focus:text-white"
+                                                            className="text-foreground focus:text-foreground"
                                                         >
                                                             <LogOut className="mr-2 h-4 w-4" />
                                                             释放并删除
@@ -619,7 +619,7 @@ export default function IPPoolPage() {
                                                     )}
 
                                                     <DropdownMenuItem
-                                                        className="text-white focus:text-white"
+                                                        className="text-foreground focus:text-foreground"
                                                         onClick={() => deleteIPMutation.mutate(ip.id)}
                                                     >
                                                         <Trash2 className="mr-2 h-4 w-4" />
@@ -657,18 +657,18 @@ export default function IPPoolPage() {
                     </DialogHeader>
 
                     {/* Quick Action for Local Direct */}
-                    <div className="bg-black border border-border rounded-lg p-3 mb-4 flex items-center justify-between">
+                    <div className="bg-popover border border-border rounded-lg p-3 mb-4 flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                            <ShieldCheck className="h-5 w-5 text-white" />
+                            <ShieldCheck className="h-5 w-5 text-foreground" />
                             <div className="text-sm">
-                                <span className="font-medium text-white block">推荐方案：本机直连</span>
+                                <span className="font-medium text-foreground block">推荐方案：本机直连</span>
                                 <span className="text-muted-foreground text-xs">使用本地宽带，最安全稳定的防关联方案</span>
                             </div>
                         </div>
                         <Button
                             size="sm"
                             variant="secondary"
-                            className="bg-black hover:bg-black text-white border-none"
+                            className="bg-popover hover:bg-popover text-foreground border-none"
                             onClick={() => {
                                 setAddForm({
                                     name: "",
@@ -687,7 +687,7 @@ export default function IPPoolPage() {
                         </Button>
                     </div>
 
-                    <div className="flex gap-2 p-1 bg-black rounded-lg mb-4">
+                    <div className="flex gap-2 p-1 bg-popover rounded-lg mb-4">
                         <button
                             onClick={() => setAddMode('qingguo')}
                             className={cn(
@@ -962,10 +962,10 @@ function BindAccountSheet({
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetContent className="sm:max-w-[50vw] w-[90vw] flex flex-col p-6 bg-card border-l border-border/70 text-white dark">
+            <SheetContent className="sm:max-w-[50vw] w-[90vw] flex flex-col p-6 bg-card border-l border-border/70 text-foreground dark">
                 <SheetHeader className="mb-4">
-                    <SheetTitle className="text-white">绑定账号到代理</SheetTitle>
-                    <SheetDescription className="text-white">
+                    <SheetTitle className="text-foreground">绑定账号到代理</SheetTitle>
+                    <SheetDescription className="text-foreground">
                         {ip.name || `${ip.ip}:${ip.port}`} · {[ip.country, ip.region, ip.city].filter(Boolean).join(" ")}
                         <span className="block mt-1 text-xs">绑定后持久生效：登录、发布、数据回收始终走该代理</span>
                     </SheetDescription>
@@ -975,7 +975,7 @@ function BindAccountSheet({
                     {/* 搜索框 */}
                     <div className="pt-4">
                         <div className="relative">
-                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-white" />
+                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-foreground" />
                             <Input
                                 placeholder="搜索账号名称或ID..."
                                 className="pl-9 h-9 bg-white border-border/70 text-black placeholder:text-black focus-visible:ring-offset-0 focus-visible:ring-1 focus-visible:ring-border/50"
@@ -997,13 +997,13 @@ function BindAccountSheet({
                                 <div key={platform} className="space-y-3">
                                     <div className="flex items-center justify-between sticky top-0 bg-card backdrop-blur p-2 z-10 border-b border-border/70 my-2">
                                         <div className="flex items-center gap-2">
-                                            <Badge variant="outline" className="capitalize text-base px-3 py-1 border-border/70 text-white bg-black">{platform}</Badge>
-                                            <span className="text-sm text-white">{accounts.length}个账号</span>
+                                            <Badge variant="outline" className="capitalize text-base px-3 py-1 border-border/70 text-foreground bg-popover">{platform}</Badge>
+                                            <span className="text-sm text-foreground">{accounts.length}个账号</span>
                                         </div>
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            className="h-8 text-xs text-white hover:text-white hover:bg-accent/40"
+                                            className="h-8 text-xs text-foreground hover:text-foreground hover:bg-accent/40"
                                             onClick={() => togglePlatform(platform, accounts)}
                                         >
                                             {accounts.every(a => selectedIds.has(a.id)) ? "取消全选" : "全选本组"}
@@ -1017,8 +1017,8 @@ function BindAccountSheet({
                                                 className={cn(
                                                     "flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 relative group",
                                                     selectedIds.has(account.id)
-                                                        ? "bg-black ring-1 ring-border/50"
-                                                        : "bg-black hover:bg-white ring-1 ring-border/5 hover:ring-border/40"
+                                                        ? "bg-popover ring-1 ring-border/50"
+                                                        : "bg-popover hover:bg-white ring-1 ring-border/5 hover:ring-border/40"
                                                 )}
                                                 onClick={() => toggleAccount(account.id)}
                                             >
@@ -1044,12 +1044,12 @@ function BindAccountSheet({
                     <div className="flex items-center gap-2">
                         <span className={cn(
                             "text-sm font-medium",
-                            selectedIds.size > ip.max_bindings ? "text-white" : "text-muted-foreground"
+                            selectedIds.size > ip.max_bindings ? "text-foreground" : "text-muted-foreground"
                         )}>
                             当前选中: {selectedIds.size} / {ip.max_bindings}
                         </span>
                         {selectedIds.size > ip.max_bindings && (
-                            <span className="text-xs text-white">超过建议值</span>
+                            <span className="text-xs text-foreground">超过建议值</span>
                         )}
                     </div>
                     <div className="flex gap-2">

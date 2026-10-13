@@ -165,12 +165,12 @@ export function AIQuickCommandPalette({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          className="w-full justify-start gap-2 bg-black border-border/80 text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+          className="w-full justify-start gap-2 bg-popover border-border/80 text-muted-foreground hover:bg-accent/50 hover:text-foreground"
           disabled={isLoading}
         >
           <Zap className="h-4 w-4" />
           <span>快速命令...</span>
-          <kbd className="ml-auto hidden h-5 select-none items-center gap-1 rounded border border-border/80 bg-black px-1.5 font-mono text-xs text-foreground/40 sm:flex">
+          <kbd className="ml-auto hidden h-5 select-none items-center gap-1 rounded border border-border/80 bg-popover px-1.5 font-mono text-xs text-foreground/40 sm:flex">
             <span>⌘</span>K
           </kbd>
         </Button>
@@ -198,11 +198,11 @@ export function AIQuickCommandPalette({
                     key={cmd.id}
                     value={cmd.id}
                     onSelect={() => handleCommandSelect(cmd)}
-                    className="aria-selected:bg-black aria-selected:text-foreground text-foreground/70 cursor-pointer hover:bg-accent/50"
+                    className="aria-selected:bg-popover aria-selected:text-foreground text-foreground/70 cursor-pointer hover:bg-accent/50"
                   >
                     <div className="flex items-center justify-between w-full gap-2">
                       <div className="flex items-center gap-2 flex-1">
-                        <span className="text-white">{cmd.icon}</span>
+                        <span className="text-foreground">{cmd.icon}</span>
                         <div className="flex-1">
                           <div className="font-medium text-foreground">{cmd.label}</div>
                           <div className="text-xs text-foreground/40">{cmd.description}</div>

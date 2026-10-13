@@ -461,7 +461,7 @@ ${userInput}
     return (
         <div className={cn("flex flex-col h-full", className)}>
             {!hideFooter && (
-                <div className="px-6 py-4 border-b border-border/70 bg-black flex justify-end">
+                <div className="px-6 py-4 border-b border-border/70 bg-popover flex justify-end">
                     <Button onClick={handleSave} disabled={isSaving} className="min-w-[100px]">
                         {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : (mode === 'create' ? "确认发布" : "保存更改")}
                     </Button>
@@ -475,7 +475,7 @@ ${userInput}
                     <div className="space-y-4">
                         <div className="flex items-center justify-between">
                             <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">内容设置</h3>
-                            <Badge variant="secondary" className="bg-black text-white border-border">
+                            <Badge variant="secondary" className="bg-popover text-primary border-border border">
                                 <Sparkles className="w-3 h-3 mr-1" /> AI Ready
                             </Badge>
                         </div>
@@ -490,7 +490,7 @@ ${userInput}
                                             id="update-disk-file"
                                             checked={updateDiskFile}
                                             onChange={(e) => setUpdateDiskFile(e.target.checked)}
-                                            className="h-3.5 w-3.5 rounded border-border/80 bg-black text-primary focus:ring-2 focus:ring-primary cursor-pointer"
+                                            className="h-3.5 w-3.5 rounded border-border/80 bg-popover text-primary focus:ring-2 focus:ring-primary cursor-pointer"
                                         />
                                         <label htmlFor="update-disk-file" className="text-xs text-muted-foreground cursor-pointer">
                                             同步修改磁盘文件名
@@ -549,7 +549,7 @@ ${userInput}
                                 <Textarea
                                     value={editForm.description}
                                     onChange={e => setEditForm(prev => ({ ...prev, description: e.target.value }))}
-                                    className="bg-black border-border/70 min-h-[100px]"
+                                    className="bg-popover border-border/70 min-h-[100px]"
                                     placeholder="输入视频描述或脚本..."
                                 />
                             </div> */}
@@ -587,7 +587,7 @@ ${userInput}
                                         <SelectTrigger className="bg-card border-border/70">
                                             <SelectValue placeholder="选择分组" />
                                         </SelectTrigger>
-                                        <SelectContent className="bg-black border-border/70 text-foreground">
+                                        <SelectContent className="bg-popover border-border/70 text-foreground">
                                             <SelectItem value="none">无分组</SelectItem>
                                             {groupOptions.map(group => (
                                                 <SelectItem key={group} value={group}>{group}</SelectItem>
@@ -604,12 +604,12 @@ ${userInput}
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                                 <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">封面工坊 · 图生图</h3>
-                                <Badge variant="secondary" className="bg-black text-white border-border">
+                                <Badge variant="secondary" className="bg-popover text-primary border-border border">
                                     <Sparkles className="w-3 h-3 mr-1" /> AI
                                 </Badge>
                             </div>
                             {(coverJobStatus === "pending" || coverJobStatus === "running") && (
-                                <Badge variant="secondary" className="bg-black text-white border-border">
+                                <Badge variant="secondary" className="bg-popover text-primary border-border border">
                                     <Loader2 className="w-3 h-3 mr-1 animate-spin" /> 生成中
                                 </Badge>
                             )}
@@ -734,7 +734,7 @@ ${userInput}
 
                                 {/* 生成按钮 + 状态 */}
                                 <Button
-                                    className="w-full bg-foreground text-background hover:bg-foreground/90 border-0"
+                                    className="w-full bg-primary text-foreground hover:bg-primary/90 border-0"
                                     onClick={handleGenerateCover}
                                     disabled={!!aiGenerating || coverJobStatus === "pending" || coverJobStatus === "running"}
                                 >
@@ -775,7 +775,7 @@ export function MaterialEditorSheet({
 }: MaterialEditorSheetProps) {
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetContent side="right" className="w-full sm:max-w-[770px] border-l border-border/70 bg-black p-0 flex flex-col shadow-2xl">
+            <SheetContent side="right" className="w-full sm:max-w-[770px] border-l border-border/70 bg-popover p-0 flex flex-col shadow-2xl">
                 <SheetHeader className="px-6 py-4 border-b border-border/70">
                     <SheetTitle>{mode === 'batch' ? '批量编辑素材' : '编辑素材详情'}</SheetTitle>
                     <SheetDescription>配置标题、描述与封面，支持 AI 一键生成。</SheetDescription>

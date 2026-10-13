@@ -57,7 +57,7 @@ def _search_app_root(start: Path) -> Path | None:
 
 
 def _resolve_app_root() -> Path:
-    env_root = os.getenv("PRISM_APP_ROOT") or os.getenv("PRISM_RESOURCES_PATH")
+    env_root = os.getenv("LAOMA_APP_ROOT") or os.getenv("LAOMA_RESOURCES_PATH")
     if env_root:
         return Path(env_root).resolve()
     if getattr(sys, "frozen", False):
@@ -71,6 +71,14 @@ def _resolve_app_root() -> Path:
 
 
 _APP_ROOT = _resolve_app_root()
+
+
+# logs 目录锚定：优先 LAOMA_DATA_DIR env（与 fastapi_app.core.paths 的 get_data_dir 保持一致），
+# 否则回落到 cwd 相对的 "logs"（保持现状，避免 regression）。
+# automation_worker 设计上与 fastapi_app 解耦（见顶部 docstring），不 import fastapi_app.core.paths；
+# 这里通过 os.getenv("LAOMA_DATA_DIR") 做 best-effort 锚定，若部署未设置该 env，则保持相对 cwd。
+_LAOMA_DATA_DIR = (os.getenv("LAOMA_DATA_DIR") or "").strip()
+_LOGS_DIR = Path(_LAOMA_DATA_DIR).expanduser() / "logs" if _LAOMA_DATA_DIR else Path("logs")
 
 
 def _resolve_executable_path_legacy_unused() -> str | None:
@@ -595,7 +603,10 @@ async def open_creator_center(req: OpenCreatorCenterRequest):
             if channels_state != "logged_in":
                 logger.error(f"[Worker] WeChat Channels login check failed: {channels_reason}")
                 try:
-                    screenshot_path = Path("logs") / f"channels_login_redirect_{req.account_id}.png"
+                    # logs 目录锚定：优先 LAOMA_DATA_DIR env（与 fastapi_app.core.paths 的 get_data_dir 一致），
+                    # 未设时保持相对 cwd 的 Path("logs")（现状行为，不恶化）。
+                    # automation_worker 与 fastapi_app 解耦（见顶部 docstring），不 import fastapi_app.core.paths。
+                    screenshot_path = _LOGS_DIR / f"channels_login_redirect_{req.account_id}.png"
                     screenshot_path.parent.mkdir(exist_ok=True)
                     await page.screenshot(path=str(screenshot_path), full_page=False)
                     logger.info(f"[Worker] Screenshot saved: {screenshot_path}")
@@ -622,7 +633,8 @@ async def open_creator_center(req: OpenCreatorCenterRequest):
                 logger.error(f"[Worker] WeChat Channels redirected to login page, cookies may be invalid")
                 # 截图保存（用于调试）
                 try:
-                    screenshot_path = Path("logs") / f"channels_login_redirect_{req.account_id}.png"
+                    # 同上：logs 目录锚定，见文件顶部 _LOGS_DIR 定义。
+                    screenshot_path = _LOGS_DIR / f"channels_login_redirect_{req.account_id}.png"
                     screenshot_path.parent.mkdir(exist_ok=True)
                     await page.screenshot(path=str(screenshot_path), full_page=False)
                     logger.info(f"[Worker] Screenshot saved: {screenshot_path}")

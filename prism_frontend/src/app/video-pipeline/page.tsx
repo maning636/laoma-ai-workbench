@@ -258,7 +258,7 @@ export default function VideoPipelinePage() {
                   <video
                     src={videoUrl}
                     controls
-                    className="w-full max-h-96 bg-black rounded-lg"
+                    className="w-full max-h-96 bg-popover rounded-lg"
                   />
                   {result.file_id && (
                     <div className="mt-3 text-xs text-emerald-600 flex items-center gap-1.5">

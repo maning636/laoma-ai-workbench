@@ -59,8 +59,8 @@ async def tiktok_setup(account_file, handle=False):
 async def get_tiktok_cookie(account_file):
     # TikTok 会拦截“无痕/临时 profile”的登录。这里改用按账号持久化的
     # user-data-dir（非无痕、有稳定 profile），否则本机正常 Chrome 能登、
-    # 但 Prism 弹出来的浏览器登不上。
-    profile_root = os.getenv("PRISM_BROWSER_PROFILES_DIR") or str(
+    # 但 老马AI工作台 弹出来的浏览器登不上。
+    profile_root = os.getenv("LAOMA_BROWSER_PROFILES_DIR") or str(
         Path(__file__).resolve().parent.parent.parent / "data" / "browser_profiles"
     )
     account_key = Path(account_file).stem  # 例如 tiktok_xxx

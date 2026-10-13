@@ -235,7 +235,7 @@ export function HermesProviderCard() {
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <Card className="border-border/70 bg-transparent">
+      <Card className="border-border/70 bg-card">
         <CollapsibleTrigger asChild>
           <button
             type="button"
@@ -246,7 +246,7 @@ export function HermesProviderCard() {
                 <div className="text-sm font-medium text-foreground">大语言模型配置</div>
                 <Badge
                   variant="outline"
-                  className={savedConfig ? "border-border/80 bg-black text-foreground" : "border-border/70 bg-card text-muted-foreground"}
+                  className={savedConfig ? "border-border/80 bg-popover text-foreground" : "border-border/70 bg-card text-muted-foreground"}
                 >
                   {savedConfig ? "已配置" : "未配置"}
                 </Badge>
@@ -347,11 +347,11 @@ export function HermesProviderCard() {
                 {loading.save ? <Loader2 className="animate-spin" /> : <Save />}
                 保存模型配置
               </Button>
-              <Button variant="secondary" className="bg-foreground/10" onClick={() => void testConfig()} disabled={loading.test}>
+              <Button variant="secondary" className="bg-muted" onClick={() => void testConfig()} disabled={loading.test}>
                 {loading.test ? <Loader2 className="animate-spin" /> : <TestTube2 />}
                 测试连接
               </Button>
-              <Button variant="secondary" className="bg-foreground/10" onClick={() => void hydrate()} disabled={loading.hydrate}>
+              <Button variant="secondary" className="bg-muted" onClick={() => void hydrate()} disabled={loading.hydrate}>
                 {loading.hydrate ? <Loader2 className="animate-spin" /> : <RefreshCw />}
                 刷新
               </Button>

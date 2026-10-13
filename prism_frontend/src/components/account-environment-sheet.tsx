@@ -54,13 +54,13 @@ function FieldRow({ label, value, mono }: { label: string; value: React.ReactNod
 function ProxyStatusBadge({ status }: { status?: string }) {
     if (!status) return <Badge variant="outline" className="text-xs">未知</Badge>
     const map: Record<string, string> = {
-        available: "bg-black text-white border-border",
-        in_use: "bg-black text-white border-border",
-        degraded: "bg-black text-white border-border",
-        failed: "bg-black text-white border-border",
-        banned: "bg-black text-white border-border",
-        auth_failed: "bg-black text-white border-border",
-        checking: "bg-black text-white border-border",
+        available: "bg-popover text-foreground border-border",
+        in_use: "bg-popover text-foreground border-border",
+        degraded: "bg-popover text-foreground border-border",
+        failed: "bg-popover text-foreground border-border",
+        banned: "bg-popover text-foreground border-border",
+        auth_failed: "bg-popover text-foreground border-border",
+        checking: "bg-popover text-foreground border-border",
     }
     const label: Record<string, string> = {
         available: "健康",
@@ -143,15 +143,15 @@ export function AccountEnvironmentSheet({
 
                 {loading && (
                     <div className="space-y-3">
-                        <div className="h-4 w-3/4 rounded bg-black animate-pulse" />
-                        <div className="h-4 w-1/2 rounded bg-black animate-pulse" />
-                        <div className="h-4 w-2/3 rounded bg-black animate-pulse" />
-                        <div className="h-4 w-1/3 rounded bg-black animate-pulse" />
+                        <div className="h-4 w-3/4 rounded bg-popover animate-pulse" />
+                        <div className="h-4 w-1/2 rounded bg-popover animate-pulse" />
+                        <div className="h-4 w-2/3 rounded bg-popover animate-pulse" />
+                        <div className="h-4 w-1/3 rounded bg-popover animate-pulse" />
                     </div>
                 )}
 
                 {error && !loading && (
-                    <div className="rounded-xl border border-border bg-black p-4 text-sm text-white">
+                    <div className="rounded-xl border border-border bg-popover p-4 text-sm text-foreground">
                         {error}
                     </div>
                 )}
@@ -164,7 +164,7 @@ export function AccountEnvironmentSheet({
                                 <ShieldCheck className="h-4 w-4 text-primary" />
                                 <h3 className="text-sm font-semibold">账号</h3>
                             </div>
-                            <div className="rounded-xl border border-border/70 bg-black px-4 py-1">
+                            <div className="rounded-xl border border-border/70 bg-popover px-4 py-1">
                                 <FieldRow label="账号" value={account.name || accountName} />
                                 <FieldRow label="平台" value={account.platform || platform} />
                                 <FieldRow label="账号 ID" value={account.account_id} mono />
@@ -178,16 +178,16 @@ export function AccountEnvironmentSheet({
                                 <MonitorSmartphone className="h-4 w-4 text-primary" />
                                 <h3 className="text-sm font-semibold">浏览器</h3>
                             </div>
-                            <div className="rounded-xl border border-border/70 bg-black px-4 py-1">
+                            <div className="rounded-xl border border-border/70 bg-popover px-4 py-1">
                                 <FieldRow label="Backend" value={browser.backend || "patchright"} />
                                 <FieldRow label="Engine" value={browser.engine || "Patchright Chromium"} />
                                 <FieldRow label="Persona Profile" value={browser.persona_profile_id || "未分配"} mono />
                                 <div className="flex items-start justify-between gap-4 py-2 border-b border-border/50 last:border-0">
                                     <span className="text-xs text-muted-foreground shrink-0">Persona 服务</span>
                                     {browser.persona_online ? (
-                                        <Badge variant="secondary" className="text-xs bg-black text-white border-border">在线</Badge>
+                                        <Badge variant="secondary" className="text-xs bg-popover text-foreground border-border">在线</Badge>
                                     ) : (
-                                        <Badge variant="secondary" className="text-xs bg-black text-white border-border">
+                                        <Badge variant="secondary" className="text-xs bg-popover text-foreground border-border">
                                             离线 · 回退 Patchright
                                         </Badge>
                                     )}
@@ -201,7 +201,7 @@ export function AccountEnvironmentSheet({
                                 <Network className="h-4 w-4 text-primary" />
                                 <h3 className="text-sm font-semibold">代理</h3>
                             </div>
-                            <div className="rounded-xl border border-border/70 bg-black px-4 py-1">
+                            <div className="rounded-xl border border-border/70 bg-popover px-4 py-1">
                                 <FieldRow
                                     label="代理节点"
                                     value={proxy.name ? `${proxy.name} (${proxy.host}:${proxy.port})` : "未绑定"}
@@ -226,15 +226,15 @@ export function AccountEnvironmentSheet({
                                 <Activity className="h-4 w-4 text-primary" />
                                 <h3 className="text-sm font-semibold">Runtime</h3>
                             </div>
-                            <div className="rounded-xl border border-border/70 bg-black px-4 py-1">
+                            <div className="rounded-xl border border-border/70 bg-popover px-4 py-1">
                                 <div className="flex items-start justify-between gap-4 py-2 border-b border-border/50 last:border-0">
                                     <span className="text-xs text-muted-foreground shrink-0">状态</span>
                                     {runtime.locked ? (
-                                        <Badge variant="secondary" className="text-xs bg-black text-white border-border">
+                                        <Badge variant="secondary" className="text-xs bg-popover text-foreground border-border">
                                             {runtimeLabel(runtime.operation)}
                                         </Badge>
                                     ) : (
-                                        <Badge variant="secondary" className="text-xs bg-black text-white border-border">
+                                        <Badge variant="secondary" className="text-xs bg-popover text-foreground border-border">
                                             空闲
                                         </Badge>
                                     )}
@@ -259,10 +259,10 @@ export function AccountEnvironmentSheet({
                                 <Globe className="h-4 w-4 text-primary" />
                                 <h3 className="text-sm font-semibold">网络身份</h3>
                             </div>
-                            <div className="rounded-xl border border-border/70 bg-black px-4 py-1">
+                            <div className="rounded-xl border border-border/70 bg-popover px-4 py-1">
                                 <FieldRow label="固定绑定" value={data.identity?.stable ? "是 (Sticky)" : "否"} />
                                 {!data.identity?.stable && (
-                                    <p className="py-2 text-xs text-white/90">
+                                    <p className="py-2 text-xs text-foreground/90">
                                         该账号未绑定代理。国内平台可直连（network_mode=direct），海外平台需绑定代理。
                                     </p>
                                 )}

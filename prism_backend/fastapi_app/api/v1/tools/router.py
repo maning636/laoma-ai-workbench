@@ -68,7 +68,7 @@ async def uninstall_tool(tool_id: str):
 
 @router.post("/{tool_id}/launch", summary="打开/调用已安装工具")
 async def launch_tool(tool_id: str):
-    """从 Prism 打开本地已安装的工具（如 CC Switch 桌面应用）。"""
+    """从 老马AI工作台 打开本地已安装的工具（如 CC Switch 桌面应用）。"""
     try:
         result = await asyncio.to_thread(
             get_tool_registry().launch, tool_id

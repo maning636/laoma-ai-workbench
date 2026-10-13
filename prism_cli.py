@@ -1,4 +1,4 @@
-"""Platform-specific Prism CLI."""
+"""Platform-specific 老马AI工作台 CLI."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ EXIT_BUSINESS = 3
 
 
 def runtime_home() -> Path:
-    return Path(os.getenv("PRISM_DATA_DIR", str(BACKEND_ROOT))).expanduser().resolve()
+    return Path(os.getenv("LAOMA_DATA_DIR", str(BACKEND_ROOT))).expanduser().resolve()
 
 
 def account_file(platform: str, account: str) -> Path:
@@ -110,11 +110,11 @@ def add_note(actions: Any, name: str) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="prism", description="Prism multi-platform publishing CLI")
+    parser = argparse.ArgumentParser(prog="prism", description="老马AI工作台 multi-platform publishing CLI")
     roots = parser.add_subparsers(dest="platform", required=True)
 
     # 跨平台进程管理：prism service start|stop|restart|status|logs|list
-    service_cmd = roots.add_parser("service", help="Manage Prism services (start/stop/status/logs)")
+    service_cmd = roots.add_parser("service", help="Manage 老马AI工作台 services (start/stop/status/logs)")
     service_cmd.add_argument(
         "service_args",
         nargs=argparse.REMAINDER,
@@ -139,7 +139,7 @@ def build_parser() -> argparse.ArgumentParser:
     history_cmd.add_argument("--limit", type=int, default=100, help="返回条数上限（默认 100）")
 
     # MCP 服务（stdio）：prism mcp —— 供 AI 工具直接接入
-    roots.add_parser("mcp", help="启动 Prism MCP 服务（stdio，供 AI 工具/智能体接入）")
+    roots.add_parser("mcp", help="启动 老马AI工作台 MCP 服务（stdio，供 AI 工具/智能体接入）")
 
     for name in ("douyin", "kuaishou", "xiaohongshu"):
         actions = roots.add_parser(name).add_subparsers(dest="action", required=True)

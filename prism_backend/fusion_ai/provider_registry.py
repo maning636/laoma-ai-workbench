@@ -191,7 +191,7 @@ def list_providers(include_models: bool = False) -> List[Dict[str, Any]]:
 def detect_provider() -> Dict[str, Any]:
     """
     自动探测：按 PROBE_ORDER 优先级，返回第一个有有效 API Key 的 provider。
-    若都没配置，返回 siliconflow 默认（Prism 原生默认）。
+    若都没配置，返回 siliconflow 默认（老马AI工作台 原生默认）。
     """
     for pid in PROBE_ORDER:
         cfg = MODEL_PROVIDERS.get(pid)
@@ -208,7 +208,7 @@ def detect_provider() -> Dict[str, Any]:
                 "models": cfg.get("models", {}),
             }
 
-    # fallback: 如果 env 里有 SILICON_API_KEY 就走 Prism 原生默认
+    # fallback: 如果 env 里有 SILICON_API_KEY 就走 老马AI工作台 原生默认
     if os.environ.get("SILICON_API_KEY"):
         return {
             "provider": "silicon",

@@ -1,13 +1,13 @@
 @echo off
 chcp 65001 >nul
 echo ============================================
-echo   Prism Supervisor Build Prep
+echo   老马AI工作台 Supervisor Build Prep
 echo ============================================
 echo.
 
 set "ROOT=%~dp0..\.."
 cd /d "%ROOT%"
-if exist "prism_backend\Redis\redis-server.exe" set "PRISM_REDIS_PATH=%ROOT%\prism_backend\Redis\redis-server.exe"
+if exist "prism_backend\Redis\redis-server.exe" set "LAOMA_REDIS_PATH=%ROOT%\prism_backend\Redis\redis-server.exe"
 
 echo [1/6] Checking required folders...
 if not exist "prismenv" (

@@ -83,7 +83,7 @@ export function AIModelSelector({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-full justify-between bg-black border-border/80 text-foreground hover:bg-accent/50 hover:border-border"
+          className="w-full justify-between bg-popover border-border/80 text-foreground hover:bg-accent/50 hover:border-border"
           disabled={isLoading || isProcessing || models.length === 0}
         >
           <div className="flex items-center gap-2 max-w-xs truncate">
@@ -94,7 +94,7 @@ export function AIModelSelector({
                 </span>
                 <span className="truncate text-sm">{selected.name}</span>
                 {selected.speed === "fast" && (
-                  <Zap className="h-3 w-3 text-white flex-shrink-0" />
+                  <Zap className="h-3 w-3 text-foreground flex-shrink-0" />
                 )}
               </>
             ) : (
@@ -127,7 +127,7 @@ export function AIModelSelector({
                     key={model.id}
                     value={model.id}
                     onSelect={() => handleSelectModel(model.id)}
-                    className="aria-selected:bg-black aria-selected:text-foreground text-foreground/70 cursor-pointer hover:bg-accent/50"
+                    className="aria-selected:bg-popover aria-selected:text-foreground text-foreground/70 cursor-pointer hover:bg-accent/50"
                   >
                     <div className="flex items-center justify-between w-full gap-2">
                       <div className="flex items-center gap-2 flex-1">
@@ -135,7 +135,7 @@ export function AIModelSelector({
                           className={cn(
                             "h-4 w-4 flex-shrink-0",
                             selectedModel === model.id
-                              ? "opacity-100 text-white"
+                              ? "opacity-100 text-foreground"
                               : "opacity-0"
                           )}
                         />
@@ -154,9 +154,9 @@ export function AIModelSelector({
                             variant="secondary"
                             className={cn(
                               "text-xs",
-                              model.speed === "fast" && "bg-black text-white",
-                              model.speed === "medium" && "bg-black text-white",
-                              model.speed === "slow" && "bg-black text-white"
+                              model.speed === "fast" && "bg-popover text-foreground",
+                              model.speed === "medium" && "bg-popover text-foreground",
+                              model.speed === "slow" && "bg-popover text-foreground"
                             )}
                           >
                             <Clock className="h-3 w-3 mr-1" />
@@ -166,7 +166,7 @@ export function AIModelSelector({
                         {model.contextWindow && (
                           <Badge
                             variant="secondary"
-                            className="text-xs bg-black text-foreground/70"
+                            className="text-xs bg-popover text-foreground/70"
                           >
                             {model.contextWindow}K
                           </Badge>

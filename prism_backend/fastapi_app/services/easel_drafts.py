@@ -1,10 +1,10 @@
 """
-Easel 稿件桥服务：把 Easel outputs/ 内容库桥接进 Prism 素材与发布链路。
+Easel 稿件桥服务：把 Easel outputs/ 内容库桥接进 老马AI工作台 素材与发布链路。
 
 职责:
 - 读取 Easel Web API 的产物树（/api/outputs），筛选带 .easel.json 元数据的"稿件"项目
 - 代理 Easel 媒体文件（/api/media/{path}）供前端预览
-- 导入稿件: 下载 deliverables → 写入 Prism 素材库（files/upload-save 语义）→ 返回 material_ids
+- 导入稿件: 下载 deliverables → 写入 老马AI工作台 素材库（files/upload-save 语义）→ 返回 material_ids
 - 导入映射持久化到 db/easel_imports.json，避免重复导入
 
 对 Easel 的依赖仅为 3 个 HTTP 端点（outputs / media），Easel 升级不影响桥。
@@ -24,7 +24,7 @@ from fastapi_app.services.easel_workbench import EASEL_DIR, EASEL_HOST, EASEL_PO
 BACKEND_ROOT = Path(__file__).resolve().parents[2]  # fastapi_app/../.. = prism_backend
 IMPORTS_FILE = BACKEND_ROOT / "db" / "easel_imports.json"
 
-# 允许导入的成品扩展名（对齐 Prism 素材库能力：视频/图片/音频/文本）
+# 允许导入的成品扩展名（对齐 老马AI工作台 素材库能力：视频/图片/音频/文本）
 IMPORTABLE_EXTS = {
     ".mp4", ".mov", ".avi", ".mkv", ".flv", ".wmv",
     ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp",
@@ -165,13 +165,13 @@ async def import_draft(
     platform_map: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
     """
-    导入稿件 deliverables 到 Prism 素材库。
+    导入稿件 deliverables 到 老马AI工作台 素材库。
 
     upload_file_func: 异步回调 (filename: str, content: bytes, display_name: str,
                       group: str, note: str) -> dict  （files service 的 upload-save 封装，
                       返回含 file_id 的 data 字典）
 
-    platform_map: Easel platform 名 → Prism 平台码映射（可覆盖默认）
+    platform_map: Easel platform 名 → 老马AI工作台平台码映射（可覆盖默认）
     """
     detail = await get_draft_detail(project)
     meta = detail.get("meta") or {}

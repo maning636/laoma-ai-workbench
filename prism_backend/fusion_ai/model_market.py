@@ -88,7 +88,7 @@ MODEL_CAPABILITIES: Dict[str, Dict[str, Any]] = {
         "weaknesses": ["价格略高"],
         "supported_features": ["chat", "completion"],
         "price_input": "$0.50/M", "price_output": "$2.00/M",
-        "recommendation": "Prism 默认模型",
+        "recommendation": "老马AI工作台默认模型",
     },
 }
 

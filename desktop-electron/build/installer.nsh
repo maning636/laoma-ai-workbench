@@ -1,4 +1,4 @@
-!macro KillPrismProcess imageName
+!macro KillLaomaProcess imageName
   DetailPrint "Stopping ${imageName} if running..."
   nsExec::ExecToLog 'taskkill /IM ${imageName}'
   Sleep 800
@@ -7,19 +7,19 @@
 
 !macro customInit
   ; Stop the packaged app and all managed child processes before install.
-  !insertmacro KillPrismProcess "Prism.exe"
-  !insertmacro KillPrismProcess "supervisor.exe"
-  !insertmacro KillPrismProcess "backend.exe"
-  !insertmacro KillPrismProcess "automation-worker.exe"
-  !insertmacro KillPrismProcess "celery-worker.exe"
-  !insertmacro KillPrismProcess "redis-server.exe"
+  !insertmacro KillLaomaProcess "LaomaAI.exe"
+  !insertmacro KillLaomaProcess "supervisor.exe"
+  !insertmacro KillLaomaProcess "backend.exe"
+  !insertmacro KillLaomaProcess "automation-worker.exe"
+  !insertmacro KillLaomaProcess "celery-worker.exe"
+  !insertmacro KillLaomaProcess "redis-server.exe"
   Sleep 1500
 !macroend
 
 !macro customInstall
-  CreateShortCut "$DESKTOP\Prism.lnk" "$INSTDIR\Prism.exe"
+  CreateShortCut "$DESKTOP\老马AI工作台.lnk" "$INSTDIR\LaomaAI.exe"
 !macroend
 
 !macro customUnInstall
-  Delete "$DESKTOP\Prism.lnk"
+  Delete "$DESKTOP\老马AI工作台.lnk"
 !macroend

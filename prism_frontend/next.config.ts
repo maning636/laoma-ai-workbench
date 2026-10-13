@@ -21,9 +21,9 @@ const publicBackendUrl = normalizeBackendUrl(
 )
 
 const internalBackendUrl = normalizeBackendUrl(
-  process.env.PRISM_INTERNAL_BACKEND_URL ||
-    process.env.PRISM_BACKEND_URL ||
-    process.env.NEXT_PUBLIC_PRISM_BACKEND_URL ||
+  process.env.LAOMA_INTERNAL_BACKEND_URL ||
+    process.env.LAOMA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_LAOMA_BACKEND_URL ||
     publicBackendUrl
 )
 

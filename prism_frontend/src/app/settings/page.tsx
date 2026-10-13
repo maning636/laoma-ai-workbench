@@ -14,6 +14,8 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
 import { AIServiceProviderCard } from "@/components/settings/ai-service-provider-card"
+import { EaselProviderCard } from "@/components/settings/easel-provider-card"
+import { EaselUpdateCard } from "@/components/settings/easel-update-card"
 import { HermesProviderCard } from "@/components/settings/hermes-provider-card"
 import { CcSwitchPanel } from "@/components/settings/cc-switch-panel"
 import { TikHubApiKeyCard } from "@/components/settings/tikhub-api-key-card"
@@ -31,12 +33,15 @@ import {
   Loader2,
   Power,
   RefreshCw,
-  RotateCcw,
+  Settings2,
   Trash2,
   Video,
 } from "lucide-react"
-import { ConfirmModal } from "./components/ConfirmModal"
 import { ActionRow } from "./components/ActionRow"
+import { ConfirmModal } from "./components/ConfirmModal"
+import { EnvironmentInstallCard } from "./components/environment-install-card"
+import { PendingChannelCard } from "./components/pending-channel-card"
+import { TranscribeCard } from "./components/transcribe-card"
 import {
   type PlatformBrowserChoice,
   type PlatformBrowserKey,
@@ -45,14 +50,7 @@ import {
   useSettingsActions,
 } from "./hooks/useSettingsActions"
 
-type SectionKey =
-  | "overview"
-  | "models"
-  | "browsers"
-  | "processes"
-  | "storage"
-  | "apikeys"
-  | "safety"
+type SectionKey = "models" | "environment" | "more"
 
 type ConfirmState = {
   open: boolean
@@ -81,13 +79,14 @@ const sectionMeta: Array<{
   description: string
   icon: typeof Activity
 }> = [
-  { key: "overview", label: "运行概览", description: "运行时与服务状态", icon: Activity },
-  { key: "models", label: "模型接入", description: "Hermes 模型与提供商", icon: Bot },
-  { key: "browsers", label: "浏览器管理", description: "运行时与浏览器资源", icon: Globe },
-  { key: "processes", label: "进程管理", description: "重启、停止与退出", icon: RotateCcw },
-  { key: "storage", label: "数据清理", description: "缓存、账号与素材", icon: Database },
-  { key: "apikeys", label: "API 密钥", description: "数据接口与第三方 Key", icon: KeyRound },
-  { key: "safety", label: "应急工具", description: "自检、导出与强制停止", icon: AlertTriangle },
+  { key: "models", label: "模型配置", description: "6 通道模型接入", icon: Bot },
+  { key: "environment", label: "环境安装", description: "本地引擎体检与安装", icon: Download },
+  {
+    key: "more",
+    label: "更多设置",
+    description: "浏览器、清理与诊断",
+    icon: Settings2,
+  },
 ]
 
 const platformBrowserRows: Array<{
@@ -150,7 +149,7 @@ function SectionSwitcher({
 }) {
   return (
     <div className="rounded-2xl border border-border/70 bg-card p-2">
-      <div className="flex flex-wrap gap-1.5">
+      <div className="grid grid-cols-1 gap-1.5 md:grid-cols-3">
         {sectionMeta.map((section) => {
           const Icon = section.icon
           const isActive = activeSection === section.key
@@ -160,9 +159,9 @@ function SectionSwitcher({
               type="button"
               onClick={() => onSelect(section.key)}
               className={[
-                "min-w-[118px] flex-1 rounded-xl border px-3 py-2.5 text-left transition-colors",
+                "min-w-[118px] rounded-xl border px-3 py-2.5 text-left transition-colors",
                 isActive
-                  ? "border-border bg-black"
+                  ? "border-border bg-popover"
                   : "border-border/70 bg-card hover:bg-accent/40",
               ].join(" ")}
             >
@@ -170,16 +169,22 @@ function SectionSwitcher({
                 <div
                   className={[
                     "mt-0.5 rounded-lg p-1.5",
-                    isActive ? "bg-black text-foreground" : "bg-card text-foreground/70",
+                    isActive ? "bg-popover text-foreground" : "bg-card text-foreground/70",
                   ].join(" ")}
                 >
                   <Icon className="h-3.5 w-3.5" />
                 </div>
                 <div className="min-w-0">
-                  <div className={isActive ? "text-sm font-medium text-foreground" : "text-sm font-medium text-foreground/90"}>
+                  <div
+                    className={
+                      isActive ? "text-sm font-medium text-foreground" : "text-sm font-medium text-foreground/90"
+                    }
+                  >
                     {section.label}
                   </div>
-                  <div className="mt-1 text-[11px] leading-4 text-muted-foreground">{section.description}</div>
+                  <div className="mt-1 text-[11px] leading-4 text-muted-foreground">
+                    {section.description}
+                  </div>
                 </div>
               </div>
             </button>
@@ -218,10 +223,6 @@ export default function SettingsPage() {
     appInfo,
     status,
     refreshStatus,
-    restartAll,
-    restartBackend,
-    restartFrontend,
-    stopAll,
     setBrowserHeadless,
     setAutomationRuntime,
     installPatchright,
@@ -237,7 +238,6 @@ export default function SettingsPage() {
     clearCache,
     clearVideoData,
     runSelfCheck,
-    forceKillProcesses,
     exportLogs,
     setPlatformBrowserPreference,
     setPlatformProxyPreference,
@@ -245,7 +245,7 @@ export default function SettingsPage() {
     isElectronApp,
   } = useSettingsActions()
 
-  const [activeSection, setActiveSection] = useState<SectionKey>("overview")
+  const [activeSection, setActiveSection] = useState<SectionKey>("models")
   const [confirmModal, setConfirmModal] = useState<ConfirmState>({
     open: false,
     title: "",
@@ -303,7 +303,10 @@ export default function SettingsPage() {
       setDouyinLoginMode(mode)
       toast({
         title: "已切换抖音登录模式",
-        description: mode === "http" ? "逆向 HTTP（测试）· 需重启后端生效" : "浏览器（正式/当前模拟）· 需重启后端生效",
+        description:
+          mode === "http"
+            ? "逆向 HTTP（测试）· 需重启后端生效"
+            : "浏览器（正式/当前模拟）· 需重启后端生效",
       })
     } catch (err) {
       toast({ variant: "destructive", title: "设置失败", description: getErrorMessage(err) })
@@ -311,6 +314,7 @@ export default function SettingsPage() {
       setDouyinModeLoading(false)
     }
   }
+
   const platformBrowserPreferences = {
     ...defaultPlatformBrowserPreferences,
     ...(appInfo?.runtimeSettings?.platformBrowserPreferences ?? {}),
@@ -348,7 +352,107 @@ export default function SettingsPage() {
     })
   }
 
-  const renderOverview = () => (
+  // ---------- 分区 1：模型配置 ----------
+  const renderModels = () => (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-border/70 bg-card p-4 text-xs leading-5 text-muted-foreground md:grid-cols-2">
+        <div>
+          <div className="text-sm font-medium text-foreground">6 通道模型接入</div>
+          <div className="mt-1">
+            已接入：<span className="text-foreground/80">chat、transcribe</span>；敬请期待：<span className="text-foreground/70">image、video、music、speech</span>。
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="border-border/80 bg-popover text-foreground">
+            <Bot className="mr-1 h-3 w-3" />
+            Hermes 主通道
+          </Badge>
+          <Badge variant="outline" className="border-border/70 bg-card text-muted-foreground">
+            其余 4 通道敬请期待
+          </Badge>
+        </div>
+      </div>
+
+      <CcSwitchPanel />
+      <HermesProviderCard />
+
+      <AIServiceProviderCard
+        serviceType="chat"
+        title="标题生成 / 对话模型"
+        description="用于标题 AI 生成、文案润色与对话交互的模型提供商（对应 chat 服务）。"
+        defaultOpen={false}
+        providerOptions={[
+          { value: "openai_compatible", label: "OpenAI Compatible" },
+          { value: "openai", label: "OpenAI" },
+          { value: "siliconflow", label: "SiliconFlow" },
+          { value: "volcengine", label: "Volcengine" },
+        ]}
+        note="这里写入 chat 服务配置，素材编辑器的“标题 AI 生成”会直接使用它。请确认账户余额充足，避免 402 计费错误。"
+      />
+
+      <TranscribeCard />
+
+      <PendingChannelCard
+        title="图片生成"
+        channel="image"
+        description="本版本未接入 image 通道；封面图与配图仍使用上方 Easel 上游的现有链路。"
+        fields={[
+          { label: "提供商", placeholder: "敬请期待" },
+          { label: "模型名", placeholder: "敬请期待" },
+          { label: "Base URL", placeholder: "敬请期待" },
+          { label: "API Key", placeholder: "敬请期待" },
+        ]}
+      />
+
+      <PendingChannelCard
+        title="视频生成"
+        channel="video"
+        description="本版本未接入 video 通道；视频生成请在 Easel 上游版本使用。"
+        fields={[
+          { label: "提供商", placeholder: "敬请期待" },
+          { label: "模型名", placeholder: "敬请期待" },
+          { label: "Base URL", placeholder: "敬请期待" },
+          { label: "API Key", placeholder: "敬请期待" },
+        ]}
+      />
+
+      <PendingChannelCard
+        title="音乐生成"
+        channel="music"
+        description="本版本未接入 music 通道；配乐与音乐合成请等待后续版本。"
+        fields={[
+          { label: "提供商", placeholder: "敬请期待" },
+          { label: "模型名", placeholder: "敬请期待" },
+          { label: "Base URL", placeholder: "敬请期待" },
+          { label: "API Key", placeholder: "敬请期待" },
+        ]}
+      />
+
+      <PendingChannelCard
+        title="语音合成"
+        channel="speech"
+        description="本版本未接入 speech 通道；TTS 与配音请等待后续版本。"
+        fields={[
+          { label: "提供商", placeholder: "敬请期待" },
+          { label: "模型名", placeholder: "敬请期待" },
+          { label: "Base URL", placeholder: "敬请期待" },
+          { label: "API Key", placeholder: "敬请期待" },
+        ]}
+      />
+    </div>
+  )
+
+  // ---------- 分区 2：环境安装 ----------
+  const renderEnvironment = () => (
+    <div className="space-y-6">
+      <EnvironmentInstallCard />
+      <EaselProviderCard />
+      <EaselUpdateCard />
+    </div>
+  )
+
+  // ---------- 分区 3：更多设置 ----------
+  const renderOverviewBlock = () => (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <StatCard label="版本" value={appInfo?.version || "-"} />
@@ -395,7 +499,7 @@ export default function SettingsPage() {
                       variant="outline"
                       className={
                         value?.running
-                          ? "border-border bg-black text-foreground"
+                          ? "border-border bg-popover text-foreground"
                           : "border-border/70 bg-card text-muted-foreground"
                       }
                     >
@@ -455,66 +559,7 @@ export default function SettingsPage() {
     </div>
   )
 
-  const renderModels = () => (
-    <div className="space-y-6">
-      <CcSwitchPanel />
-      <HermesProviderCard />
-      <AIServiceProviderCard
-        serviceType="chat"
-        title="标题生成 / 对话模型"
-        description="用于标题 AI 生成、文案润色与对话交互的模型提供商（对应 chat 服务）。"
-        defaultOpen={false}
-        providerOptions={[
-          { value: "openai_compatible", label: "OpenAI Compatible" },
-          { value: "openai", label: "OpenAI" },
-          { value: "siliconflow", label: "SiliconFlow" },
-          { value: "volcengine", label: "Volcengine" },
-        ]}
-        note="这里写入 chat 服务配置，素材编辑器的“标题 AI 生成”会直接使用它。请确认账户余额充足，避免 402 计费错误。"
-      />
-      <AIServiceProviderCard
-        serviceType="cover_generation"
-        title="图片生成"
-        description="管理封面图、配图和图像生成模型提供商。"
-        defaultOpen={false}
-        providerOptions={[
-          { value: "siliconflow", label: "SiliconFlow" },
-          { value: "volcengine", label: "Volcengine" },
-          { value: "openai_compatible", label: "OpenAI Compatible" },
-          { value: "openai", label: "OpenAI" },
-        ]}
-        note="这里写入 cover_generation 服务配置，保持与现有封面生成链路一致。"
-      />
-      <AIServiceProviderCard
-        serviceType="video_generation"
-        title="视频生成"
-        description="管理文生视频和视频生成模型提供商。"
-        defaultOpen={false}
-        providerOptions={[
-          { value: "runwayml", label: "Runway" },
-          { value: "pika", label: "Pika" },
-          { value: "siliconflow", label: "SiliconFlow" },
-          { value: "openai_compatible", label: "OpenAI Compatible" },
-        ]}
-        note="这里写入 video_generation 服务配置；测试连接会按后端现有视频生成探活逻辑执行。"
-      />
-      <AIServiceProviderCard
-        serviceType="speech_recognition"
-        title="语音接入"
-        description="当前接入的是语音识别 / 转写模型，不伪装成并不存在的 TTS 配置。"
-        defaultOpen={false}
-        providerOptions={[
-          { value: "openai", label: "OpenAI" },
-          { value: "siliconflow", label: "SiliconFlow" },
-          { value: "volcengine", label: "Volcengine" },
-          { value: "openai_compatible", label: "OpenAI Compatible" },
-        ]}
-        note="这里写入 speech_recognition 服务配置，供语音识别和转写链路直接复用。"
-      />
-    </div>
-  )
-
-  const renderBrowsers = () => (
+  const renderBrowsersBlock = () => (
     <div className="space-y-6">
       <Card className="border-border/70 bg-card">
         <CardHeader>
@@ -571,7 +616,7 @@ export default function SettingsPage() {
                 {douyinModeLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : null}
                 <Button
                   variant={douyinLoginMode === "browser" ? "default" : "secondary"}
-                  className={douyinLoginMode === "browser" ? "border-border/80 bg-black text-foreground" : "border-border/70 bg-card text-foreground hover:bg-accent/40"}
+                  className={douyinLoginMode === "browser" ? "border-border/80 bg-popover text-foreground" : "border-border/70 bg-card text-foreground hover:bg-accent/40"}
                   disabled={douyinModeLoading}
                   onClick={() => void updateDouyinLoginMode("browser")}
                 >
@@ -579,7 +624,7 @@ export default function SettingsPage() {
                 </Button>
                 <Button
                   variant={douyinLoginMode === "http" ? "default" : "secondary"}
-                  className={douyinLoginMode === "http" ? "border-border/80 bg-black text-foreground" : "border-border/70 bg-card text-foreground hover:bg-accent/40"}
+                  className={douyinLoginMode === "http" ? "border-border/80 bg-popover text-foreground" : "border-border/70 bg-card text-foreground hover:bg-accent/40"}
                   disabled={douyinModeLoading}
                   onClick={() => void updateDouyinLoginMode("http")}
                 >
@@ -594,13 +639,13 @@ export default function SettingsPage() {
               <div>
                 <div className="text-sm text-muted-foreground">默认自动化运行时</div>
                 <div className="mt-1 text-xs text-muted-foreground">
-                  Prism 统一使用 Patchright，确保登录、发布与队列任务采用同一自动化行为。
+                  老马AI工作台统一使用 Patchright，确保登录、发布与队列任务采用同一自动化行为。
                 </div>
               </div>
               <div className="flex flex-wrap gap-3">
                 <Button
                   variant={currentRuntime === "patchright" ? "default" : "secondary"}
-                  className={currentRuntime === "patchright" ? "border-border/80 bg-black text-foreground" : "border-border/70 bg-card text-foreground hover:bg-accent/40"}
+                  className={currentRuntime === "patchright" ? "border-border/80 bg-popover text-foreground" : "border-border/70 bg-card text-foreground hover:bg-accent/40"}
                   disabled={loading.setAutomationRuntime || !isElectronApp}
                   onClick={() => void setAutomationRuntime("patchright")}
                 >
@@ -632,7 +677,7 @@ export default function SettingsPage() {
                   <span className="rounded-full border border-border/70 bg-card px-2 py-1 text-foreground/65">
                     已设置：{platformBrowserLabels[platformBrowserPreferences[platform.key]]}
                   </span>
-                  <span className="rounded-full border border-border/80 bg-black px-2 py-1 text-foreground">
+                  <span className="rounded-full border border-border/80 bg-popover px-2 py-1 text-foreground">
                     当前生效：{platformBrowserLabels[getEffectivePlatformBrowser(platform.key)]}
                   </span>
                 </div>
@@ -708,7 +753,7 @@ export default function SettingsPage() {
             <CardHeader>
               <CardTitle className="text-foreground">自动化运行时</CardTitle>
               <CardDescription className="text-muted-foreground">
-                Patchright 是 Prism 唯一支持的生产自动化运行时。
+                Patchright 是 老马AI工作台唯一支持的生产自动化运行时。
               </CardDescription>
             </CardHeader>
             <CardContent className="grid grid-cols-1 gap-3">
@@ -719,7 +764,7 @@ export default function SettingsPage() {
                     variant="outline"
                     className={
                       browserRuntimeInfo?.runtimes?.patchright?.installed
-                        ? "border-border bg-black text-foreground"
+                        ? "border-border bg-popover text-foreground"
                         : "border-border/70 bg-card text-muted-foreground"
                     }
                   >
@@ -774,7 +819,6 @@ export default function SettingsPage() {
                   </Button>
                 </div>
               </div>
-
             </CardContent>
           </Card>
 
@@ -793,7 +837,7 @@ export default function SettingsPage() {
                     variant="outline"
                     className={
                       browserRuntimeInfo?.browsers?.chromium?.installed
-                        ? "border-border bg-black text-foreground"
+                        ? "border-border bg-popover text-foreground"
                         : "border-border/70 bg-card text-muted-foreground"
                     }
                   >
@@ -852,7 +896,7 @@ export default function SettingsPage() {
                     variant="outline"
                     className={
                       browserRuntimeInfo?.browsers?.firefox?.installed
-                        ? "border-border bg-black text-foreground"
+                        ? "border-border bg-popover text-foreground"
                         : "border-border/70 bg-card text-muted-foreground"
                     }
                   >
@@ -917,322 +961,173 @@ export default function SettingsPage() {
     </div>
   )
 
-  const renderProcesses = () => (
-    <div className="space-y-6">
-      <Card className="border-border/70 bg-card">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-foreground">
-            <RotateCcw className="h-5 w-5 text-foreground/70" />
-            常用控制
-          </CardTitle>
-          <CardDescription className="text-muted-foreground">
-            桌面版的前端、后端、Worker 和调度器重启入口统一放在这里。
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Button
-            onClick={() =>
-              openConfirm({
-                title: "重启所有服务",
-                description: "这会重启前端、后端和各个工作进程。打包模式下会走调度器的受管重启流程。",
-                onConfirm: restartAll,
-              })
-            }
-            disabled={loading.restartAll}
-            className="w-full"
-          >
-            {loading.restartAll ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                重启中
-              </>
-            ) : (
-              <>
-                <RotateCcw className="mr-2 h-4 w-4" />
-                重启所有服务
-              </>
-            )}
-          </Button>
+  const renderStorageBlock = () => (
+    <Card className="border-border/70 bg-card">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-foreground">
+          <Database className="h-5 w-5 text-foreground/70" />
+          清理项
+        </CardTitle>
+        <CardDescription className="text-muted-foreground">
+          所有删除操作统一通过确认弹窗执行，避免误触。
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <ActionRow
+          icon={HardDrive}
+          label="清理素材"
+          description="删除本地素材文件和对应记录。"
+          onAction={() =>
+            openConfirm({
+              title: "清理素材",
+              description: "这会删除本地素材文件及其记录，操作不可撤销。",
+              onConfirm: clearMaterials,
+              variant: "danger",
+            })
+          }
+          loading={loading.clearMaterials}
+        />
 
-          <Button
-            onClick={() =>
-              openConfirm({
-                title: "重启后端",
-                description: "用于恢复本地 API 与登录链路。",
-                onConfirm: restartBackend,
-              })
-            }
-            disabled={loading.restartBackend}
-            variant="secondary"
-            className="w-full border-border/70 bg-card text-foreground hover:bg-accent/40"
-          >
-            {loading.restartBackend ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                重启中
-              </>
-            ) : (
-              <>
-                <RotateCcw className="mr-2 h-4 w-4" />
-                重启后端
-              </>
-            )}
-          </Button>
+        <ActionRow
+          icon={Cookie}
+          label="清理账号与 Cookie"
+          description="删除本地登录状态，之后需要重新登录或重新绑定。"
+          onAction={() =>
+            openConfirm({
+              title: "清理账号与 Cookie",
+              description: "这会删除本地账号、Cookie 和登录令牌。",
+              onConfirm: clearAccounts,
+              variant: "danger",
+            })
+          }
+          loading={loading.clearAccounts}
+        />
 
-          <Button
-            onClick={() =>
-              openConfirm({
-                title: "重启前端",
-                description: "重新加载内置前端服务，但不会关闭桌面壳。",
-                onConfirm: restartFrontend,
-              })
-            }
-            disabled={loading.restartFrontend}
-            variant="secondary"
-            className="w-full border-border/70 bg-card text-foreground hover:bg-accent/40"
-          >
-            {loading.restartFrontend ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                重启中
-              </>
-            ) : (
-              <>
-                <RotateCcw className="mr-2 h-4 w-4" />
-                重启前端
-              </>
-            )}
-          </Button>
+        <ActionRow
+          icon={Trash2}
+          label="清理浏览器数据"
+          description="删除内置浏览器缓存、历史记录和临时文件。"
+          onAction={() =>
+            openConfirm({
+              title: "清理浏览器数据",
+              description: "这会清空 Electron 浏览器缓存及相关临时文件。",
+              onConfirm: clearBrowser,
+              variant: "danger",
+            })
+          }
+          loading={loading.clearBrowser}
+        />
 
-          <Button
-            onClick={() =>
-              openConfirm({
-                title: "停止所有服务",
-                description: "这会停止前端、后端、工作进程与调度器管理的受管服务。",
-                onConfirm: stopAll,
-                variant: "danger",
-              })
-            }
-            disabled={loading.stopAll}
-            variant="secondary"
-            className="w-full border-border/70 bg-card text-foreground hover:bg-accent/40"
-          >
-            {loading.stopAll ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                停止中
-              </>
-            ) : (
-              <>
-                <Power className="mr-2 h-4 w-4" />
-                停止所有服务
-              </>
-            )}
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
+        <ActionRow
+          icon={Database}
+          label="清理全部缓存"
+          description="清空应用缓存、临时目录和 API 缓存。"
+          onAction={() =>
+            openConfirm({
+              title: "清理全部缓存",
+              description: "这会清除应用缓存和临时文件，适合在异常状态后做一次冷启动。",
+              onConfirm: clearCache,
+              variant: "danger",
+            })
+          }
+          loading={loading.clearCache}
+        />
+
+        <ActionRow
+          icon={Video}
+          label="清理视频数据"
+          description="删除本地视频文件、分析结果与历史记录。"
+          onAction={() =>
+            openConfirm({
+              title: "清理视频数据",
+              description: "这会删除本地视频文件与分析产物，操作不可撤销。",
+              onConfirm: clearVideoData,
+              variant: "danger",
+            })
+          }
+          loading={loading.clearVideoData}
+        />
+      </CardContent>
+    </Card>
   )
 
-  const renderStorage = () => (
-    <div className="space-y-6">
-      <Card className="border-border/70 bg-transparent">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-foreground">
-            <Database className="h-5 w-5 text-foreground/70" />
-            清理项
-          </CardTitle>
-          <CardDescription className="text-muted-foreground">
-            所有删除操作统一通过确认弹窗执行，避免误触。
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <ActionRow
-            icon={HardDrive}
-            label="清理素材"
-            description="删除本地素材文件和对应记录。"
-            onAction={() =>
-              openConfirm({
-                title: "清理素材",
-                description: "这会删除本地素材文件及其记录，操作不可撤销。",
-                onConfirm: clearMaterials,
-                variant: "danger",
-              })
-            }
-            loading={loading.clearMaterials}
-          />
-
-          <ActionRow
-            icon={Cookie}
-            label="清理账号与 Cookie"
-            description="删除本地登录状态，之后需要重新登录或重新绑定。"
-            onAction={() =>
-              openConfirm({
-                title: "清理账号与 Cookie",
-                description: "这会删除本地账号、Cookie 和登录令牌。",
-                onConfirm: clearAccounts,
-                variant: "danger",
-              })
-            }
-            loading={loading.clearAccounts}
-          />
-
-          <ActionRow
-            icon={Trash2}
-            label="清理浏览器数据"
-            description="删除内置浏览器缓存、历史记录和临时文件。"
-            onAction={() =>
-              openConfirm({
-                title: "清理浏览器数据",
-                description: "这会清空 Electron 浏览器缓存及相关临时文件。",
-                onConfirm: clearBrowser,
-                variant: "danger",
-              })
-            }
-            loading={loading.clearBrowser}
-          />
-
-          <ActionRow
-            icon={Database}
-            label="清理全部缓存"
-            description="清空应用缓存、临时目录和 API 缓存。"
-            onAction={() =>
-              openConfirm({
-                title: "清理全部缓存",
-                description: "这会清除应用缓存和临时文件，适合在异常状态后做一次冷启动。",
-                onConfirm: clearCache,
-                variant: "danger",
-              })
-            }
-            loading={loading.clearCache}
-          />
-
-          <ActionRow
-            icon={Video}
-            label="清理视频数据"
-            description="删除本地视频文件、分析结果与历史记录。"
-            onAction={() =>
-              openConfirm({
-                title: "清理视频数据",
-                description: "这会删除本地视频文件与分析产物，操作不可撤销。",
-                onConfirm: clearVideoData,
-                variant: "danger",
-              })
-            }
-            loading={loading.clearVideoData}
-          />
-        </CardContent>
-      </Card>
-    </div>
-  )
-
-  const renderSafety = () => (
-    <div className="space-y-6">
-      <Card className="border-border/70 bg-card">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-foreground">
-            <AlertTriangle className="h-5 w-5 text-foreground/70" />
-            诊断与恢复
-          </CardTitle>
-          <CardDescription className="text-muted-foreground">
-            自检、日志导出和强制停止保留原有行为，只是从长页里单独分出来。
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-3">
-            <Button
-              onClick={async () => {
-                try {
-                  await runSelfCheck()
-                } catch (error: unknown) {
-                  toast({
-                    title: "自检失败",
-                    description: getErrorMessage(error),
-                    variant: "destructive",
-                  })
-                }
-              }}
-              disabled={loading.runSelfCheck}
-              variant="secondary"
-              className="border-border/70 bg-card text-foreground hover:bg-accent/40"
-            >
-              {loading.runSelfCheck ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  检查中
-                </>
-              ) : (
-                <>
-                  <Activity className="mr-2 h-4 w-4" />
-                  运行自检
-                </>
-              )}
-            </Button>
-
-            <Button
-              onClick={async () => {
-                try {
-                  await exportLogs()
-                } catch (error: unknown) {
-                  toast({
-                    title: "导出失败",
-                    description: getErrorMessage(error),
-                    variant: "destructive",
-                  })
-                }
-              }}
-              disabled={loading.exportLogs}
-              variant="secondary"
-              className="border-border/70 bg-card text-foreground hover:bg-accent/40"
-            >
-              {loading.exportLogs ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  导出中
-                </>
-              ) : (
-                <>
-                  <Download className="mr-2 h-4 w-4" />
-                  导出日志
-                </>
-              )}
-            </Button>
-
-            <Button
-              onClick={() =>
-                openConfirm({
-                  title: "强制停止相关进程",
-                  description: "这会立即终止本地运行时进程。输入 CONFIRM 继续。",
-                  requireInput: true,
-                  confirmText: "CONFIRM",
-                  onConfirm: forceKillProcesses,
-                  variant: "danger",
+  const renderSafetyBlock = () => (
+    <Card className="border-border/70 bg-card">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-foreground">
+          <AlertTriangle className="h-5 w-5 text-foreground/70" />
+          诊断与恢复
+        </CardTitle>
+        <CardDescription className="text-muted-foreground">
+          自检与日志导出等诊断入口单独分出来，便于快速排查。
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-wrap gap-3">
+          <Button
+            onClick={async () => {
+              try {
+                await runSelfCheck()
+              } catch (error: unknown) {
+                toast({
+                  title: "自检失败",
+                  description: getErrorMessage(error),
+                  variant: "destructive",
                 })
               }
-              disabled={loading.forceKill}
-              variant="secondary"
-              className="border-border/70 bg-card text-foreground hover:bg-accent/40"
-            >
-              {loading.forceKill ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  停止中
-                </>
-              ) : (
-                <>
-                  <Power className="mr-2 h-4 w-4" />
-                  强制停止进程
-                </>
-              )}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+            }}
+            disabled={loading.runSelfCheck}
+            variant="secondary"
+            className="border-border/70 bg-card text-foreground hover:bg-accent/40"
+          >
+            {loading.runSelfCheck ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                检查中
+              </>
+            ) : (
+              <>
+                <Activity className="mr-2 h-4 w-4" />
+                运行自检
+              </>
+            )}
+          </Button>
+
+          <Button
+            onClick={async () => {
+              try {
+                await exportLogs()
+              } catch (error: unknown) {
+                toast({
+                  title: "导出失败",
+                  description: getErrorMessage(error),
+                  variant: "destructive",
+                })
+              }
+            }}
+            disabled={loading.exportLogs}
+            variant="secondary"
+            className="border-border/70 bg-card text-foreground hover:bg-accent/40"
+          >
+            {loading.exportLogs ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                导出中
+              </>
+            ) : (
+              <>
+                <Download className="mr-2 h-4 w-4" />
+                导出日志
+              </>
+            )}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   )
 
-  const renderApiKeys = () => (
-    <div className="space-y-6">
+  const renderApiKeysBlock = () => (
+    <div className="space-y-4">
       <div className="rounded-xl border border-dashed border-border/70 bg-card/20 px-4 py-3 text-xs leading-5 text-muted-foreground">
         配置第三方数据采集接口的认证信息，用于快手、小红书、视频号等平台的作品数据回收。密钥存入模型配置表（service_type=tikhub）。
       </div>
@@ -1240,28 +1135,49 @@ export default function SettingsPage() {
     </div>
   )
 
+  const renderMoreSettings = () => (
+    <div className="space-y-8">
+      <div className="space-y-2">
+        <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">运行概览</div>
+        {renderOverviewBlock()}
+      </div>
+
+      <div className="space-y-2">
+        <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">浏览器与运行时</div>
+        {renderBrowsersBlock()}
+      </div>
+
+      <div className="space-y-2">
+        <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">API 密钥</div>
+        {renderApiKeysBlock()}
+      </div>
+
+      <div className="space-y-2">
+        <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">数据清理</div>
+        {renderStorageBlock()}
+      </div>
+
+      <div className="space-y-2">
+        <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">诊断与恢复</div>
+        {renderSafetyBlock()}
+      </div>
+    </div>
+  )
+
   const renderActiveSection = () => {
     switch (activeSection) {
       case "models":
         return renderModels()
-      case "browsers":
-        return renderBrowsers()
-      case "processes":
-        return renderProcesses()
-      case "storage":
-        return renderStorage()
-      case "safety":
-        return renderSafety()
-      case "apikeys":
-        return renderApiKeys()
-      case "overview":
+      case "environment":
+        return renderEnvironment()
+      case "more":
       default:
-        return renderOverview()
+        return renderMoreSettings()
     }
   }
 
   return (
-        <div className="mx-auto max-w-[1440px] space-y-5 px-4 py-4 md:px-6 md:py-5">
+    <div className="mx-auto max-w-[1440px] space-y-5 px-4 py-4 md:px-6 md:py-5">
       <div className="mx-auto max-w-7xl">
         <SectionSwitcher activeSection={activeSection} onSelect={setActiveSection} />
       </div>

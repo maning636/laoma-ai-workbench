@@ -1,7 +1,7 @@
-# Prism Backend Agent Rules
+# 老马AI工作台 Backend Agent Rules
 
 本文件约束在 `prism_backend/` 下工作的 AI Agent（Codex / Claude Code /
-OpenClaw / Prism HermesAgent）与开发者。更具体的指令优先于本文件。
+OpenClaw / 老马AI工作台 HermesAgent）与开发者。更具体的指令优先于本文件。
 
 ## 抖音登录：HTTP 逆向（app_new）生产禁用
 
@@ -9,7 +9,7 @@ OpenClaw / Prism HermesAgent）与开发者。更具体的指令优先于本文�
 **实验性逆向实现，仅允许开发者本地测试（`mode=http`）**，**严禁在生产/
 正式发布链路中使用**，包括但不限于：
 
-- ❌ 把 `PRISM_DOUYIN_LOGIN_MODE` 设为 `http` 用于正式环境
+- ❌ 把 `LAOMA_DOUYIN_LOGIN_MODE` 设为 `http` 用于正式环境
 - ❌ 让 worker / API 默认走 `DouyinHttpAdapter`
 - ❌ 在账号系统、发布链路、桌面端中依赖 HTTP 登录产出的 cookie
 - ❌ 移除/绕过下述限制、或把 HTTP 登录伪装成正式功能

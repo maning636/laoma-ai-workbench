@@ -2,7 +2,7 @@
 """诊断 set_hotspot：打印相关 select 的占位/文本、点击后 input 数量、选项数量。"""
 import asyncio, sys
 from pathlib import Path
-BASE = Path("/Users/laihiujin/Documents/siuyechu/Prism/prism_backend")
+BASE = Path("/Users/laihiujin/Documents/siuyechu/laoma-ai-workbench/prism_backend")
 sys.path.insert(0, str(BASE))
 from patchright.async_api import async_playwright
 from utils.base_social_media import set_init_script

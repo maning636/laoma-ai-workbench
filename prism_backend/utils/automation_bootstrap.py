@@ -7,6 +7,7 @@ import glob
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from fastapi_app.utils.subprocess_safe import safe_run
 
 
 @dataclass(frozen=True)
@@ -245,7 +246,7 @@ def ensure_playwright_chromium_installed(
         cmd = _runtime_install_command()
         install_ran = True
         try:
-            subprocess.run(cmd, check=True, timeout=timeout_s)
+            safe_run(cmd, check=True, timeout=timeout_s)
         except subprocess.TimeoutExpired:
             error = "runtime_install_timeout"
         except subprocess.CalledProcessError as e:

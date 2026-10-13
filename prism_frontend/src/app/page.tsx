@@ -229,7 +229,7 @@ export default function DashboardPage() {
         // description="快手、抖音、视频号、小红书统一监控"
         actions={
           isRefreshing && (
-            <Badge className="rounded-2xl border-border bg-black text-xs text-primary">
+            <Badge className="rounded-2xl border-border bg-popover text-xs text-primary">
               数据刷新中...
             </Badge>
           )
@@ -245,7 +245,7 @@ export default function DashboardPage() {
               className="group card-glow hairline-top relative cursor-pointer overflow-hidden border-border/80 bg-card/70 backdrop-blur-sm transition hover:bg-card"
               onClick={() => handleNavigate(stat.href)}
             >
-              <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-black blur-2xl opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+              <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-popover blur-2xl opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
               <CardHeader className="flex-row items-start justify-between pb-3">
                 <div className="space-y-2">
                   <CardDescription className="font-terminal text-[11px] uppercase tracking-[0.08em] text-muted-foreground">{stat.label}</CardDescription>
@@ -377,7 +377,7 @@ export default function DashboardPage() {
                     </div>
                     <Button
                       size="sm"
-                      className="rounded-lg border border-primary/40 bg-primary/10 text-primary hover:bg-primary hover:text-white"
+                      className="rounded-lg border border-primary/40 bg-primary/10 text-primary hover:bg-primary hover:text-foreground"
                       onClick={() => handleNavigate(fusionAction.href)}
                     >
                       进入
@@ -433,10 +433,10 @@ export default function DashboardPage() {
             {alertsToShow.map((alert) => (
               <div
                 key={alert.id}
-                className="rounded-xl border border-border bg-black p-4 text-sm text-white"
+                className="rounded-xl border border-border bg-popover p-4 text-sm text-foreground"
               >
                 <p className="font-semibold">{alert.title}</p>
-                <p className="text-xs text-white">{alert.action}</p>
+                <p className="text-xs text-foreground">{alert.action}</p>
               </div>
             ))}
           </CardContent>

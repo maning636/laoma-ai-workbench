@@ -831,7 +831,7 @@ function AccountPageContent() {
       header: "平台",
       cell: ({ row }) => (
         <div className="flex justify-start">
-          <Badge className="border-none bg-black text-xs hover:bg-accent/60">
+          <Badge className="border-none bg-popover text-xs hover:bg-accent/60">
             {platformLabelMap[row.original.platform] ?? row.original.platform}
           </Badge>
         </div>
@@ -905,7 +905,7 @@ function AccountPageContent() {
             <Button
               size="sm"
               variant="outline"
-              className="h-8 rounded-xl px-3 text-xs border-border/70 bg-black hover:bg-accent/50"
+              className="h-8 rounded-xl px-3 text-xs border-border/70 bg-popover hover:bg-accent/50"
               onClick={() => handleEnrichTikhub(row.original)}
               title="用 TikHub 反查补全账号名/头像"
             >
@@ -919,7 +919,7 @@ function AccountPageContent() {
           <Button
             size="sm"
             variant="outline"
-            className="h-8 rounded-xl px-3 text-xs border-border/70 bg-black hover:bg-accent/50"
+            className="h-8 rounded-xl px-3 text-xs border-border/70 bg-popover hover:bg-accent/50"
             onClick={() => setEnvSheet({ open: true, account: row.original })}
           >
             <MonitorSmartphone className="h-3.5 w-3.5 mr-1" />
@@ -1092,7 +1092,7 @@ function AccountPageContent() {
                               className="h-40 w-40 rounded-2xl border border-border/70 bg-card p-3"
                             />
                             <p className="text-xs text-muted-foreground">请使用 {platformLabelMap[formState.platform]} App 扫码</p>
-                            <Button size="sm" variant="ghost" className="rounded-xl bg-black" onClick={startBinding}>
+                            <Button size="sm" variant="ghost" className="rounded-xl bg-popover" onClick={startBinding}>
                               刷新二维码
                             </Button>
                           </div>
@@ -1106,14 +1106,14 @@ function AccountPageContent() {
                           </div>
                         )}
                         {bindingStatus === "success" && (
-                          <div className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-black p-3 text-sm text-white">
+                          <div className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-popover p-3 text-sm text-foreground">
                             <span>已完成扫码，可点击下一步完成绑定</span>
                           </div>
                         )}
                         {bindingStatus === "error" && (
-                          <div className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-black p-3 text-sm text-white">
+                          <div className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-popover p-3 text-sm text-foreground">
                             <span>连接出错，请重新获取二维码</span>
-                            <Button size="sm" variant="ghost" className="rounded-xl bg-black" onClick={startBinding}>
+                            <Button size="sm" variant="ghost" className="rounded-xl bg-popover" onClick={startBinding}>
                               重新获取
                             </Button>
                           </div>
@@ -1123,7 +1123,7 @@ function AccountPageContent() {
                   )}
                 </div>
                 <DialogFooter>
-                  <Button variant="ghost" className="rounded-2xl border border-border/70 bg-black" onClick={() => { cancelBinding(); setDialogOpen(false) }}>
+                  <Button variant="ghost" className="rounded-2xl border border-border/70 bg-popover" onClick={() => { cancelBinding(); setDialogOpen(false) }}>
                     取消
                   </Button>
                   <Button className="rounded-2xl" onClick={handleSaveAccount}>
@@ -1220,7 +1220,7 @@ function AccountPageContent() {
                   <TabsTrigger
                     key={tab.value}
                     value={tab.value}
-                    className="rounded-xl px-4 text-xs md:text-sm text-foreground/70 data-[state=active]:bg-foreground/90 data-[state=active]:text-background data-[state=active]:shadow-inner border border-transparent data-[state=active]:border-border/80 transition-colors"
+                    className="rounded-xl px-4 text-xs md:text-sm text-foreground/70 data-[state=active]:bg-primary data-[state=active]:text-foreground data-[state=active]:shadow-inner border border-transparent data-[state=active]:border-border/80 transition-colors"
                   >
                     {tab.label}
                   </TabsTrigger>

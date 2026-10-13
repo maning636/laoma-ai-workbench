@@ -611,7 +611,7 @@ async def get_publish_stats(
 
 
 class SeleniumDebugCaptureRequest(BaseModel):
-    url: str = Field(..., description="要打开的页面 URL（仅在 ENABLE_SELENIUM_DEBUG=true 时可用）")
+    url: str = Field(..., description="要打开的页面 URL（仅在 DEBUG=true 时可用）")
     prefix: str = Field(default="publish_debug", description="输出文件前缀")
     headless: bool = Field(default=False, description="是否无头运行")
     run_ocr: bool = Field(default=True, description="是否对截图做 OCR（需要配置 SILICONFLOW_API_KEY）")
@@ -621,7 +621,7 @@ class SeleniumDebugCaptureRequest(BaseModel):
 
 @router.post("/debug/capture", summary="Selenium+OCR 调试抓取（辅助发布定位）")
 async def selenium_debug_capture(req: SeleniumDebugCaptureRequest):
-    if not (settings.ENABLE_SELENIUM_DEBUG or settings.DEBUG):
+    if not settings.DEBUG:
         raise HTTPException(status_code=404, detail="selenium debug is disabled")
 
     try:

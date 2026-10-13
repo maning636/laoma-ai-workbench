@@ -1,4 +1,4 @@
-"""Baijiahao adapter exposed through Prism's platform registry."""
+"""Baijiahao adapter exposed through 老马AI工作台's platform registry."""
 
 from __future__ import annotations
 

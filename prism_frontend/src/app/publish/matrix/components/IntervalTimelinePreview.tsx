@@ -148,7 +148,7 @@ export default function IntervalTimelinePreview({
                   {tasks.map((task, idx) => (
                     <div
                       key={idx}
-                      className="px-2 py-1 rounded-md text-[10px] font-medium bg-black border border-primary/30 text-primary hover:bg-black transition"
+                      className="px-2 py-1 rounded-md text-[10px] font-medium bg-popover border border-primary/30 text-primary hover:bg-popover transition"
                       title={`账号${task.accountIdx + 1} 发布视频${task.videoIdx + 1}`}
                     >
                       A{task.accountIdx + 1}/V{task.videoIdx + 1}
@@ -162,7 +162,7 @@ export default function IntervalTimelinePreview({
 
         {/* 显示提示（如果有更多任务未显示） */}
         {(videoCount > 10 || accountCount > 5) && (
-          <div className="mt-4 p-3 rounded-lg bg-black border border-border/70 text-xs text-muted-foreground text-center">
+          <div className="mt-4 p-3 rounded-lg bg-popover border border-border/70 text-xs text-muted-foreground text-center">
             <Video className="w-4 h-4 inline mr-2" />
             仅显示前 {Math.min(videoCount, 10)} 个视频 × {Math.min(accountCount, 5)} 个账号的时间轴预览
           </div>
@@ -176,7 +176,7 @@ export default function IntervalTimelinePreview({
           <span>总时长: <span className="text-foreground font-medium">{hours}h {minutes}m</span></span>
         </div>
         {randomOffset > 0 && (
-          <div className="text-white">
+          <div className="text-foreground">
             <Zap className="inline w-3 h-3 mr-1" />
             包含 ±{randomOffset}s 随机偏移
           </div>

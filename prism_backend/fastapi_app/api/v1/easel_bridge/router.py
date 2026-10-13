@@ -1,10 +1,10 @@
 """
-Easel Web 工作台托管 API（内嵌进 Prism 前端）+ 稿件桥。
+Easel Web 工作台托管 API（内嵌进 老马AI工作台前端）+ 稿件桥。
 
 - /easel/status|start|stop: Easel 工作台进程托管（前端 /easel iframe 嵌入）
 - /easel/drafts: Easel 内容库稿件列表（.easel.json 元数据项目）
 - /easel/media/{path}: Easel 成品媒体流式代理（预览/下载）
-- /easel/drafts/{project}/import: 导入稿件 deliverables 到 Prism 素材库
+- /easel/drafts/{project}/import: 导入稿件 deliverables 到 老马AI工作台 素材库
 """
 import uuid
 from pathlib import Path
@@ -115,7 +115,7 @@ async def easel_media(path: str):
 
 @router.post("/drafts/{project}/import")
 async def easel_draft_import(project: str, db=Depends(get_db)):
-    """导入稿件 deliverables 到 Prism 素材库，返回 material_ids（可直接建投放计划）。"""
+    """导入稿件 deliverables 到 老马AI工作台 素材库，返回 material_ids（可直接建投放计划）。"""
     from fastapi_app.api.v1.files.services import FileService
 
     service = FileService()

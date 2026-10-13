@@ -71,10 +71,10 @@ const ThoughtProcess = ({ content }: { content: string }) => {
     const cleanContent = content.replace(/^> 💭\s*/, '').trim();
 
     return (
-        <div className="my-2 rounded-lg border border-border bg-black overflow-hidden">
+        <div className="my-2 rounded-lg border border-border bg-muted/40 overflow-hidden">
             <button
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-white/80 hover:bg-black transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted/60 transition-colors"
             >
                 {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
                 <Cpu className="h-3 w-3" />
@@ -88,7 +88,7 @@ const ThoughtProcess = ({ content }: { content: string }) => {
                         exit={{ height: 0, opacity: 0 }}
                         transition={{ duration: 0.2 }}
                     >
-                        <div className="px-3 pb-3 pt-0 text-xs text-white/70 font-mono whitespace-pre-wrap border-t border-border">
+                        <div className="px-3 pb-3 pt-0 text-xs text-muted-foreground font-mono whitespace-pre-wrap border-t border-border">
                             {cleanContent}
                         </div>
                     </motion.div>
@@ -104,12 +104,12 @@ const ToolExecution = ({ content }: { content: string }) => {
     const cleanContent = content.replace(/^> 🔧\s*/, '').trim();
 
     return (
-        <div className="my-2 rounded-lg border border-border bg-black overflow-hidden">
-            <div className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-white/80 border-b border-border">
+        <div className="my-2 rounded-lg border border-border bg-muted/40 overflow-hidden">
+            <div className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground border-b border-border">
                 <Terminal className="h-3 w-3" />
                 <span>工具调用</span>
             </div>
-            <div className="px-3 py-2 text-xs text-white/70 font-mono bg-card/20">
+            <div className="px-3 py-2 text-xs text-foreground/80 font-mono bg-card/60">
                 {cleanContent}
             </div>
         </div>
@@ -230,7 +230,7 @@ export function AgentChat() {
                     className="border-r border-border/40 bg-card/40 backdrop-blur-xl flex flex-col overflow-hidden relative z-20"
                 >
                     <div className="p-4 border-b border-border/40 flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-white font-semibold">
+                        <div className="flex items-center gap-2 text-foreground font-semibold">
                             <Bot className="h-5 w-5" />
                             <span>OpenClaw</span>
                         </div>
@@ -248,7 +248,7 @@ export function AgentChat() {
                                     className={cn(
                                         "group flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200",
                                         currentThreadId === thread.id
-                                            ? "bg-black text-foreground shadow-sm border border-border/40"
+                                            ? "bg-accent text-foreground shadow-sm border border-border/40"
                                             : "text-muted-foreground hover:bg-accent/40 hover:text-foreground/80"
                                     )}
                                 >
@@ -262,7 +262,7 @@ export function AgentChat() {
                                     <Button
                                         size="icon"
                                         variant="ghost"
-                                        className="h-6 w-6 opacity-0 group-hover:opacity-100 hover:bg-black hover:text-white transition-all"
+                                        className="h-6 w-6 opacity-0 group-hover:opacity-100 hover:bg-destructive/20 hover:text-destructive transition-all"
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             deleteThread(thread.id);
@@ -297,7 +297,7 @@ export function AgentChat() {
                                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
                                         <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
                                     </span>
-                                    <span className="text-[10px] font-medium text-white/80">SYSTEM ONLINE</span>
+                                    <span className="text-[10px] font-medium text-foreground/80">SYSTEM ONLINE</span>
                                 </div>
                             </div>
                         </div>
@@ -314,7 +314,7 @@ export function AgentChat() {
                                         className="flex flex-col items-center justify-center h-[60vh] text-center space-y-6"
                                     >
                                         <div className="relative">
-                                            <div className="absolute -inset-4 bg-black rounded-full blur-xl animate-pulse"></div>
+                                            <div className="absolute -inset-4 bg-primary/30 rounded-full blur-xl animate-pulse"></div>
                                             <div className="relative h-20 w-20 rounded-2xl bg-gradient-to-br from-white to-white flex items-center justify-center shadow-2xl shadow-white/10/20">
                                                 <Bot className="h-10 w-10 text-foreground" />
                                             </div>
@@ -337,7 +337,7 @@ export function AgentChat() {
                                                     variant="outline"
                                                     className="bg-black border-border/70 hover:bg-accent/50 text-muted-foreground hover:text-foreground text-xs h-auto py-3 justify-start"
                                                 >
-                                                    <Sparkles className="h-3 w-3 mr-2 text-white" />
+                                                    <Sparkles className="h-3 w-3 mr-2 text-foreground" />
                                                     {suggestion}
                                                 </Button>
                                             ))}
@@ -360,7 +360,7 @@ export function AgentChat() {
                                                 </div>
                                                 <div className="flex-shrink-0 mt-1">
                                                     <div className="h-9 w-9 rounded-full bg-black border border-border flex items-center justify-center">
-                                                        <User className="h-5 w-5 text-white" />
+                                                        <User className="h-5 w-5 text-foreground" />
                                                     </div>
                                                 </div>
                                             </motion.div>
@@ -373,7 +373,7 @@ export function AgentChat() {
                                             >
                                                 <div className="flex-shrink-0 mt-1">
                                                     <div className="h-9 w-9 rounded-full bg-black border border-border flex items-center justify-center shadow-[0_0_15px_rgba(168,85,247,0.15)]">
-                                                        <Bot className="h-5 w-5 text-white" />
+                                                        <Bot className="h-5 w-5 text-foreground" />
                                                     </div>
                                                 </div>
                                                 <div className="flex-1 max-w-3xl space-y-2">
@@ -413,7 +413,7 @@ export function AgentChat() {
                                         <ComposerPrimitive.Send asChild>
                                             <Button
                                                 size="icon"
-                                                className="h-10 w-10 rounded-xl bg-foreground text-background hover:bg-foreground/90 transition-all shadow-lg hover:shadow-foreground/20 mb-1"
+                                                className="h-10 w-10 rounded-xl bg-popover text-foreground hover:bg-primary/90 transition-all shadow-lg hover:shadow-foreground/20 mb-1"
                                             >
                                                 <Send className="h-4 w-4" />
                                             </Button>

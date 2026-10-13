@@ -41,7 +41,7 @@ export function ToolStatus({ status }: { status: string }) {
 
 export function ToolResult({ children }: { children: React.ReactNode }) {
     return (
-        <div className="text-white/80 text-xs font-mono bg-card/30 rounded p-2 max-h-32 overflow-y-auto">
+        <div className="text-foreground/80 text-xs font-mono bg-card/30 rounded p-2 max-h-32 overflow-y-auto">
             {children}
         </div>
     )

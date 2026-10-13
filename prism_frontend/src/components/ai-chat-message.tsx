@@ -53,7 +53,7 @@ export function AIChatMessage({
             "p-3 rounded-lg",
             isUser
               ? "bg-white text-foreground border-border"
-              : "bg-black border-border/80 text-foreground backdrop-blur-sm"
+              : "bg-popover border-border/80 text-foreground backdrop-blur-sm"
           )}
         >
           <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
@@ -73,22 +73,22 @@ export function AIChatMessage({
         {!isUser && message.metadata && (
           <div className="flex flex-wrap gap-2 mt-2">
             {message.metadata.provider && (
-              <Badge variant="secondary" className="text-xs bg-black text-muted-foreground">
+              <Badge variant="secondary" className="text-xs bg-popover text-muted-foreground">
                 {message.metadata.provider}
               </Badge>
             )}
             {message.metadata.model && (
-              <Badge variant="secondary" className="text-xs bg-black text-muted-foreground">
+              <Badge variant="secondary" className="text-xs bg-popover text-muted-foreground">
                 {message.metadata.model}
               </Badge>
             )}
             {message.metadata.executionTime && (
-              <Badge variant="secondary" className="text-xs bg-black text-muted-foreground">
+              <Badge variant="secondary" className="text-xs bg-popover text-muted-foreground">
                 ⏱ {message.metadata.executionTime.toFixed(2)}s
               </Badge>
             )}
             {message.metadata.tokensUsed && (
-              <Badge variant="secondary" className="text-xs bg-black text-muted-foreground">
+              <Badge variant="secondary" className="text-xs bg-popover text-muted-foreground">
                 🔢 {message.metadata.tokensUsed} tokens
               </Badge>
             )}

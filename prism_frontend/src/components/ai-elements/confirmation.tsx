@@ -74,21 +74,21 @@ export function Confirmation({
   const stateConfig = {
     request: {
       icon: AlertCircle,
-      iconColor: "text-white",
+      iconColor: "text-foreground",
       borderColor: "border-border",
-      bgColor: "bg-black"
+      bgColor: "bg-popover"
     },
     accepted: {
       icon: CheckCircle2,
-      iconColor: "text-white",
+      iconColor: "text-foreground",
       borderColor: "border-border",
-      bgColor: "bg-black"
+      bgColor: "bg-popover"
     },
     rejected: {
       icon: XCircle,
-      iconColor: "text-white",
+      iconColor: "text-foreground",
       borderColor: "border-border",
-      bgColor: "bg-black"
+      bgColor: "bg-popover"
     }
   }
 
@@ -139,7 +139,7 @@ export function Confirmation({
                             </div>
                           </div>
                         )}
-                        <div className="text-sm text-white/80 bg-black border border-border rounded p-2">
+                        <div className="text-sm text-foreground/80 bg-popover border border-border rounded p-2">
                           ✓ 确认后将自动执行所有步骤，无需再次确认
                         </div>
                       </div>
@@ -181,7 +181,7 @@ export function Confirmation({
                   size="sm"
                   variant="outline"
                   onClick={onReject}
-                  className="border-border hover:bg-black text-foreground/80 h-8 text-sm px-4"
+                  className="border-border hover:bg-popover text-foreground/80 h-8 text-sm px-4"
                 >
                   ✗ 拒绝
                 </Button>

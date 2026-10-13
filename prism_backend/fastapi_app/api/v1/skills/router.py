@@ -1,5 +1,5 @@
 """
-技能库 API（Prism × Easel 融合）—— 对外"实时更新 skills"接口。
+技能库 API（老马AI工作台 × Easel 融合）—— 对外"实时更新 skills"接口。
 
 - GET  /api/v1/skills            技能目录（支持 layer/keyword 过滤）
 - GET  /api/v1/skills/{name}     技能详情（含 SKILL.md 正文）

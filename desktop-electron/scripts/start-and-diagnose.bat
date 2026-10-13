@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 echo ============================================
-echo   Prism 启动和诊断
+echo   老马AI工作台启动和诊断
 echo ============================================
 echo.
 
@@ -10,7 +10,7 @@ set "RES_DIR=%APP_DIR%\resources"
 set "SUP_DIR=%RES_DIR%\supervisor"
 
 echo [1/6] 检查文件...
-if not exist "%APP_DIR%\Prism.exe" (
+if not exist "%APP_DIR%\LaomaAI.exe" (
     echo ❌ 程序不存在
     pause
     exit /b 1
@@ -24,7 +24,7 @@ echo ✅ 日志已清理
 echo.
 
 echo [3/6] 启动程序...
-start "" "%APP_DIR%\Prism.exe"
+start "" "%APP_DIR%\LaomaAI.exe"
 echo ✅ 程序已启动
 echo.
 

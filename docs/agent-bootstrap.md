@@ -1,10 +1,10 @@
-# Prism Agent Bootstrap Prompt
+# 老马AI工作台 Agent Bootstrap Prompt
 
-This document is for OpenClaw, Codex, Claude Code, and Prism's built-in
-HermesAgent. Its purpose is to take a fresh Prism checkout to a state where
+This document is for OpenClaw, Codex, Claude Code, and 老马AI工作台's built-in
+HermesAgent. Its purpose is to take a fresh 老马AI工作台 checkout to a state where
 platform login and publishing can be safely continued.
 
-## Current Prism CLI platforms
+## Current 老马AI工作台 CLI platforms
 
 - bilibili
 - douyin
@@ -22,7 +22,7 @@ Kuaishou, and Xiaohongshu.
 
 Give the following instruction to an agent:
 
-> You are working in the Prism repository, a multi-platform social publishing
+> You are working in the 老马AI工作台 repository, a multi-platform social publishing
 > project. Your first task is not to explore historical uploaders. Bring the
 > project to a runnable and verifiable state, then report the exact validation
 > result.
@@ -56,7 +56,7 @@ without persisting a successful login state.
 ## HermesAgent
 
 HermesAgent receives this same project-level skill catalogue directly in its
-runtime prompt. It should prefer Prism backend APIs for matrix work and the
+runtime prompt. It should prefer 老马AI工作台 backend APIs for matrix work and the
 `prism` CLI for an explicit single-platform operation. The instruction is a
 contract for deterministic uploaders; it is not permission to guess browser
 actions or change adapter code during publication.

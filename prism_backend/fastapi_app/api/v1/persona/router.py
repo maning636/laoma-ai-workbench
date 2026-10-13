@@ -1,5 +1,5 @@
 """
-Persona Studio Dashboard 托管 API（内嵌进 Prism 前端）。
+Persona Studio Dashboard 托管 API（内嵌进 老马AI工作台前端）。
 
 提供 Dashboard 前端进程的启动 / 停止 / 状态查询能力。
 前端对应页面: /persona

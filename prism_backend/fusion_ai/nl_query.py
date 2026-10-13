@@ -3,8 +3,8 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 将用户的自然语言问题转换为 SQL 查询，执行后返回结构化数据和可视化建议。
 
-数据源：Prism 主数据库（SQLite/MySQL），也可切换到独立 fusion_data.db。
-默认查询 Prism 主库，通过环境变量 FUSION_QUERY_SOURCE 切换。
+数据源：老马AI工作台 主数据库（SQLite/MySQL），也可切换到独立 fusion_data.db。
+默认查询 老马AI工作台 主库，通过环境变量 FUSION_QUERY_SOURCE 切换。
 """
 
 from __future__ import annotations
@@ -70,8 +70,8 @@ PRESET_QUESTIONS: List[Dict[str, Any]] = [
 # ============================================================
 # 数据库 Schema 描述（供 LLM 理解表结构）
 # ============================================================
-PRISM_DB_SCHEMA = """
-数据库：Prism 主库（SQLite 或 MySQL）
+LAOMA_DB_SCHEMA = """
+数据库：老马AI工作台 主库（SQLite 或 MySQL）
 
 核心表：
 1. file_records（内容/素材表）
@@ -165,7 +165,7 @@ class NLQueryEngine:
     def _nl_to_sql(self, question: str) -> Dict[str, Any]:
         system_prompt = f"""你是数据分析助手，将自然语言问题转换为精确的 SQL 查询。
 
-{PRISM_DB_SCHEMA}
+{LAOMA_DB_SCHEMA}
 
 {CHART_RULES}
 
@@ -221,7 +221,7 @@ class NLQueryEngine:
 
         # 使用 SQLite 直接连接主库（如果 prism 用的是 SQLite）
         # 简化处理：默认用 SQLite 的 media_ops.db（CAP 沿用）
-        # 生产环境应接入 Prism 主库连接池
+        # 生产环境应接入 老马AI工作台 主库连接池
         import sqlite3
         db_path = self._get_db_path()
         if not db_path.exists():
@@ -241,7 +241,7 @@ class NLQueryEngine:
     def _get_db_path(self) -> Path:
         if _QUERY_SOURCE == "fusion":
             return _DATA_DIR / "fusion_data.db"
-        # 尝试使用 Prism 主库
+        # 尝试使用 老马AI工作台 主库
         try:
             from fastapi_app.core.config import settings
             return Path(settings.DATABASE_PATH)

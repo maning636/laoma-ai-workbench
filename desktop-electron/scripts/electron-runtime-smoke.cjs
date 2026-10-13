@@ -58,8 +58,8 @@ async function main() {
     cwd: desktopDir,
     env: {
       ...process.env,
-      PRISM_START_SERVICES: "1",
-      PRISM_START_FRONTEND: "1",
+      LAOMA_START_SERVICES: "1",
+      LAOMA_START_FRONTEND: "1",
       PLAYWRIGHT_AUTO_INSTALL: "0",
     },
     timeout: 120000,

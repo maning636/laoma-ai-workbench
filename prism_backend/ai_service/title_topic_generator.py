@@ -1,6 +1,6 @@
 """Platform-aware title & topic generation helpers.
 
-These glue Prism's per-platform 网感 rules in config/ai_prompts_unified.yaml
+These glue 老马AI工作台's per-platform 网感 rules in config/ai_prompts_unified.yaml
 (``content_generation.title_generation.platform_tuning`` / ``tags_generation
 .platform_rules``) and myUtils/platform_metadata_adapter.py limits onto the
 batch AI metadata generation path, so generating "title + topics" for a given

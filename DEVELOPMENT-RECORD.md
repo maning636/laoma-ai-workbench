@@ -1,6 +1,6 @@
-# Prism-Fusion 工作台开发记录
+# LaomaAI-Fusion 工作台开发记录
 
-> 本文档面向未来接手项目的 AI Agent 和公司程序员，完整记录 Prism-Fusion 工作台的
+> 本文档面向未来接手项目的 AI Agent 和公司程序员，完整记录 LaomaAI-Fusion 工作台的
 > 技术演进、功能模块、架构决策与开发历程。
 
 ---
@@ -14,7 +14,7 @@
 - [5. 前端页面与功能模块详解](#5-前端页面与功能模块详解)
 - [6. 后端模块详解](#6-后端模块详解)
 - [7. 架构设计](#7-架构设计)
-- [8. 品牌重命名记录（Prism → 老马AI研习社）](#8-品牌重命名记录prism--老马ai研习社)
+- [8. 品牌重命名记录（老马AI工作台 → 老马AI研习社）](#8-品牌重命名记录prism--老马ai研习社)
 - [9. 已知问题与修复记录](#9-已知问题与修复记录)
 - [10. 开发约定与规范](#10-开发约定与规范)
 - [11. 部署与启动](#11-部署与启动)
@@ -25,7 +25,7 @@
 
 ## 1. 项目概述
 
-**Prism-Fusion**（品牌名：老马AI研习社）是一个 AI 驱动的多平台内容编排与自动化发布系统。
+**LaomaAI-Fusion**（品牌名：老马AI研习社）是一个 AI 驱动的多平台内容编排与自动化发布系统。
 面向多账号、多素材、多平台的内容分发场景，提供从计划生成、任务调度到执行监控与数据回收的全链路能力。
 
 ### 1.1 核心定位
@@ -68,7 +68,7 @@
 
 ### 2.1 主要借鉴项目
 
-Prism-Fusion 的建设受益于开源生态，以下项目的代码、架构或实现思路被采用或参考：
+LaomaAI-Fusion 的建设受益于开源生态，以下项目的代码、架构或实现思路被采用或参考：
 
 #### 2.1.1 social-auto-upload (SAU)
 
@@ -76,7 +76,7 @@ Prism-Fusion 的建设受益于开源生态，以下项目的代码、架构或�
 - **许可证**: MIT
 - **借鉴内容**: 上游 CLI 自动发布基础架构
 - **采用方式**: SAU 提供了 YouTube、TikTok 与 CLI 自动发布的基础能力，
-  Prism 将其作为「平台能力补充」接入，而非复制其独立 Web 或运行架构。
+  老马AI工作台将其作为「平台能力补充」接入，而非复制其独立 Web 或运行架构。
   所有平台实现统一的 Adapter Contract。
 
 #### 2.1.2 Douyin_TikTok_Download_API
@@ -91,7 +91,7 @@ Prism-Fusion 的建设受益于开源生态，以下项目的代码、架构或�
 - **GitHub**: https://github.com/nousresearch/hermes-agent
 - **许可证**: MIT
 - **借鉴内容**: 本地 AI Agent 运行时与集成参考
-- **采用方式**: 作为内置 AI Agent 运行时，深度集成到 Prism 的编排流程中。
+- **采用方式**: 作为内置 AI Agent 运行时，深度集成到 老马AI工作台的编排流程中。
   详见 [第 4 节](#4-基于-hermes-的相关工作)。
 
 #### 2.1.4 Persona Studio
@@ -99,7 +99,7 @@ Prism-Fusion 的建设受益于开源生态，以下项目的代码、架构或�
 - **GitHub**: https://github.com/TechQaiser/persona-studio
 - **许可证**: MIT
 - **借鉴内容**: 浏览器身份 / 指纹 / Profile 层
-- **采用方式**: 作为 Prism 的 Browser Identity / Fingerprint / Profile 层。
+- **采用方式**: 作为 老马AI工作台的 Browser Identity / Fingerprint / Profile 层。
   提供相干指纹生成、Profile 持久化、持久会话等能力。
   不自研指纹、Profile 存储、指纹伪造，全部交给 Persona Studio。
 
@@ -136,7 +136,7 @@ Prism-Fusion 的建设受益于开源生态，以下项目的代码、架构或�
 
 #### 3.2.1 Persona Studio —— 浏览器身份层
 
-集成 Persona Studio 作为 Prism 的 **Browser Identity / Fingerprint / Profile 层**：
+集成 Persona Studio 作为 老马AI工作台的 **Browser Identity / Fingerprint / Profile 层**：
 
 - **相干指纹生成**：OS / UA / GPU / 屏幕 / 时区 / 语言彼此一致，避免"macOS UA 配 NVIDIA GPU"这类一眼假组合。
 - **Profile 持久化**：Cookie / LocalStorage / IndexedDB 随 Profile 留存，登录一次、下次启动仍在。
@@ -146,7 +146,7 @@ Prism-Fusion 的建设受益于开源生态，以下项目的代码、架构或�
 
 **关键设计**：
 - 账号表 `cookie_accounts` 增加 `persona_profile_id`（默认 = account_id）、`browser_backend`（patchright / persona）、`proxy_id`。
-- 一个 Prism 账号 ↔ 一个 Persona Profile。
+- 一个 老马AI工作台 账号 ↔ 一个 Persona Profile。
 - 不安装 Persona 时自动回退 **Patchright 直连模式**（每账号独立 `data/browser_profiles/<account>/` persistent context），功能不中断，仅少相干指纹/持久会话增强。
 - Persona serve：`http://127.0.0.1:8787`（`PERSONA_API_URL`）。
 
@@ -170,13 +170,13 @@ Prism-Fusion 的建设受益于开源生态，以下项目的代码、架构或�
 
 #### 3.2.3 代理管理（Proxy Manager / IP 池）
 
-Prism 自研的代理管理：
+老马AI工作台 自研的代理管理：
 - 登记标准 HTTP/SOCKS5 endpoint，自动健康检测（延迟 / 可用性）。
 - **sticky 固定绑定**：`proxy_id` 权威落账号表，同一账号始终走同一代理。
 - 批量导入 / 导出、自动绑定（从空闲池按 region 匹配）、`max_bindings` 上限。
 - 每账号环境视图（`GET /api/v1/accounts/{id}/environment`）：展示 Browser + Proxy + Runtime 状态。
 
-> 3Proxy / gluetun / sing-box 等只产出标准 HTTP/SOCKS5 endpoint 登记进 Proxy Manager，不进入 Prism 核心业务。
+> 3Proxy / gluetun / sing-box 等只产出标准 HTTP/SOCKS5 endpoint 登记进 Proxy Manager，不进入 老马AI工作台 核心业务。
 
 #### 3.2.4 浏览器运行时管理
 
@@ -194,7 +194,7 @@ Prism 自研的代理管理：
 `/tools` 页面统一管理可一键安装的开发工具，按 **skill / MCP / 插件 / 组件** 分类：
 - 已收录：`deepseek-harness`、`ccswitch`、`computer-use-linux`、`hermes-agent`、`persona-studio`。
 - **一键安装 / 卸载**：克隆 + 构建（如 persona dashboard 构建）。
-- **启动 / 调用**：已装桌面应用（如 CC Switch）可从 Prism 直接打开。
+- **启动 / 调用**：已装桌面应用（如 CC Switch）可从 老马AI工作台 直接打开。
 - **Hermes 技能软启用 / 停用**：技能（`SKILL.md`）在 `active` 与 `_disabled` 目录间移动，**不物理删除**。
 - 后端：`GET /api/v1/tools`、`/{id}/install`、`/{id}/uninstall`、`/{id}/launch`、`/{id}/build`、`/{id}/toggle`。
 
@@ -204,12 +204,12 @@ Prism 自研的代理管理：
 - **抖音登录模式**：`browser`（正式 / 当前模拟）↔ `http`（逆向 HTTP 测试）。
 - **浏览器后端**：`patchright` / `persona`。
 - **无头模式**：`PLAYWRIGHT_HEADLESS`。
-- 相关 `.env`：`PRISM_DOUYIN_LOGIN_MODE`、`PRISM_BROWSER_BACKEND_DEFAULT`。
+- 相关 `.env`：`LAOMA_DOUYIN_LOGIN_MODE`、`LAOMA_BROWSER_BACKEND_DEFAULT`。
 
 #### 3.2.7 账号登录体验改进
 
 - **二维码登录**：支持取消（停止连接/轮询）与重试。
-- **从本机 Chrome 导入**：复制本机 Chrome 的 Cookies/Local State 到 Prism 专用 profile（非无痕），无需关闭 Chrome。
+- **从本机 Chrome 导入**：复制本机 Chrome 的 Cookies/Local State 到 老马AI工作台 专用 profile（非无痕），无需关闭 Chrome。
 - **TikTok / YouTube**：恢复上游 SAU 交互式登录，修复 `--no-sandbox` 崩溃、cookie 抓取与账号入库。
 - **Toast 自动关闭**：修复 Radix 暂停态导致通知不自动关闭的问题。
 
@@ -227,7 +227,7 @@ Redis 每账号 Browser Runtime 分布式锁（`runtime_lock_service`）：
 - **YouTube 频道注册解析**：添加 YouTube 账号时支持直接填频道名 / @handle / 频道链接，一键解析。
 - 依赖 TikHub API Key（`ai_model_configs` 表配置）。
 
-#### 3.2.10 Fusion AI 模块（Prism-Fusion 核心 AI 能力）
+#### 3.2.10 Fusion AI 模块（LaomaAI-Fusion 核心 AI 能力）
 
 `prism_backend/fusion_ai/` 目录下的 AI 能力模块，统一挂载到 `/api/fusion/*`：
 
@@ -279,7 +279,7 @@ Redis 每账号 Browser Runtime 分布式锁（`runtime_lock_service`）：
 前端 `breakdown` 页面：
 - 内容拆解的 Web 界面。
 - 调用 `/api/v1/fusion/breakdown` API。
-- localStorage key 已从 `prism.breakdown.history` 改为 `lao_ma.breakdown.history`（品牌重命名）。
+- localStorage key 已从 `laoma.breakdown.history` 改为 `lao_ma.breakdown.history`（品牌重命名）。
 
 ---
 
@@ -287,7 +287,7 @@ Redis 每账号 Browser Runtime 分布式锁（`runtime_lock_service`）：
 
 ### 4.1 HermesAgent 集成架构
 
-Prism 内置 HermesAgent（基于 NousResearch 的 Hermes Agent），作为 AI 助手深度集成到发布流程中。
+老马AI工作台 内置 HermesAgent（基于 NousResearch 的 Hermes Agent），作为 AI 助手深度集成到发布流程中。
 
 #### 4.1.1 集成层文件
 
@@ -408,7 +408,7 @@ Hermes 会话准备时由 `hermes_config.py::sync_prism_project_skill()` 自动�
 - **`skills` 页面**：技能管理界面。
 - **`workshop` 页面**：技能工坊界面，对应后端 `skill_workshop` 模块。
 
-### 4.6 Hermes 与 Prism 的交互模式
+### 4.6 Hermes 与 老马AI工作台的交互模式
 
 ```
 用户
@@ -440,7 +440,7 @@ Hermes 会话准备时由 `hermes_config.py::sync_prism_project_skill()` 自动�
 
 ### 4.7 Gemini Computer Use 集成
 
-Prism 支持 Google Gemini Computer Use 作为**受控诊断与修复辅助**：
+老马AI工作台支持 Google Gemini Computer Use 作为**受控诊断与修复辅助**：
 
 **定位**：Computer Use 仅在 Patchright 定位失败时收集截图与候选动作，辅助生成可审查的平台适配器代码补丁。它不在正式发布任务中执行点击、填写或提交。正式发布始终使用版本化、可测试的 Patchright 平台适配器。
 
@@ -685,7 +685,7 @@ capture_diagnostics()      # 捕获诊断信息（截图/DOM等）
 
 ```text
 Account
-  → persona_profile_id（Prism 账号表）
+  → persona_profile_id（老马AI工作台 账号表）
   → Persona Profile（指纹 + 持久会话）
   → Sticky Proxy（Proxy Manager 注入 / per-country 代理）
   → Patchright（connect_over_cdp 驱动）
@@ -696,11 +696,11 @@ Account
 
 | 层 | 归属 |
 |---|---|
-| 账号 / 平台 / 任务 / Celery / Redis | Prism |
+| 账号 / 平台 / 任务 / Celery / Redis | 老马AI工作台 |
 | 代理网关（per-country 端口 7771–7776） | mihomo（Persona proxies） |
-| Proxy Manager（proxies、sticky 绑定、健康检测） | Prism |
+| Proxy Manager（proxies、sticky 绑定、健康检测） | 老马AI工作台 |
 | Browser Identity / Fingerprint / Profile | Persona Studio |
-| 浏览器执行（平台 Adapter 驱动） | Prism Patchright（`connect_over_cdp`） |
+| 浏览器执行（平台 Adapter 驱动） | 老马AI工作台 Patchright（`connect_over_cdp`） |
 | AI Agent 运行时 | HermesAgent |
 | 模型 API 调用 | SenseNova (商汤) / OpenAI 兼容接口 |
 
@@ -708,7 +708,7 @@ Account
 
 目标架构文档位于 `docs/architecture/target-architecture.md`，核心规划：
 
-**原则**：AI 负责理解和建议；Prism Core 负责确定性执行；Patchright 负责真实浏览器操作。
+**原则**：AI 负责理解和建议；老马AI工作台 Core 负责确定性执行；Patchright 负责真实浏览器操作。
 
 **双工作流**：
 
@@ -728,11 +728,11 @@ Account
 
 ---
 
-## 8. 品牌重命名记录（Prism → 老马AI研习社）
+## 8. 品牌重命名记录（老马AI工作台 → 老马AI研习社）
 
 ### 8.1 重命名范围
 
-将前端所有用户可见的"Prism"品牌名替换为"老马AI研习社"。
+将前端所有用户可见的"老马AI工作台"品牌名替换为"老马AI研习社"。
 
 ### 8.2 已修改文件
 
@@ -745,11 +745,11 @@ Account
 | `fusion/page.tsx` | 品牌引用 |
 | `skills/page.tsx` | 品牌引用 |
 | `profile/page.tsx` | 品牌引用 |
-| `external-modules.ts` | `prism-fusion` → `ai-fusion` |
-| `mock-data.ts` | Prism-Fusion → AI-Fusion |
-| `breakdown/page.tsx` | localStorage key `prism.breakdown.history` → `lao_ma.breakdown.history` |
+| `external-modules.ts` | `laoma-fusion` → `ai-fusion` |
+| `mock-data.ts` | LaomaAI-Fusion → AI-Fusion |
+| `breakdown/page.tsx` | localStorage key `laoma.breakdown.history` → `lao_ma.breakdown.history` |
 
-### 8.3 保留的 Prism 引用（不可修改）
+### 8.3 保留的 老马AI工作台 引用（不可修改）
 
 以下文件中的 `prism_backend` 路径引用**必须保留**，否则会导致后端日志路径解析失败：
 - `src/app/api/system-feed/route.ts`（第 17、22 行）
@@ -786,6 +786,86 @@ Account
 **原因**：Chrome 149 DevTools 协议 bug，非页面渲染问题。
 
 **绕过方案**：通过 `browser` 工具的 `eval` action 检查 DOM 内容确认页面渲染正常。
+
+### 9.4 MySQL 路径使用 `INSERT OR REPLACE`（SQLite 语法）导致 MySQL 报错
+
+**发现日期**：2026-09-24
+
+**问题**：`prism_core/` 下多个模块在 MySQL 分支（`if mysql_enabled():` 内）错误使用了 `INSERT OR REPLACE`，这是 SQLite 专有语法，MySQL 不兼容。当系统切换到 MySQL 模式时，这些 SQL 语句会直接抛出语法错误。
+
+**根因**：在编写双数据库兼容代码时，MySQL 分支的 INSERT 语句直接复制了 SQLite 分支的 `INSERT OR REPLACE` 语法，未替换为 MySQL 对应的 `INSERT INTO ... ON DUPLICATE KEY UPDATE`。
+
+**影响范围**：扫描全部 14 个 `prism_core` 模块，共发现 10 处 MySQL 分支内的 `INSERT OR REPLACE` bug，分布在 6 个文件中：
+
+| 文件 | MySQL 行号 | 表名 |
+|------|-----------|------|
+| `content_variant.py` | 97 | `content_variants` |
+| `insight.py` | 119 | `publish_insights` |
+| `matrix_route.py` | 103 | `matrix_groups` |
+| `matrix_route.py` | 260 | `matrix_assignments` |
+| `review_queue.py` | 158 | `review_queue` |
+| `review_queue.py` | 202 | `review_decisions`（approve_review） |
+| `review_queue.py` | 232 | `review_decisions`（reject_review） |
+| `webhook.py` | 159 | `webhook_subscriptions` |
+| `webhook.py` | 205 | `webhook_deliveries` |
+| `dedup.py` | 120 | `dedup_records` |
+
+**已正确无需修复**（4 个文件，MySQL 分支已使用 `INSERT INTO ... ON DUPLICATE KEY UPDATE`）：
+- `receipts.py`（第 163-179 行）
+- `task_state_machine.py`（第 187-199 行）
+- `diagnostics.py`（第 100 行，MySQL 分支使用 `INSERT INTO`）
+- `account_health.py`、`platform_fields.py`、`platform_login_checker.py`、`selectors.py`（无写操作或已正确）
+
+**修复方式**：将每个 MySQL 分支中的 `INSERT OR REPLACE INTO table` 替换为：
+
+```sql
+INSERT INTO table
+(column_list)
+VALUES (:param_list)
+ON DUPLICATE KEY UPDATE
+    col1=VALUES(col1), col2=VALUES(col2), ...
+```
+
+更新列覆盖所有非主键列，保留 `created_at` 不被覆盖（主键冲突时保留原始创建时间）。
+
+**验证**：修复后重新扫描全部 `prism_core` 文件，确认所有剩余的 `INSERT OR REPLACE` 均位于 SQLite 分支（`else:` 内），MySQL 分支 0 处残留。6 个修改文件全部通过 `py_compile`。
+
+### 9.5 `content_variant.py` — `record_review()` 重复查询 bug
+
+**问题**：`record_review()` 函数先查询一次 variant，验证后又查询第二次相同 variant，存在冗余 DB 访问。
+
+**修复**：合并为单次查询 + 存在性前置校验，消除冗余。
+
+### 9.6 `monitor/router.py` — `StateTransitionCreate` 模型字段不匹配
+
+**问题**：`StateTransitionCreate` Pydantic 模型包含 `platform` 和 `platform_name` 字段，但 core 的 `StateTransition` 模型不包含这两个字段。创建时会因字段传递而触发验证错误。
+
+**修复**：从 `StateTransitionCreate` 中移除多余的 `platform` 和 `platform_name` 字段，与 core 模型对齐。
+
+### 9.7 `diagnostics/router.py` — 文档字符串路径错误
+
+**问题**：路由模块的文档字符串描述 `POST /diagnostics/{task_id}/redact`，但实际注册的路由是 `POST /diagnostics/redact`（无 path parameter）。
+
+**修复**：修正文档字符串为正确路径。
+
+### 9.8 API 路由覆盖完成（Phase 2.3+）
+
+**背景**：`prism_core` 下的 14 个模块此前仅有部分具备 FastAPI 路由暴露。
+
+**新增 8 个路由包**（均已注册到 `fastapi_app/api/v1/router.py`）：
+
+| 路由包 | 前缀 | 核心模块 |
+|--------|------|----------|
+| `task_state_machine/` | `/task-state` | 任务状态机（Phase 0.2） |
+| `platform_fields/` | `/platform-fields` | 平台字段管理（Phase 1.1-1.5） |
+| `platform_login_checker/` | `/login-check` | 登录态检查（Phase 1.6） |
+| `content_variant/` | `/content-variants` | 内容版本与审核（Phase 3.1+3.3） |
+| `diagnostics/` | `/diagnostics` | 诊断工件采集（Phase 2.2） |
+| `monitor/` | `/monitor` | 任务监控与告警（Phase 0.3） |
+| `selectors/` | `/selectors` | 选择器版本管理（Phase 2.1） |
+| `matrix_route/` | `/matrix-groups` | 矩阵分组路由（Phase 2.3） |
+
+至此 `prism_core` 全部 14 个模块均有对应的 API 路由暴露。
 
 ---
 
@@ -866,7 +946,7 @@ scripts\launchers\start_frontend.bat
 
 ### 11.3 环境配置
 
-**根目录 `.env`**：端口、Redis、浏览器路径、前后端连接地址、`PLAYWRIGHT_HEADLESS`、`PRISM_BROWSER_BACKEND_DEFAULT`、`PRISM_DOUYIN_LOGIN_MODE`。
+**根目录 `.env`**：端口、Redis、浏览器路径、前后端连接地址、`PLAYWRIGHT_HEADLESS`、`LAOMA_BROWSER_BACKEND_DEFAULT`、`LAOMA_DOUYIN_LOGIN_MODE`。
 
 **`prism_backend/config/llm_config.toml`**：HermesAgent 的 provider / model / api_key / base_url。
 

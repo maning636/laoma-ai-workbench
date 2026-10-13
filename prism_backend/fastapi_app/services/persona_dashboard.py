@@ -1,9 +1,9 @@
 """
-Persona Studio Dashboard 托管服务（内嵌进 Prism 前端用）。
+Persona Studio Dashboard 托管服务（内嵌进 老马AI工作台前端用）。
 
 Persona Studio 自带一个独立 Vite + React Dashboard（tools/persona-studio/dashboard/），
 它通过 HTTP 与 persona serve API（:8787）通信。本模块负责把该 Dashboard 作为一个
-子进程拉起/停止/探测，供 Prism 前端 iframe 内嵌（类似 Hermes WebUI 的内嵌方式）。
+子进程拉起/停止/探测，供 老马AI工作台前端 iframe 内嵌（类似 Hermes WebUI 的内嵌方式）。
 
 启动方式：
     node node_modules/vite/bin/vite.js --no-open --host 127.0.0.1 --port 5173
@@ -19,6 +19,7 @@ import asyncio
 import os
 import socket
 import subprocess
+from fastapi_app.utils.subprocess_safe import safe_run
 import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -47,7 +48,7 @@ def _npm_command() -> str:
 
 
 def _dashboard_url() -> str:
-    public_host = str(os.getenv("PRISM_PERSONA_DASHBOARD_HOST") or DASHBOARD_HOST).strip() or DASHBOARD_HOST
+    public_host = str(os.getenv("LAOMA_PERSONA_DASHBOARD_HOST") or DASHBOARD_HOST).strip() or DASHBOARD_HOST
     return f"http://{public_host}:{DASHBOARD_PORT}"
 
 
@@ -72,7 +73,7 @@ def _is_pid_alive(pid: Optional[int]) -> bool:
 
 
 async def _pump_dashboard_logs(process: asyncio.subprocess.Process) -> None:
-    """把 Dashboard 子进程 stdout 转发到 Prism 日志，便于排查启动失败。"""
+    """把 Dashboard 子进程 stdout 转发到老马AI工作台日志，便于排查启动失败。"""
     assert process.stdout is not None
     while True:
         chunk = await process.stdout.readline()
@@ -189,11 +190,11 @@ async def _stop_spawned_process(process: asyncio.subprocess.Process) -> None:
         return
     try:
         if sys.platform == "win32":
-            subprocess.run(
+            safe_run(
                 ["taskkill", "/F", "/T", "/PID", str(process.pid)],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                check=False,
+                capture_output=False,
             )
             try:
                 await asyncio.wait_for(process.wait(), timeout=5)

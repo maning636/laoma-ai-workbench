@@ -1,4 +1,4 @@
-// Prism macOS PM2 配置（用 .venv 的 python）
+// 老马AI工作台 macOS PM2 配置（用 .venv 的 python）
 // 启动: PM2_HOME=./runtime-data/pm2 ./prism_frontend/node_modules/.bin/pm2 start ecosystem-mac.config.js
 module.exports = {
   apps: [
@@ -18,7 +18,7 @@ module.exports = {
     {
       name: 'prism-backend',
       cwd: './prism_backend',
-      script: '/Users/laihiujin/Documents/siuyechu/Prism/.venv/bin/python',
+      script: '/Users/laihiujin/Documents/siuyechu/laoma-ai-workbench/.venv/bin/python',
       args: 'fastapi_app/run.py',
       autorestart: true,
       // 热重载：监视代码目录，改动后自动重启（uvicorn 本身只 reload fastapi_app，
@@ -34,11 +34,11 @@ module.exports = {
       max_memory_restart: '2G',
       env: {
         PYTHONUNBUFFERED: '1',
-        PYTHONPATH: '/Users/laihiujin/Documents/siuyechu/Prism/prism_backend',
-        PLAYWRIGHT_BROWSERS_PATH: '/Users/laihiujin/Documents/siuyechu/Prism/browsers',
-        PRISM_BROWSER_BACKEND_DEFAULT: 'persona',
-        PRISM_HERMES_DASHBOARD_PORT: '9119',
-        PRISM_HERMES_WEBUI_PORT: '8788',
+        PYTHONPATH: '/Users/laihiujin/Documents/siuyechu/laoma-ai-workbench/prism_backend',
+        PLAYWRIGHT_BROWSERS_PATH: '/Users/laihiujin/Documents/siuyechu/laoma-ai-workbench/browsers',
+        LAOMA_BROWSER_BACKEND_DEFAULT: 'persona',
+        LAOMA_HERMES_DASHBOARD_PORT: '9119',
+        LAOMA_HERMES_WEBUI_PORT: '8788',
       },
       error_file: './logs/backend-error.log',
       out_file: './logs/backend-out.log',
@@ -47,15 +47,15 @@ module.exports = {
     {
       name: 'prism-worker',
       cwd: './prism_backend',
-      script: '/Users/laihiujin/Documents/siuyechu/Prism/.venv/bin/python',
+      script: '/Users/laihiujin/Documents/siuyechu/laoma-ai-workbench/.venv/bin/python',
       args: 'automation_worker/worker.py',
       autorestart: true,
       watch: false,
       max_memory_restart: '2G',
       env: {
         PYTHONUNBUFFERED: '1',
-        PYTHONPATH: '/Users/laihiujin/Documents/siuyechu/Prism/prism_backend',
-        PLAYWRIGHT_BROWSERS_PATH: '/Users/laihiujin/Documents/siuyechu/Prism/browsers',
+        PYTHONPATH: '/Users/laihiujin/Documents/siuyechu/laoma-ai-workbench/prism_backend',
+        PLAYWRIGHT_BROWSERS_PATH: '/Users/laihiujin/Documents/siuyechu/laoma-ai-workbench/browsers',
       },
       error_file: './logs/worker-error.log',
       out_file: './logs/worker-out.log',
@@ -64,13 +64,13 @@ module.exports = {
     {
       name: 'prism-celery',
       cwd: './prism_backend',
-      script: '/Users/laihiujin/Documents/siuyechu/Prism/.venv/bin/python',
+      script: '/Users/laihiujin/Documents/siuyechu/laoma-ai-workbench/.venv/bin/python',
       args: '-m celery -A fastapi_app.tasks.celery_app worker -l info -P threads --concurrency=8',
       autorestart: true,
       watch: false,
       env: {
         PYTHONUNBUFFERED: '1',
-        PYTHONPATH: '/Users/laihiujin/Documents/siuyechu/Prism/prism_backend',
+        PYTHONPATH: '/Users/laihiujin/Documents/siuyechu/laoma-ai-workbench/prism_backend',
       },
       error_file: './logs/celery-error.log',
       out_file: './logs/celery-out.log',
@@ -94,12 +94,12 @@ module.exports = {
     {
       name: 'persona-api',
       cwd: '.',
-      script: '/Users/laihiujin/Documents/siuyechu/Prism/.venv/bin/persona',
+      script: '/Users/laihiujin/Documents/siuyechu/laoma-ai-workbench/.venv/bin/persona',
       interpreter: 'none', // 按 shebang 直接运行 Python CLI
       args: '--data-dir tools/persona-studio/data serve',
       autorestart: true,
       watch: false,
-      env: { PLAYWRIGHT_BROWSERS_PATH: '/Users/laihiujin/Documents/siuyechu/Prism/browsers' },
+      env: { PLAYWRIGHT_BROWSERS_PATH: '/Users/laihiujin/Documents/siuyechu/laoma-ai-workbench/browsers' },
       error_file: './logs/persona-error.log',
       out_file: './logs/persona-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
@@ -109,7 +109,7 @@ module.exports = {
       // 绑定各国家节点(见 tools/persona-studio/proxies/config.yaml)
       name: 'persona-proxy',
       cwd: '.',
-      script: '/Users/laihiujin/Documents/siuyechu/Prism/tools/persona-studio/proxies/mihomo',
+      script: '/Users/laihiujin/Documents/siuyechu/laoma-ai-workbench/tools/persona-studio/proxies/mihomo',
       interpreter: 'none', // 原生二进制
       args: '-d tools/persona-studio/proxies -f tools/persona-studio/proxies/config.yaml',
       autorestart: true,
@@ -133,7 +133,7 @@ module.exports = {
     {
       name: 'hermes-dashboard',
       cwd: '.',
-      script: '/Users/laihiujin/Documents/siuyechu/Prism/prismenv/bin/hermes',
+      script: '/Users/laihiujin/Documents/siuyechu/laoma-ai-workbench/prismenv/bin/hermes',
       interpreter: 'none',
       args: 'dashboard --host 127.0.0.1 --port 9119 --no-open --skip-build',
       autorestart: true,
@@ -142,7 +142,7 @@ module.exports = {
       max_restarts: 20,
       env: {
         PYTHONUNBUFFERED: '1',
-        PYTHONPATH: '/Users/laihiujin/Documents/siuyechu/Prism/tools/hermes-agent',
+        PYTHONPATH: '/Users/laihiujin/Documents/siuyechu/laoma-ai-workbench/tools/hermes-agent',
       },
       error_file: './logs/hermes-dashboard-error.log',
       out_file: './logs/hermes-dashboard-out.log',
@@ -151,7 +151,7 @@ module.exports = {
     {
       name: 'hermes-webui',
       cwd: './tools/hermes-webui',
-      script: '/Users/laihiujin/Documents/siuyechu/Prism/prismenv/bin/python',
+      script: '/Users/laihiujin/Documents/siuyechu/laoma-ai-workbench/prismenv/bin/python',
       interpreter: 'none',
       args: 'server.py',
       autorestart: true,
@@ -161,8 +161,8 @@ module.exports = {
         PYTHONUNBUFFERED: '1',
         HERMES_WEBUI_HOST: '127.0.0.1',
         HERMES_WEBUI_PORT: '8788',
-        HERMES_WEBUI_AGENT_DIR: '/Users/laihiujin/Documents/siuyechu/Prism/tools/hermes-agent',
-        HERMES_WEBUI_STATE_DIR: '/Users/laihiujin/Documents/siuyechu/Prism/tools/hermes-home/webui',
+        HERMES_WEBUI_AGENT_DIR: '/Users/laihiujin/Documents/siuyechu/laoma-ai-workbench/tools/hermes-agent',
+        HERMES_WEBUI_STATE_DIR: '/Users/laihiujin/Documents/siuyechu/laoma-ai-workbench/tools/hermes-home/webui',
       },
       error_file: './logs/hermes-webui-error.log',
       out_file: './logs/hermes-webui-out.log',

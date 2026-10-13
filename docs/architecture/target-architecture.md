@@ -1,14 +1,14 @@
-# Prism 目标总体架构设计
+# 老马AI工作台目标总体架构设计
 
 > 状态：预开发架构。
 >
-> 目标：在保留已验证发布能力的前提下，将 Prism 演进为可审核、可恢复、可诊断的 AI 内容分发系统。
+> 目标：在保留已验证发布能力的前提下，将 老马AI工作台 演进为可审核、可恢复、可诊断的 AI 内容分发系统。
 >
-> 原则：**AI 负责理解和建议；Prism Core 负责确定性执行；Patchright 负责真实浏览器操作。**
+> 原则：**AI 负责理解和建议；老马AI工作台 Core 负责确定性执行；Patchright 负责真实浏览器操作。**
 
 ## 1. 当前基线
 
-当前 Prism 已有账号、素材、计划、任务队列、FastAPI、Celery/Redis、Web 控制台、Electron 桌面端及 Python 浏览器自动化。运行目录正在收敛为：
+当前 老马AI工作台已有账号、素材、计划、任务队列、FastAPI、Celery/Redis、Web 控制台、Electron 桌面端及 Python 浏览器自动化。运行目录正在收敛为：
 
 ```text
 prism_backend/     FastAPI、业务服务、平台上传器、自动化 Worker
@@ -22,22 +22,22 @@ scripts/           运维、打包和启动脚本
 - AI 助手尚未覆盖 Campaign、内容版本、审核、发布计划和复盘；
 - 页面变更后的诊断、修复、验证没有标准闭环；
 - CLI、Web 和桌面端的业务命令尚未完全统一；
-- YouTube、TikTok 等上游已有能力尚未收敛为 Prism Adapter；
+- YouTube、TikTok 等上游已有能力尚未收敛为 老马AI工作台 Adapter；
 - Electron、多服务和批处理脚本仍有轻量化空间。
 
 ## 2. 目标架构
 
 ```mermaid
 flowchart TB
-    User["用户 / 内容团队"] --> UX["Prism Experience<br/>Web · Desktop · CLI · Agent API"]
-    UX --> API["Prism API<br/>FastAPI / Domain API"]
-    UX --> Core["Prism Core<br/>状态机 · 调度 · 审计"]
+    User["用户 / 内容团队"] --> UX["老马AI工作台 Experience<br/>Web · Desktop · CLI · Agent API"]
+    UX --> API["老马AI工作台 API<br/>FastAPI / Domain API"]
+    UX --> Core["老马AI工作台 Core<br/>状态机 · 调度 · 审计"]
 
     API --> Domain["领域服务<br/>账号 · 素材 · Campaign · 发布 · 数据"]
     Domain --> DB[("业务数据库")]
     Domain --> Storage["素材与诊断工件存储"]
 
-    API --> Intelligence["Prism Intelligence<br/>LangGraph 工作流"]
+    API --> Intelligence["老马AI工作台 Intelligence<br/>LangGraph 工作流"]
     Intelligence --> Context["Context Pack<br/>账号 · 素材 · 规则 · 历史表现"]
     Context --> DB
     Context --> Policy["品牌 · 合规 · 审核 · 权限策略"]
@@ -46,7 +46,7 @@ flowchart TB
     UX --> Core
 
     Core --> Scheduler["Scheduler<br/>排期 · 并发 · 重试 · 幂等"]
-    Scheduler --> Automation["Prism Automation<br/>Python + Patchright"]
+    Scheduler --> Automation["老马AI工作台 Automation<br/>Python + Patchright"]
     Automation --> Adapters["平台适配器<br/>抖音 · 小红书 · 快手 · 视频号 · B站<br/>YouTube · TikTok"]
     Adapters --> Platforms["各平台创作者后台"]
 
@@ -117,7 +117,7 @@ PublishTask 1 ── 1 PublishReceipt
 Campaign 1 ── N Review / Insight
 ```
 
-## 5. Prism Intelligence：LangGraph
+## 5. 老马AI工作台 Intelligence：LangGraph
 
 LangGraph 用于 AI 工作流的结构化状态、分支、暂停和恢复，不替代后端队列。
 
@@ -158,9 +158,9 @@ stateDiagram-v2
 
 ## 6. 平台扩展与 Adapter Contract
 
-`social-auto-upload` 的 YouTube、TikTok 与 CLI 能力应以“平台能力补充”进入 Prism，而不是复制其独立 Web 或运行架构。接入前确认许可证、文件来源和改动记录。
+`social-auto-upload` 的 YouTube、TikTok 与 CLI 能力应以“平台能力补充”进入 老马AI工作台，而不是复制其独立 Web 或运行架构。接入前确认许可证、文件来源和改动记录。
 
-| 平台 | 当前 Prism 重点 | 上游补充目标 | 验收 |
+| 平台 | 当前 老马AI工作台 重点 | 上游补充目标 | 验收 |
 | --- | --- | --- | --- |
 | 抖音 | 上传、矩阵调度、账号管理 | CLI 参数与无头稳定性 | 登录、发布、定时、失败截图 |
 | 小红书 | 上传、内容适配 | 图文 CLI、账号检查 | 登录、图文/视频、回执 |
@@ -225,7 +225,7 @@ prism diagnose platform youtube --account brand_main
 
 Google 的 Gemini Computer Use 是 API 能力，不是一个安装即可“自动修复点击发布”的现成 MCP。模型根据截图提出点击、输入、滚动等动作；客户端负责执行并回传新截图。官方建议在隔离环境运行，对重要操作密切监督，并将该能力视为预览功能。[Gemini Computer Use 官方文档](https://ai.google.dev/gemini-api/docs/computer-use?authuser=4)
 
-正确集成是：在 Prism 中实现 Local MCP Tool Adapter，将 Computer Use 限制为页面变更的诊断、探索、动作轨迹和修复建议工具；它不替代 Patchright，也不是生产发布器。
+正确集成是：在 老马AI工作台 中实现 Local MCP Tool Adapter，将 Computer Use 限制为页面变更的诊断、探索、动作轨迹和修复建议工具；它不替代 Patchright，也不是生产发布器。
 
 ```mermaid
 flowchart LR
@@ -297,7 +297,7 @@ sequenceDiagram
     participant U as 用户
     participant AI as LangGraph
     participant R as 审核
-    participant C as Prism Core
+    participant C as 老马AI工作台 Core
     participant A as Automation / Patchright
     participant P as 平台
     U->>AI: 描述目标与约束
@@ -320,7 +320,7 @@ draft → awaiting_review → approved → scheduled → queued → running
       → succeeded | failed_retryable | failed_final | cancelled
 ```
 
-AI 默认仅有 Read + Draft。审核角色才能批准计划；Prism Core 只能对批准的不可变计划创建任务；Automation Worker 仅拿到任务令牌与必要的平台授权。每个任务必须有幂等键，例如：
+AI 默认仅有 Read + Draft。审核角色才能批准计划；老马AI工作台 Core 只能对批准的不可变计划创建任务；Automation Worker 仅拿到任务令牌与必要的平台授权。每个任务必须有幂等键，例如：
 
 ```text
 campaign:cmp_123:variant:v_02:account:youtube_brand_main
@@ -331,7 +331,7 @@ campaign:cmp_123:variant:v_02:account:youtube_brand_main
 Rust 不重写浏览器适配器。它用于产品运行骨架：
 
 ```text
-Prism Desktop（Tauri）
+老马AI工作台 Desktop（Tauri）
         ↓ IPC / localhost HTTP
 prism-core（Rust daemon）
         ├── 生命周期与端口管理
@@ -348,7 +348,7 @@ prism-api 与 prism-automation（Python + Patchright）
 
 ### Phase 0：基础稳定化
 
-- 完成 Prism 命名、目录、环境变量和桌面标识迁移；
+- 完成 老马AI工作台命名、目录、环境变量和桌面标识迁移；
 - 统一 Patchright 为生产自动化运行时；
 - 统一 Adapter Contract、诊断工件和回执；
 - 建立稳定的 `prism` CLI 和 `--json` 输出；

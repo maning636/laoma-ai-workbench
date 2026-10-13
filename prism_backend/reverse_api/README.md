@@ -1,4 +1,4 @@
-# Prism Reverse API (experimental)
+# 老马AI工作台 Reverse API (experimental)
 
 This package records and implements internal creator-platform protocols only
 for accounts the operator is authorized to use.
@@ -8,7 +8,7 @@ for accounts the operator is authorized to use.
 - Never commit cookies, tokens, device identifiers, signatures, raw HAR files,
   request bodies, account identifiers, proxy addresses, or browser profiles.
 - Capture only endpoint metadata and sanitized request/response *shapes*.
-- Keep live session material in Prism's existing local runtime stores.
+- Keep live session material in 老马AI工作台's existing local runtime stores.
 - A successful HTTP response is only `accepted`; confirm the resulting post by
   status/list API or browser before setting a publish task to `succeeded`.
 - Do not automate CAPTCHAs, verification challenges, or access-control bypasses.

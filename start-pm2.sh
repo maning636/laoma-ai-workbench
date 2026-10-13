@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prism 一键启动（PM2，macOS）
+# 老马AI工作台 一键启动（PM2，macOS）
 # 用法: ./start-pm2.sh
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
@@ -17,7 +17,7 @@ pkill -f "persona-studio/proxies/mihomo" 2>/dev/null
 sleep 1
 
 echo "============================================"
-echo "  Prism 启动 (PM2)"
+echo "  老马AI工作台启动 (PM2)"
 echo "============================================"
 "$PM2" start ecosystem-mac.config.js
 echo
@@ -30,7 +30,7 @@ echo "  Worker      http://127.0.0.1:7001/health"
 echo "  Persona API http://127.0.0.1:8787"
 echo "  代理网关     http://127.0.0.1:7771-7776 (sg/jp/us/de/tw/hk)"
 
-# 明确打开 Prism 主前端，避免浏览器停留在 Persona Dashboard:5173。
+# 明确打开 老马AI工作台 主前端，避免浏览器停留在 Persona Dashboard:5173。
 # 统一使用 localhost，避免浏览器把 localhost 与 127.0.0.1 视为两个独立站点。
 if command -v open >/dev/null 2>&1; then
   open "http://localhost:3000/"

@@ -17,10 +17,11 @@ import importlib.metadata
 import importlib.util
 import os
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+from fastapi_app.utils.subprocess_safe import safe_run
 
 _COMPONENT_PREFIXES = (
     "hibbiki-",
@@ -149,7 +150,7 @@ def browser_runtime_info() -> Dict[str, Any]:
 def _run_env() -> Dict[str, str]:
     env = os.environ.copy()
     env["PLAYWRIGHT_BROWSERS_PATH"] = str(component_root())
-    env["PRISM_AUTOMATION_RUNTIME"] = "patchright"
+    env["LAOMA_AUTOMATION_RUNTIME"] = "patchright"
     return env
 
 
@@ -158,14 +159,10 @@ def _ensure_patchright() -> Dict[str, Any]:
     if _get_python_package_info("patchright")["installed"]:
         return True, "patchright already installed"
     component_root().mkdir(parents=True, exist_ok=True)
-    res = subprocess.run(
+    res = safe_run(
         [sys.executable, "-m", "pip", "install", "--upgrade", "--force-reinstall", "patchright==1.59.1"],
         cwd=str(_repo_root()),
-        env=_run_env(),
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
+        env_extra=_run_env(),
     )
     return res.returncode == 0, (res.stdout + res.stderr)
 
@@ -200,14 +197,10 @@ def install_component(target: str) -> Dict[str, Any]:
     else:
         cmd = [sys.executable, "-m", "patchright", "install", target]
 
-    res = subprocess.run(
+    res = safe_run(
         cmd,
         cwd=str(_repo_root()),
-        env=_run_env(),
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
+        env_extra=_run_env(),
     )
     return {
         "success": res.returncode == 0,

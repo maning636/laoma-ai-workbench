@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prism macOS 一键启动脚本（等效 Windows 的 start.bat）
+# 老马AI工作台 macOS 一键启动脚本（等效 Windows 的 start.bat）
 # 用法: ./start-mac.sh
 set -e
 
@@ -15,7 +15,7 @@ export PLAYWRIGHT_BROWSERS_PATH="$ROOT/browsers"
 export NEXT_PUBLIC_BACKEND_URL="http://127.0.0.1:7000"
 
 echo "============================================"
-echo "  Prism 启动 (macOS)"
+echo "  老马AI工作台启动 (macOS)"
 echo "============================================"
 
 # 1) Redis

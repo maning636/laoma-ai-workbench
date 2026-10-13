@@ -2,11 +2,12 @@
 Easel outputs 原生直读服务 —— 磁盘即真相源，不经 Easel 服务器。
 
 直接扫描 Easel 的 outputs 目录（.easel.json 元数据 + 文件树），
-为 Prism 原生「内容库」「工作台」提供数据。Easel 退役后此模块继续工作
-（outputs 目录约定保留，或迁到 Prism 自己的数据目录——路径可通过环境变量改）。
+为老马AI工作台原生「内容库」「工作台」提供数据。Easel 退役后此模块继续工作
+（outputs 目录约定保留，或迁到 老马AI工作台 自己的数据目录——路径可通过环境变量改）。
 """
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
@@ -17,7 +18,28 @@ from typing import Any, Dict, List, Optional
 from fastapi_app.core.logger import logger
 from fastapi_app.services.easel_workbench import EASEL_DIR
 
-OUTPUTS_DIR = Path(os.getenv("PRISM_OUTPUTS_DIR") or (EASEL_DIR / "outputs"))
+# 参照 Easel v0.2.1 tools/easel-ref/app.py:320, 502-506 的占位符判定规则：
+# 常见占位符（replace_me / your-api-key / xxx / ... / <...>）视为"未配置"，
+# 避免 .env.example 抄过来直接生效导致路径/密钥误配。
+_PLACEHOLDER_RE = re.compile(r"replace_me|your[-_]?api[-_]?key|xxx|^\.{3}$|^<.*>$", re.I)
+
+
+def is_configured(val: Optional[str]) -> bool:
+    """非空且非占位符才算真正配置了。参照 Easel _is_set。"""
+    if val is None or not str(val).strip():
+        return False
+    return not _PLACEHOLDER_RE.search(str(val).strip())
+
+
+def _env(path_key: str, fallback: Path) -> Path:
+    """读取路径型环境变量；占位符视为未配置，回落到 fallback。"""
+    raw = os.getenv(path_key)
+    if is_configured(raw):
+        return Path(raw).expanduser().resolve()
+    return fallback
+
+
+OUTPUTS_DIR = _env("LAOMA_OUTPUTS_DIR", EASEL_DIR / "outputs")
 PROJECT_MANIFEST = ".easel.json"
 
 VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv", ".flv", ".webm"}
@@ -220,6 +242,105 @@ def get_outputs_cached() -> Dict[str, Any]:
                 "total_files": sum(i.get("fileCount", 0) for i in items),
             }
     return _cache
+
+
+# ---------- HTML 预览（含 base64 内联本地图，防止公众号回源抓本地地址导致裂图） ----------
+
+_IMAGE_EXTS_SET = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg", ".ico"}
+_AUDIO_EXTS_SET = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"}
+_VIDEO_EXTS_SET = {".mp4", ".mov", ".webm", ".m4v"}
+
+_MIME_BY_EXT = {
+    ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+    ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml",
+    ".ico": "image/x-icon", ".bmp": "image/bmp",
+    ".mp3": "audio/mpeg", ".wav": "audio/wav", ".m4a": "audio/mp4",
+    ".aac": "audio/aac", ".flac": "audio/flac", ".ogg": "audio/ogg",
+    ".mp4": "video/mp4", ".mov": "video/quicktime", ".webm": "video/webm", ".m4v": "video/mp4",
+}
+
+_MEDIA_RE = re.compile(
+    r"""(?ix)
+    (?:src|href|poster)\s*=\s*
+    (?:["'])(?P<q1>[^"']+)(?:["'])
+    |
+    (?:src|href|poster)\s*=\s*
+    (?P<q2>[A-Za-z0-9_./\-:%?&=~+,]+)
+    """
+)
+
+
+def _encode_data_uri(local: Path, url: str) -> Optional[str]:
+    """把 outputs/ 内的本地资源转成 data: URI；跨出 outputs/ 或太大/未知类型返回 None。"""
+    # 只处理同根下的相对路径引用；外链一律保留
+    if url.startswith(("http://", "https://", "data:", "blob:", "#", "//")):
+        return None
+    # 去掉 query/fragment
+    url_path = url.split("?", 1)[0].split("#", 1)[0]
+    if not url_path:
+        return None
+    # 允许 ./../ 写法；但必须仍落在 OUTPUTS_DIR 内
+    candidate = (OUTPUTS_DIR / url_path).resolve()
+    root = OUTPUTS_DIR.resolve()
+    if candidate != root and root not in candidate.parents:
+        return None
+    if not candidate.is_file():
+        return None
+    ext = candidate.suffix.lower()
+    mime = _MIME_BY_EXT.get(ext)
+    if not mime:
+        return None
+    size = candidate.stat().st_size
+    if size > 32 * 1024 * 1024:  # 32MB 上限，防止 HTML 体积爆炸
+        return None
+    try:
+        b64 = base64.b64encode(candidate.read_bytes()).decode("ascii")
+    except OSError:
+        return None
+    return f"data:{mime};base64,{b64}"
+
+
+def preview_html(rel: str) -> Dict[str, Any]:
+    """对 outputs/ 下 HTML 产物做本地图 base64 内联，返回渲染后的 HTML。
+
+    - 同目录或 outputs/ 内的相对图片/音视频/HTML 引用 → 转成 data: URI
+    - http(s)/data:/blob:/协议相对等外链 → 保留
+    - 超出 32MB / 非白名单 MIME → 保留原样（避免体积失控）
+    """
+    full = _safe_output_path(rel)
+    ext = full.suffix.lower()
+    if ext not in (".html", ".htm"):
+        raise FileNotFoundError("只支持 .html / .htm 预览")
+    raw = full.read_text(encoding="utf-8", errors="ignore")
+
+    inline_count = 0
+    kept_remote: List[str] = []
+
+    def _sub(m: "re.Match") -> str:
+        nonlocal inline_count
+        attr = m.group(0)
+        if m.group("q1") is not None:
+            quote = '"' if '"' in attr else "'"
+            start, end = m.start("q1"), m.end("q1")
+            url = m.group("q1")
+        else:
+            quote = ""
+            start, end = m.start("q2"), m.end("q2")
+            url = m.group("q2") or ""
+        data = _encode_data_uri(full.parent, url)
+        if data:
+            inline_count += 1
+            return attr[:start] + data + attr[end:]
+        kept_remote.append(url)
+        return attr
+
+    html = _MEDIA_RE.sub(_sub, raw)
+    return {
+        "path": rel,
+        "html": html,
+        "inline_count": inline_count,
+        "kept_remote": kept_remote[:50],  # 只返回前 50 条，防止响应过大
+    }
 
 
 def list_outputs_cached() -> Dict[str, Any]:

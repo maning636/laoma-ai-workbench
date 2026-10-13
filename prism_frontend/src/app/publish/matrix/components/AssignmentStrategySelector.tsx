@@ -97,7 +97,7 @@ function StrategyCard({
       className={cn(
         "relative p-5 rounded-xl border-2 text-left transition-all group",
         selected
-          ? "border-primary bg-black shadow-[0_0_20px_rgba(94,234,212,0.3)]"
+          ? "border-primary bg-popover shadow-[0_0_20px_rgba(94,234,212,0.3)]"
           : "border-border/70 bg-card/20 hover:border-border"
       )}
     >
@@ -131,7 +131,7 @@ function StrategyCard({
           <p className="text-sm text-muted-foreground mb-3">{strategy.description}</p>
 
           {/* 预览计算 */}
-          <div className="text-xs text-primary/90 font-mono bg-black px-2 py-1.5 rounded">
+          <div className="text-xs text-primary/90 font-mono bg-popover px-2 py-1.5 rounded">
             {strategy.preview(videoCount, accountCount)}
             {taskCount > 0 && <span className="font-bold ml-1">任务</span>}
           </div>
@@ -257,8 +257,8 @@ export default function AssignmentStrategySelector({
 
           {/* 策略特定选项 */}
           {config.assignmentStrategy === "one_per_account" && (
-            <div className="p-4 rounded-xl border border-border bg-black space-y-3">
-              <Label className="text-sm font-medium text-white">分配方式</Label>
+            <div className="p-4 rounded-xl border border-border bg-popover space-y-3">
+              <Label className="text-sm font-medium text-foreground">分配方式</Label>
               <div className="grid grid-cols-3 gap-2">
                 {[
                   { key: "random" as const, label: "随机分配" },
@@ -271,8 +271,8 @@ export default function AssignmentStrategySelector({
                     className={cn(
                       "px-3 py-2 rounded-lg text-xs transition",
                       config.onePerAccountMode === mode.key
-                        ? "bg-black border border-border text-white"
-                        : "bg-black border border-border/70 text-muted-foreground hover:border-border"
+                        ? "bg-popover border border-border text-foreground"
+                        : "bg-popover border border-border/70 text-muted-foreground hover:border-border"
                     )}
                   >
                     {mode.label}

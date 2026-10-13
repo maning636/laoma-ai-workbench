@@ -7,8 +7,8 @@ echo "=========================================="
 
 # 1. 删除带空格的 playwright 目录
 echo "1️⃣ 删除重复的 .playwright-browsers 目录（带空格）..."
-if [ -d "E:/Prism/.playwright-browsers " ]; then
-    rm -rf "E:/Prism/.playwright-browsers "
+if [ -d "E:/laoma-ai-workbench/.playwright-browsers " ]; then
+    rm -rf "E:/laoma-ai-workbench/.playwright-browsers "
     echo "✅ 已删除: .playwright-browsers （末尾空格）"
     echo "   释放空间: ~644MB"
 else
@@ -18,8 +18,8 @@ fi
 # 2. 删除旧的 cookies 目录
 echo ""
 echo "2️⃣ 删除旧的 cookies 目录..."
-if [ -d "E:/Prism/prism_backend/cookies" ]; then
-    rm -rf "E:/Prism/prism_backend/cookies"
+if [ -d "E:/laoma-ai-workbench/prism_backend/cookies" ]; then
+    rm -rf "E:/laoma-ai-workbench/prism_backend/cookies"
     echo "✅ 已删除: prism_backend/cookies"
 else
     echo "⏭️  未找到 prism_backend/cookies，跳过"
@@ -28,8 +28,8 @@ fi
 # 3. 删除 config/cookies 目录
 echo ""
 echo "3️⃣ 删除 config/cookies 目录..."
-if [ -d "E:/Prism/prism_backend/config/cookies" ]; then
-    rm -rf "E:/Prism/prism_backend/config/cookies"
+if [ -d "E:/laoma-ai-workbench/prism_backend/config/cookies" ]; then
+    rm -rf "E:/laoma-ai-workbench/prism_backend/config/cookies"
     echo "✅ 已删除: prism_backend/config/cookies"
 else
     echo "⏭️  未找到 config/cookies，跳过"
@@ -38,13 +38,13 @@ fi
 # 4. 可选：删除根目录 .env（如果 prism_backend/.env 已配置完整）
 echo ""
 echo "4️⃣ 检查根目录 .env..."
-if [ -f "E:/Prism/.env" ]; then
+if [ -f "E:/laoma-ai-workbench/.env" ]; then
     echo "⚠️  发现根目录 .env 文件"
     echo "   建议：如果 prism_backend/.env 已配置完整，可以删除根目录 .env"
     echo "   保留：作为备份也可以"
     # read -p "   是否删除根目录 .env？(y/n): " answer
     # if [ "$answer" == "y" ]; then
-    #     rm "E:/Prism/.env"
+    #     rm "E:/laoma-ai-workbench/.env"
     #     echo "✅ 已删除: 根目录 .env"
     # else
     #     echo "⏭️  保留根目录 .env"

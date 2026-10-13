@@ -206,7 +206,7 @@ export function TikHubApiKeyCard({ defaultOpen = false }: TikHubApiKeyCardProps)
                 </div>
                 <Badge
                   variant="outline"
-                  className={saved ? "border-border/80 bg-black text-foreground" : "border-border/70 bg-card text-muted-foreground"}
+                  className={saved ? "border-border/80 bg-popover text-foreground" : "border-border/70 bg-card text-muted-foreground"}
                 >
                   {saved ? "已配置" : "未配置"}
                 </Badge>
@@ -254,7 +254,7 @@ export function TikHubApiKeyCard({ defaultOpen = false }: TikHubApiKeyCardProps)
               <Button
                 onClick={() => void saveConfig()}
                 disabled={loading.save}
-                className="border-border/80 bg-black text-foreground hover:bg-accent/50"
+                className="border-border/80 bg-popover text-foreground hover:bg-accent/50"
               >
                 {loading.save ? <Loader2 className="animate-spin" /> : <Save />}
                 保存配置

@@ -1,6 +1,7 @@
 import os
 import zipfile
 import subprocess
+from fastapi_app.utils.subprocess_safe import safe_run
 import tempfile
 
 import aiofiles
@@ -82,7 +83,7 @@ async def merge_bilibili_video_audio(video_url: str, audio_url: str, request: Re
         ]
         
         print(f"FFmpeg command: {' '.join(ffmpeg_cmd)}")
-        result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True)
+        result = safe_run(ffmpeg_cmd)
         print(f"FFmpeg return code: {result.returncode}")
         if result.stderr:
             print(f"FFmpeg stderr: {result.stderr}")

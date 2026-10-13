@@ -1,3 +1,3 @@
-export default function AIAgentPage() {
-  return null
-}
+import HermesChatPage from "./components/HermesChatPage"
+
+export default HermesChatPage

@@ -1,7 +1,7 @@
 """Gemini Computer Use diagnostics for Patchright pages.
 
 This adapter is deliberately *not* the primary publisher.  It is used after a
-stable locator fails and returns visual action candidates from Gemini. Prism
+stable locator fails and returns visual action candidates from Gemini. 老马AI工作台
 records those candidates as diagnostic evidence only; it never executes them
 in a live publisher.
 
@@ -34,7 +34,7 @@ class ComputerUseAction:
 
 
 class ComputerUsePolicyError(RuntimeError):
-    """Raised when a visual action is outside Prism's allowed recovery scope."""
+    """Raised when a visual action is outside 老马AI工作台's allowed recovery scope."""
 
 
 def _env_flag(name: str, default: bool = False) -> bool:
@@ -53,7 +53,7 @@ def _allowed_domains(platform: str) -> set[str]:
         "tiktok": {"tiktok.com", "www.tiktok.com"},
         "youtube": {"studio.youtube.com", "youtube.com", "www.youtube.com"},
     }
-    configured = os.getenv("PRISM_COMPUTER_USE_ALLOWED_DOMAINS", "")
+    configured = os.getenv("LAOMA_COMPUTER_USE_ALLOWED_DOMAINS", "")
     extra = {item.strip().lower() for item in configured.split(",") if item.strip()}
     return builtin.get(platform.lower(), set()) | extra
 
@@ -68,15 +68,15 @@ class GeminiComputerUseRecovery:
 
     def __init__(self, *, api_key: Optional[str] = None, audit_dir: Optional[str | Path] = None) -> None:
         self.api_key = api_key or os.getenv("GEMINI_API_KEY", "")
-        self.model = os.getenv("PRISM_GEMINI_COMPUTER_USE_MODEL", DEFAULT_MODEL)
-        self.enabled = _env_flag("PRISM_GEMINI_COMPUTER_USE_ENABLED")
-        data_dir = Path(os.getenv("PRISM_DATA_DIR", Path(__file__).resolve().parents[1]))
+        self.model = os.getenv("LAOMA_GEMINI_COMPUTER_USE_MODEL", DEFAULT_MODEL)
+        self.enabled = _env_flag("LAOMA_GEMINI_COMPUTER_USE_ENABLED")
+        data_dir = Path(os.getenv("LAOMA_DATA_DIR", Path(__file__).resolve().parents[1]))
         self.audit_dir = Path(audit_dir) if audit_dir else data_dir / "logs" / "computer_use"
 
     async def suggest(self, page: Any, *, platform: str, objective: str) -> list[ComputerUseAction]:
         """Get one recovery turn from Gemini; does not execute model output."""
         if not self.enabled:
-            raise ComputerUsePolicyError("Gemini Computer Use is disabled (set PRISM_GEMINI_COMPUTER_USE_ENABLED=true).")
+            raise ComputerUsePolicyError("Gemini Computer Use is disabled (set LAOMA_GEMINI_COMPUTER_USE_ENABLED=true).")
         if not self.api_key:
             raise ComputerUsePolicyError("GEMINI_API_KEY is required for Gemini Computer Use recovery.")
         if not _matches_allowed_domain(page.url, _allowed_domains(platform)):
@@ -84,7 +84,7 @@ class GeminiComputerUseRecovery:
 
         screenshot = await page.screenshot(type="png")
         prompt = (
-            "You are Prism's visual recovery assistant. A deterministic Patchright locator failed. "
+            "You are 老马AI工作台's visual recovery assistant. A deterministic Patchright locator failed. "
             f"Platform: {platform}. Goal: {objective}. "
             "Propose at most one reversible UI action. Never publish, post, submit, delete, "
             "purchase, change permissions, log out, or navigate outside the current site."

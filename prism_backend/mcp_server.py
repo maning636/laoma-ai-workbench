@@ -1,9 +1,9 @@
 """
-Prism MCP Server — 暴露给 AI 工具 / 智能体的 4 个动作工具。
+老马AI工作台 MCP Server — 暴露给 AI 工具 / 智能体的 4 个动作工具。
 
 参照 MatrixMedia 的 MCP 设计（list_accounts / list_history / publish_video /
-publish_article），为 Prism 提供同构、语义清晰的工具集，让 OpenClaw /
-Claude Code / Dify / n8n 等能直接调用 Prism 的后端发布能力。
+publish_article），为 老马AI工作台提供同构、语义清晰的工具集，让 OpenClaw /
+Claude Code / Dify / n8n 等能直接调用 老马AI工作台的后端发布能力。
 
 传输：stdio（标准输入输出）。启动方式（项目根）：
     python prism_cli.py mcp
@@ -36,7 +36,7 @@ server = MCPServer(
     name="prism",
     version="0.1.0",
     description=(
-        "Prism 多平台矩阵发布系统工具。可列出账号、查询发布历史、"
+        "老马AI工作台 多平台矩阵发布系统工具。可列出账号、查询发布历史、"
         "按素材批量发布视频。所有发布均在本地浏览器模式下执行。"
     ),
 )
@@ -117,9 +117,9 @@ async def publish_article(
     platform: Optional[int] = None,
     scheduled_time: Optional[str] = None,
 ) -> str:
-    """把图文/素材作为内容发布（当前 Prism 以文件作为内容载体）。
+    """把图文/素材作为内容发布（当前 老马AI工作台 以文件作为内容载体）。
 
-    Prism 的发布链路以「素材文件」为内容单元，因此图文/文章同样通过
+    老马AI工作台的发布链路以「素材文件」为内容单元，因此图文/文章同样通过
     素材库中的 file_ids 发布。`content` 写入描述，用作正文/补充说明。
 
     Args:
@@ -144,5 +144,5 @@ async def publish_article(
 
 
 if __name__ == "__main__":
-    print("Prism MCP server ready (stdio)", file=os.sys.stderr)
+    print("老马AI工作台 MCP server ready (stdio)", file=os.sys.stderr)
     asyncio.run(server.run_stdio_async())

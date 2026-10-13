@@ -4,14 +4,14 @@ Persona Studio 客户端（Browser Identity / Fingerprint / Profile 层）。
 对接开源 Persona Studio（TechQaiser/persona-studio）的 HTTP API：
     persona serve  →  http://127.0.0.1:8787
 
-职责边界（Prism 不自研指纹/Profile 持久化）：
+职责边界（老马AI工作台 不自研指纹/Profile 持久化）：
 - Persona 负责：指纹生成、Profile 存储、Cookie/LocalStorage 持久会话、
   引擎选择（cloak/camoufox/patchright/playwright）、代理注入。
-- Prism 负责：account_id ↔ persona_profile_id 映射、固定代理绑定、
+- 老马AI工作台 负责：account_id ↔ persona_profile_id 映射、固定代理绑定、
   CDP attach 后用 Patchright 驱动浏览器执行平台 Adapter。
 
 关键集成点：POST /api/profiles/{id}/attach 返回 wsUrl，
-Prism 用 patchright connect_over_cdp 连接，Platform Adapter 无感知。
+老马AI工作台 用 patchright connect_over_cdp 连接，Platform Adapter 无感知。
 
 错误语义（不允许静默 fallback / 静默换身份）：
 - PersonaUnavailableError    Persona 服务不可达（连接失败/超时）
@@ -85,7 +85,7 @@ class PersonaClient:
     # ─── Profile CRUD ────────────────────────────────────────
 
     async def get_profile(self, profile_id: str) -> Optional[Dict[str, Any]]:
-        """按 name 查找 Profile（Persona profile name = Prism persona_profile_id）。"""
+        """按 name 查找 Profile（Persona profile name = 老马AI工作台 persona_profile_id）。"""
         profiles = await self.list_profiles()
         for p in profiles:
             if p.get("name") == profile_id or p.get("id") == profile_id:
@@ -115,7 +115,7 @@ class PersonaClient:
         """创建 Persona Profile（name = profile_id）。
 
         profile_id 建议格式：<platform>_<account_id>，便于人工定位。
-        locale/timezone 由 Prism 账号环境配置传入；指纹生成逻辑完全交给 Persona。
+        locale/timezone 由 老马AI工作台 账号环境配置传入；指纹生成逻辑完全交给 Persona。
         """
         payload: Dict[str, Any] = {
             "name": profile_id,
@@ -233,7 +233,7 @@ class PersonaClient:
     ) -> Dict[str, Any]:
         """Attach：以 CDP 方式打开，返回 wsUrl / port / snippets。
 
-        Prism 用 patchright connect_over_cdp(wsUrl) 驱动该浏览器。
+        老马AI工作台 用 patchright connect_over_cdp(wsUrl) 驱动该浏览器。
         """
         profile = await self.get_profile_required(profile_id)
         pid = profile.get("id") or profile.get("name")
@@ -266,7 +266,7 @@ class PersonaClient:
     async def import_cookies(
         self, profile_id: str, storage_state: Dict[str, Any], clear: bool = False
     ) -> bool:
-        """把 Prism 现有 storage_state（Playwright 格式）导入 Persona Profile。
+        """把 老马AI工作台 现有 storage_state（Playwright 格式）导入 Persona Profile。
 
         用于 Step 6 迁移：第一次启动 persistent profile 时加载旧登录态。
         """

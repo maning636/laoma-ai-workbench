@@ -178,7 +178,7 @@ export default function PublishTasksPage() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-white">{stats.pending}</div>
+                        <div className="text-2xl font-bold text-foreground">{stats.pending}</div>
                     </CardContent>
                 </Card>
                 <Card>
@@ -188,7 +188,7 @@ export default function PublishTasksPage() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-white">{stats.running}</div>
+                        <div className="text-2xl font-bold text-foreground">{stats.running}</div>
                     </CardContent>
                 </Card>
                 <Card>
@@ -198,7 +198,7 @@ export default function PublishTasksPage() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-white">{stats.completed}</div>
+                        <div className="text-2xl font-bold text-foreground">{stats.completed}</div>
                     </CardContent>
                 </Card>
                 <Card>
@@ -208,7 +208,7 @@ export default function PublishTasksPage() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-white">{stats.failed}</div>
+                        <div className="text-2xl font-bold text-foreground">{stats.failed}</div>
                     </CardContent>
                 </Card>
             </div>

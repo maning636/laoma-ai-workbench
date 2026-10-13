@@ -408,7 +408,7 @@ export function TaskDrawer({ task, open, onOpenChange, onTaskUpdate }: TaskDrawe
                         </Button>
 
                         {boundAccount && (
-                            <div className="rounded-xl border border-border bg-black p-3 text-sm text-white">
+                            <div className="rounded-xl border border-border bg-muted p-3 text-sm text-foreground">
                                 已绑定派发账号：{boundAccount}
                             </div>
                         )}
@@ -466,7 +466,7 @@ export function TaskDrawer({ task, open, onOpenChange, onTaskUpdate }: TaskDrawe
                         {/* QR Code & Verification stacked */}
                         <div className="flex flex-col items-center space-y-4">
                             {qrSession?.qrCode ? (
-                                <div className="bg-foreground p-4 rounded-2xl">
+                                <div className="bg-popover p-4 rounded-2xl">
                                     <img
                                         src={qrSession.qrCode}
                                         alt="QR Code"

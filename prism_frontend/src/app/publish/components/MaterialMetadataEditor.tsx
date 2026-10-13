@@ -316,7 +316,7 @@ export function MaterialMetadataEditor({
                                 <Button
                                     onClick={handleAIGenerate}
                                     disabled={isGenerating}
-                                    className="w-full bg-foreground text-background hover:bg-foreground/90"
+                                    className="w-full bg-popover text-foreground hover:bg-popover"
                                 >
                                     <Sparkles className={cn("w-4 h-4 mr-2", isGenerating && "animate-spin")} />
                                     {isGenerating ? "AI 生成中..." : "AI 智能生成"}
@@ -370,7 +370,7 @@ export function MaterialMetadataEditor({
                                         <Badge
                                             key={index}
                                             variant="secondary"
-                                            className="bg-black text-foreground hover:bg-accent/60 flex items-center gap-1"
+                                            className="bg-muted text-foreground hover:bg-accent/60 flex items-center gap-1"
                                         >
                                             {tag}
                                             <button
@@ -409,7 +409,7 @@ export function MaterialMetadataEditor({
                                     onClick={handleGenerateCover}
                                     disabled={isGeneratingCover}
                                     size="sm"
-                                    className="bg-foreground text-background hover:bg-foreground/90"
+                                    className="bg-popover text-foreground hover:bg-popover"
                                 >
                                     {isGeneratingCover ? (
                                         <Loader2 className="w-3 h-3 animate-spin" />
@@ -451,7 +451,7 @@ export function MaterialMetadataEditor({
                         <div className="flex gap-3 pt-4">
                             <Button
                                 onClick={handleSave}
-                                className="flex-1 bg-foreground hover:bg-foreground/90 text-background"
+                                className="flex-1 bg-primary hover:bg-primary/90 text-foreground"
                             >
                                 <Save className="w-4 h-4 mr-2" />
                                 保存

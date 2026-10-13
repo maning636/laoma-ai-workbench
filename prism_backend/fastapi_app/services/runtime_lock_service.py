@@ -106,10 +106,10 @@ class AccountRuntimeLockService:
     ):
         self.redis = redis if redis is not None else get_redis()
         self.default_ttl = ttl if ttl is not None else getattr(
-            settings, "PRISM_RUNTIME_LOCK_TTL", 300
+            settings, "LAOMA_RUNTIME_LOCK_TTL", 300
         )
         self.enabled = enabled if enabled is not None else getattr(
-            settings, "PRISM_RUNTIME_LOCK_ENABLED", True
+            settings, "LAOMA_RUNTIME_LOCK_ENABLED", True
         )
 
     # ─── 基础 ────────────────────────────────────────────────
@@ -120,7 +120,7 @@ class AccountRuntimeLockService:
     def _require_redis(self):
         if not self.enabled:
             raise RuntimeLockUnavailable(
-                "Account Runtime 锁未启用（PRISM_RUNTIME_LOCK_ENABLED=false）"
+                "Account Runtime 锁未启用（LAOMA_RUNTIME_LOCK_ENABLED=false）"
             )
         if self.redis is None:
             raise RuntimeLockUnavailable(

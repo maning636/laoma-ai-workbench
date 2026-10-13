@@ -3,18 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Prism 启动管理器</title>
+    <title>老马AI工作台 启动管理器</title>
     <style>
+        :root {
+            --paper: #FFF6E5;
+            --card: #FFFFFF;
+            --ink: #0F0F0F;
+            --bw: 3px;
+            --pink: #FF5FA2;
+            --yellow: #FFD429;
+            --blue: #3D7BFF;
+            --green: #2FD07A;
+            --shadow: 4px 4px 0 #0F0F0F;
+            --shadow-lg: 6px 6px 0 #0F0F0F;
+            --shadow-sm: 2px 2px 0 #0F0F0F;
+        }
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Microsoft YaHei', 'Segoe UI', sans-serif;
+            font-family: 'Noto Sans SC', 'Sarasa Gothic SC', 'Microsoft YaHei', sans-serif;
         }
 
         body {
-            background: linear-gradient(135deg, #0a0a0e 0%, #1a1a2e 100%);
-            color: #ffffff;
+            background: var(--paper);
+            color: var(--ink);
             height: 100vh;
             display: flex;
             flex-direction: column;
@@ -23,65 +37,72 @@
 
         .header {
             padding: 20px 30px;
-            background: rgba(255, 255, 255, 0.03);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            background: var(--paper);
+            border-bottom: var(--bw) solid var(--ink);
             -webkit-app-region: drag;
         }
 
         .header h1 {
-            font-size: 20px;
-            font-weight: 600;
-            color: #7C4DFF;
+            font-size: 28px;
+            font-weight: 900;
+            color: var(--ink);
+            letter-spacing: -0.5px;
         }
 
         .header p {
-            font-size: 13px;
-            color: rgba(255, 255, 255, 0.6);
-            margin-top: 5px;
+            font-size: 14px;
+            color: var(--ink);
+            margin-top: 6px;
+            font-weight: 600;
         }
 
         .container {
             flex: 1;
-            padding: 30px;
+            padding: 24px 30px;
             overflow-y: auto;
         }
 
         .section {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
-            padding: 24px;
-            margin-bottom: 20px;
+            background: var(--card);
+            border: var(--bw) solid var(--ink);
+            border-radius: 8px;
+            padding: 22px;
+            margin-bottom: 22px;
+            box-shadow: var(--shadow);
         }
 
         .section-title {
-            font-size: 16px;
-            font-weight: 600;
-            margin-bottom: 16px;
+            font-size: 18px;
+            font-weight: 900;
+            margin-bottom: 18px;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
+            font-family: 'Sarasa Gothic SC', 'Consolas', monospace;
+            letter-spacing: 0.5px;
         }
 
         .status-indicator {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #666;
+            width: 18px;
+            height: 18px;
+            border-radius: 999px;
+            background: #999;
+            border: var(--bw) solid var(--ink);
             animation: pulse 2s infinite;
+            box-shadow: var(--shadow-sm);
         }
 
         .status-indicator.running {
-            background: #4CAF50;
+            background: var(--green);
         }
 
         .status-indicator.stopped {
-            background: #F44336;
+            background: var(--pink);
         }
 
         @keyframes pulse {
             0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+            50% { opacity: 0.6; }
         }
 
         .service-list {
@@ -93,106 +114,116 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 16px;
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 14px 18px;
+            background: var(--paper);
+            border-radius: 6px;
+            border: var(--bw) solid var(--ink);
+            box-shadow: var(--shadow-sm);
         }
 
         .service-info {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 14px;
         }
 
         .service-name {
-            font-size: 14px;
-            font-weight: 500;
+            font-size: 15px;
+            font-weight: 800;
+            color: var(--ink);
         }
 
         .service-pid {
             font-size: 12px;
-            color: rgba(255, 255, 255, 0.5);
+            color: var(--ink);
+            font-family: 'Sarasa Gothic SC', 'Consolas', monospace;
+            font-weight: 600;
+            opacity: 0.75;
+            margin-top: 2px;
         }
 
         .button-group {
             display: flex;
-            gap: 24px;
-            margin-top: 24px;
+            gap: 14px;
+            margin-top: 4px;
+            flex-wrap: wrap;
         }
 
         .btn {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
+            padding: 12px 22px;
+            border: var(--bw) solid var(--ink);
+            border-radius: 999px;
             font-size: 14px;
-            font-weight: 500;
+            font-weight: 800;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: transform 0.1s ease, box-shadow 0.1s ease;
             display: flex;
             align-items: center;
             gap: 8px;
+            background: var(--card);
+            color: var(--ink);
+            box-shadow: var(--shadow);
+        }
+
+        .btn:hover:not(:disabled) {
+            transform: translate(-2px, -2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .btn:active:not(:disabled) {
+            transform: translate(2px, 2px);
+            box-shadow: var(--shadow-sm);
         }
 
         .btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+            box-shadow: var(--shadow-sm);
         }
 
         .btn-primary {
-            background: #7C4DFF;
-            color: white;
-        }
-
-        .btn-primary:hover:not(:disabled) {
-            background: #6A3DE8;
-            transform: translateY(-2px);
+            background: var(--green);
+            color: var(--ink);
         }
 
         .btn-secondary {
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
-        }
-
-        .btn-secondary:hover:not(:disabled) {
-            background: rgba(255, 255, 255, 0.15);
+            background: var(--card);
+            color: var(--ink);
         }
 
         .btn-danger {
-            background: #F44336;
-            color: white;
-        }
-
-        .btn-danger:hover:not(:disabled) {
-            background: #D32F2F;
+            background: var(--pink);
+            color: #FFFFFF;
         }
 
         .logs {
-            background: rgba(0, 0, 0, 0.5);
-            border-radius: 8px;
-            padding: 16px;
+            background: var(--card);
+            border: var(--bw) solid var(--ink);
+            border-radius: 6px;
+            padding: 14px 16px;
             height: 200px;
             overflow-y: auto;
-            font-family: 'Consolas', 'Monaco', monospace;
+            font-family: 'Sarasa Gothic SC', 'Consolas', 'Monaco', monospace;
             font-size: 12px;
-            line-height: 1.6;
+            line-height: 1.7;
+            box-shadow: var(--shadow-sm);
         }
 
         .log-line {
-            color: rgba(255, 255, 255, 0.7);
+            color: var(--ink);
             margin-bottom: 4px;
         }
 
-        .log-line.info { color: #4CAF50; }
-        .log-line.error { color: #F44336; }
-        .log-line.warning { color: #FFC107; }
+        .log-line.info { color: #1a7a3f; font-weight: 700; }
+        .log-line.error { color: var(--pink); font-weight: 800; }
+        .log-line.warning { color: #b88500; font-weight: 700; }
 
         .spinner {
             display: inline-block;
             width: 14px;
             height: 14px;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-top-color: white;
+            border: 3px solid rgba(15, 15, 15, 0.25);
+            border-top-color: var(--ink);
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
         }
@@ -202,28 +233,28 @@
         }
 
         ::-webkit-scrollbar {
-            width: 6px;
+            width: 10px;
         }
 
         ::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 3px;
+            background: var(--paper);
+            border-left: var(--bw) solid var(--ink);
         }
 
         ::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 3px;
+            background: var(--ink);
+            border-radius: 2px;
         }
 
         ::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.3);
+            background: var(--pink);
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>🚀 Prism 启动管理器</h1>
-        <p>Supervisor 进程管理控制台</p>
+        <h1>🚀 老马AI工作台 启动管理器</h1>
+        <p>服务状态监控与启动控制</p>
     </div>
 
     <div class="container">
@@ -310,19 +341,11 @@
 
         <!-- 控制按钮 -->
         <div class="section">
-            <div class="section-title">进程控制</div>
+            <div class="section-title">服务控制</div>
             <div class="button-group">
                 <button class="btn btn-primary" id="btn-start" onclick="startAll()">
                     <span id="start-icon">▶</span>
                     启动所有服务
-                </button>
-                <button class="btn btn-secondary" id="btn-restart" onclick="restartAll()" disabled>
-                    <span>🔄</span>
-                    重启所有服务
-                </button>
-                <button class="btn btn-danger" id="btn-stop" onclick="stopAll()" disabled>
-                    <span>⏹</span>
-                    停止所有服务
                 </button>
                 <button class="btn btn-primary" id="btn-launch" onclick="launchApp()" disabled>
                     <span>🚀</span>
@@ -379,8 +402,6 @@
 
                 // 更新按钮状态
                 document.getElementById('btn-start').disabled = allRunning;
-                document.getElementById('btn-restart').disabled = !allRunning;
-                document.getElementById('btn-stop').disabled = !allRunning;
                 document.getElementById('btn-launch').disabled = !allRunning;
 
             } catch (error) {
@@ -539,39 +560,6 @@
                 icon.textContent = '▶';
                 await updateStatus();
             }
-        }
-
-        // 重启所有服务
-        async function restartAll() {
-            addLog('重启所有服务...', 'info');
-            try {
-                const result = await window.electronAPI.supervisor.restartAll();
-                if (result.success) {
-                    addLog('✅ 所有服务重启成功', 'info');
-                } else {
-                    addLog(`❌ 重启失败: ${result.error}`, 'error');
-                }
-            } catch (error) {
-                addLog(`❌ 重启失败: ${error.message}`, 'error');
-            }
-            await updateStatus();
-        }
-
-        // 停止所有服务
-        async function stopAll() {
-            addLog('停止所有服务...', 'warning');
-            try {
-                const result = await window.electronAPI.supervisor.stopAll();
-                if (result.success) {
-                    addLog('⏹ 所有服务已停止', 'warning');
-                    stopStatusCheck();
-                } else {
-                    addLog(`❌ 停止失败: ${result.error}`, 'error');
-                }
-            } catch (error) {
-                addLog(`❌ 停止失败: ${error.message}`, 'error');
-            }
-            await updateStatus();
         }
 
         // 启动主应用

@@ -2,7 +2,7 @@
 """聚焦验证 set_hotspot：登录→上传→填表→只调 set_hotspot。"""
 import asyncio, sys
 from pathlib import Path
-BASE = Path("/Users/laihiujin/Documents/siuyechu/Prism/prism_backend")
+BASE = Path("/Users/laihiujin/Documents/siuyechu/laoma-ai-workbench/prism_backend")
 sys.path.insert(0, str(BASE))
 from uploader.douyin_uploader.main_refactored import DouYinVideo
 

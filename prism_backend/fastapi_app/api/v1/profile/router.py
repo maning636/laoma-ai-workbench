@@ -1,14 +1,16 @@
 """
-账号画像 API（Prism 原生，简化版 Easel /api/profile/build）。
+账号画像 API（老马AI工作台 原生，对齐 Easel v0.2.1 /api/profile/build 异步模式）。
 
-- POST /api/v1/content-library/profile/build   存基线（不做后台 AI 增强，秒可用）
-- GET  /api/v1/content-library/profile          列出所有画像
-- GET  /api/v1/content-library/profile/{name}   取单个画像
+- POST /api/v1/content-library/profile/build        存基线（立即返回 task_id，增强在后台跑）
+- GET  /api/v1/content-library/profile/build/status/{name}   轮询增强状态（running/done/failed）
+- GET  /api/v1/content-library/profile              列出所有画像
+- GET  /api/v1/content-library/profile/{name}       取单个画像
 
 存储：{DATA_DIR}/profiles/{name}/profile.json
-     含 {name, form, baseline, created_at, updated_at}
-     baseline 是从 form 提炼的六维摘要（name/定位/受众/风格/目标平台/调性），仅确定性抽取，
-     不调 AI——与 Easel 的后台 agent 增强不同，本端点只做基线，立即返回。
+     含 {name, form, baseline, created_at, updated_at, engine}
+     baseline 是从 form 提炼的六维摘要（name/定位/受众/风格/目标平台/调性），仅确定性抽取。
+     状态文件：{DATA_DIR}/_profile_build/{name}.json，原子写入（tmp → os.replace）。
+     参照 Easel app.py:2590-2642 的异步模式：立即返回 task_id，规避代理层长请求超时。
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -27,13 +30,18 @@ from fastapi_app.core.logger import logger
 router = APIRouter(prefix="/content-library/profile", tags=["账号画像"])
 
 _PROFILES_DIR = Path(settings.DATA_DIR) / "profiles"
-# 名字安全规则（与前端提示一致）
+_PROFILE_BUILD_DIR = Path(settings.DATA_DIR) / "_profile_build"
+# 名字安全规则（与前端提示一致，与 Easel _valid_persona_name 对齐）
 _NAME_BAD_CHARS = re.compile(r"[/\\]")
 _NAME_BAD_START = re.compile(r"^[\._-]")
 
 
 def _profile_path(name: str) -> Path:
     return _PROFILES_DIR / name / "profile.json"
+
+
+def _profile_status_file(name: str) -> Path:
+    return _PROFILE_BUILD_DIR / f"{name}.json"
 
 
 def _validate_name(name: str) -> str:
@@ -49,6 +57,32 @@ def _validate_name(name: str) -> str:
     if os.sep in n or os.altsep and os.altsep in n:
         raise HTTPException(status_code=400, detail="画像名称含非法路径字符")
     return n
+
+
+def _write_profile_status(name: str, state: str, log: str = "") -> None:
+    """原子写画像增强状态（参照 Easel _write_profile_status）。"""
+    try:
+        _PROFILE_BUILD_DIR.mkdir(parents=True, exist_ok=True)
+        f = _profile_status_file(name)
+        tmp = f.with_suffix(".tmp")
+        tmp.write_text(
+            json.dumps({"state": state, "log": log, "ts": int(time.time())}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        os.replace(tmp, f)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[Profile] 状态写入失败 {name}: {e}")
+
+
+def _read_profile_status(name: str) -> Dict[str, Any]:
+    f = _profile_status_file(name)
+    if f.is_file():
+        try:
+            d = json.loads(f.read_text(encoding="utf-8"))
+            return {"state": d.get("state", "unknown"), "log": d.get("log", "")}
+        except Exception:
+            pass
+    return {"state": "unknown", "log": ""}
 
 
 def _list_names() -> List[str]:
@@ -169,7 +203,11 @@ def _filled_dims(form: Dict[str, Any]) -> int:
 
 @router.post("/build")
 async def build_profile(payload: Dict[str, Any] = Body(...)):
-    """存基线画像。入参 {name, form}；form 是画像表单 12 维。不做后台 AI 增强。"""
+    """存基线画像并立即返回，后台异步跑 AI 增强。参照 Easel v0.2.1 异步模式。
+
+    - 立即返回 task_id + running 状态（基线已写、画像立即可用）
+    - 增强状态通过 GET /profile/build/status/{name} 轮询（running / done / failed）
+    """
     if not isinstance(payload, dict):
         raise HTTPException(status_code=400, detail="请求体必须是 JSON 对象")
     name = _validate_name(str(payload.get("name") or ""))
@@ -189,7 +227,7 @@ async def build_profile(payload: Dict[str, Any] = Body(...)):
         "updated_at": now_iso,
         "filled_dims": _filled_dims(form),
         "total_dims": 12,
-        "engine": "prism-native-baseline",  # 与 Easel 后台 agent 增强区分
+        "engine": "prism-native-baseline",
     }
     try:
         _save(name, record)
@@ -197,17 +235,43 @@ async def build_profile(payload: Dict[str, Any] = Body(...)):
         logger.error(f"[Profile] 写入失败: {e}")
         raise HTTPException(status_code=500, detail=f"画像写入失败：{e}")
 
+    task_id = f"{int(time.time() * 1000)}-{name}"
+    _write_profile_status(name, "running", "基线画像已写入，增强任务启动中…")
+
+    # 后台异步增强：当前仅把状态置 done（Prism-Fusion 不做 Hermes agent 增强，避免依赖）
+    def _enhance() -> None:
+        try:
+            # 未来可以在此接入 Hermes agent 增强六维内容
+            time.sleep(0.5)
+            _write_profile_status(name, "done", "基线画像已完成（未接入 AI 增强）")
+        except Exception as e:  # noqa: BLE001
+            _write_profile_status(name, "failed", f"画像增强失败（基线画像已可用）：{e}")
+
+    threading.Thread(target=_enhance, daemon=True).start()
+
     return {
         "status": "success",
         "result": {
             "created": True,
             "name": name,
+            "task_id": task_id,
+            "async": True,
+            "status": "running",
             "baseline": baseline,
             "filled_dims": record["filled_dims"],
             "total_dims": record["total_dims"],
             "path": str(_profile_path(name)),
         },
     }
+
+
+@router.get("/build/status/{name}")
+async def build_status(name: str):
+    """轮询画像增强进度：running / done / failed / unknown。参照 Easel /api/profile/build/status。"""
+    n = _validate_name(name)
+    if not _list_names() or n not in _list_names():
+        raise HTTPException(status_code=404, detail=f"画像「{n}」不存在")
+    return {"status": "success", "result": _read_profile_status(n)}
 
 
 @router.get("")

@@ -1,18 +1,18 @@
 ---
-name: prism-publish-tiktok
-description: "Prism TikTok发布：登录、校验、视频发布（及无图文）与 CLI/API/MCP 工具契约。"
+name: laoma-publish-tiktok
+description: "老马AI工作台 TikTok发布：登录、校验、视频发布（及无图文）与 CLI/API/MCP 工具契约。"
 version: 1.0.0
-author: Prism
+author: 老马AI工作台
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
   hermes:
-    tags: [Prism, publish, tiktok]
-    related_skills: [prism-project-layout]
+    tags: [老马AI工作台, publish, tiktok]
+    related_skills: [laoma-project-layout]
 prerequisites:
   commands: [prism]
 ---
-# Prism TikTok发布
+# 老马AI工作台 TikTok发布
 
 在 TikTok 上发布内容。能力已注册为独立工具，三层自动暴露：**MCP tool**、
 **API**（`POST /api/v1/tool-catalog/<name>`）、**CLI**（`prism tool invoke <name>` / `prism tiktok ...`）。

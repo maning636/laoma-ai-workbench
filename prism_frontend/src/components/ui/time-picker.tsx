@@ -24,7 +24,7 @@ export function TimePicker({ value, onChange, className }: TimePickerProps) {
         setOpen(false)
     }
 
-    const optionStyle = { backgroundColor: "#0a0a0a", color: "#ffffff" }
+    const optionStyle = { backgroundColor: "#FFF6E5", color: "#0F0F0F" }
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
@@ -41,7 +41,7 @@ export function TimePicker({ value, onChange, className }: TimePickerProps) {
                     {displayValue}
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto border-border/70 bg-black text-foreground p-4 shadow-2xl" align="start">
+            <PopoverContent className="w-auto border-border/70 bg-popover text-foreground p-4 shadow-2xl" align="start">
                 <div className="space-y-4">
                     <div className="text-sm font-medium text-foreground">选择时间</div>
                     <div className="flex items-center gap-2">
@@ -51,8 +51,8 @@ export function TimePicker({ value, onChange, className }: TimePickerProps) {
                             <select
                                 value={hours}
                                 onChange={(e) => setHours(e.target.value)}
-                                className="appearance-none bg-black text-foreground border border-border/70 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/60"
-                                style={{ backgroundColor: "#0a0a0a", color: "#ffffff" }}
+                                className="appearance-none bg-popover text-foreground border border-border/70 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/60"
+                                style={{ backgroundColor: "#FFF6E5", color: "#0F0F0F" }}
                             >
                                 {Array.from({ length: 24 }, (_, i) => (
                                     <option
@@ -72,8 +72,8 @@ export function TimePicker({ value, onChange, className }: TimePickerProps) {
                             <select
                                 value={minutes}
                                 onChange={(e) => setMinutes(e.target.value)}
-                                className="appearance-none bg-black text-foreground border border-border/70 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/60"
-                                style={{ backgroundColor: "#0a0a0a", color: "#ffffff" }}
+                                className="appearance-none bg-popover text-foreground border border-border/70 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/60"
+                                style={{ backgroundColor: "#FFF6E5", color: "#0F0F0F" }}
                             >
                                 {Array.from({ length: 60 }, (_, i) => (
                                     <option

@@ -1,8 +1,8 @@
-"""声明式工具注册中心 —— Prism 能力暴露为 tool 的单一事实源。
+"""声明式工具注册中心 —— 老马AI工作台能力暴露为 tool 的单一事实源。
 
 新增一个「可给 agent/CLI/API 调用的能力」只需在下面 ``TOOLS`` 加一条 ``ToolSpec``，
 三层暴露自动覆盖：
-  1. MCP tool  (agent/mcp_server.py)  -> Prism MCP & Hermes MCP 的 tools/list + tools/call
+  1. MCP tool  (agent/mcp_server.py)  -> 老马AI工作台 MCP & Hermes MCP 的 tools/list + tools/call
   2. API       (api/v1/tool_catalog/router.py) -> POST /api/v1/tool-catalog/<name>
   3. CLI       (prism_cli.py)         -> prism tool list / prism tool invoke <name> ...
 
@@ -399,7 +399,7 @@ def build_platform_api_tool_specs() -> List[ToolSpec]:
         ),
         ToolSpec(
             name="publish_article",
-            description="把图文/素材作为内容发布（Prism 以文件为内容载体，content 写入描述）。",
+            description="把图文/素材作为内容发布（老马AI工作台 以文件为内容载体，content 写入描述）。",
             category="publish",
             parameters={
                 "type": "object",

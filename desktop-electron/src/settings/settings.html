@@ -3,18 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Prism 系统设置</title>
+    <title>老马AI工作台 系统设置</title>
     <style>
+        :root {
+            --paper: #FFF6E5;
+            --card: #FFFFFF;
+            --ink: #0F0F0F;
+            --pink: #FF5FA2;
+            --yellow: #FFD429;
+            --blue: #3D7BFF;
+            --green: #2FD07A;
+            --bw: 3px;
+            --shadow: 4px 4px 0 var(--ink);
+            --shadow-lg: 6px 6px 0 var(--ink);
+            --shadow-sm: 2px 2px 0 var(--ink);
+        }
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Microsoft YaHei', 'Segoe UI', sans-serif;
+            font-family: 'Noto Sans SC', 'Sarasa Gothic SC', 'Microsoft YaHei', sans-serif;
         }
 
         body {
-            background: #000000;
-            color: #ffffff;
+            background: var(--paper);
+            color: var(--ink);
             height: 100vh;
             display: flex;
             flex-direction: column;
@@ -22,33 +36,37 @@
         }
 
         .header {
-            padding: 24px 40px;
-            background: #000000;
-            border-bottom: 1px solid #1a1a1a;
+            padding: 20px 32px;
+            background: #FFFFFF;
+            border-bottom: var(--bw) solid var(--ink);
             -webkit-app-region: drag;
         }
 
         .header h1 {
             font-size: 22px;
-            font-weight: 600;
-            color: rgba(255, 255, 255, 0.95);
+            font-weight: 800;
+            color: var(--ink);
+            letter-spacing: 0.5px;
         }
 
         .header p {
-            font-size: 14px;
-            color: rgba(255, 255, 255, 0.65);
-            margin-top: 6px;
+            font-size: 13px;
+            color: var(--ink);
+            margin-top: 4px;
+            opacity: 0.7;
+            font-family: 'Sarasa Gothic SC', 'Consolas', monospace;
         }
 
         .container {
             flex: 1;
-            padding: 30px;
+            padding: 24px 32px;
             overflow-y: auto;
             display: grid;
             grid-template-columns: 480px 1fr;
-            gap: 24px;
+            gap: 20px;
             max-width: 1600px;
             margin: 0 auto;
+            background: var(--paper);
         }
 
         .left-panel {
@@ -63,27 +81,40 @@
         }
 
         .section {
-            background: #000000;
-            border: 1px solid #1a1a1a;
-            border-radius: 16px;
-            padding: 24px;
-            box-shadow: none;
+            background: var(--card);
+            border: var(--bw) solid var(--ink);
+            border-radius: 4px;
+            padding: 20px;
+            box-shadow: var(--shadow);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .section:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: var(--shadow-lg);
         }
 
         .section-title {
-            font-size: 16px;
-            font-weight: 600;
-            margin-bottom: 16px;
+            font-family: 'Sarasa Gothic SC', 'Consolas', 'Courier New', monospace;
+            font-size: 14px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 12px;
             display: flex;
             align-items: center;
             gap: 10px;
-            color: #ffffff;
+            color: var(--ink);
+            padding-bottom: 10px;
+            border-bottom: var(--bw) solid var(--ink);
         }
 
         .section-subtitle {
-            font-size: 13px;
-            color: rgba(255, 255, 255, 0.5);
+            font-size: 12px;
+            color: var(--ink);
+            opacity: 0.7;
             margin-bottom: 16px;
+            font-family: 'Sarasa Gothic SC', monospace;
         }
 
         .action-list {
@@ -96,17 +127,18 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 16px 18px;
-            background: #050505;
-            border-radius: 10px;
-            border: 1px solid #151515;
-            transition: all 0.3s ease;
+            padding: 12px 14px;
+            background: var(--paper);
+            border: var(--bw) solid var(--ink);
+            border-radius: 4px;
+            box-shadow: var(--shadow-sm);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
         }
 
         .action-row:hover {
-            background: #0a0a0a;
-            border-color: #2a2a2a;
-            transform: none;
+            transform: translate(-2px, -2px);
+            box-shadow: var(--shadow);
+            background: #FFFFFF;
         }
 
         .action-info {
@@ -127,74 +159,73 @@
 
         .action-label {
             font-size: 14px;
-            font-weight: 500;
+            font-weight: 700;
+            color: var(--ink);
         }
 
         .action-desc {
             font-size: 12px;
-            color: rgba(255, 255, 255, 0.5);
+            color: var(--ink);
+            opacity: 0.6;
+            font-family: 'Sarasa Gothic SC', monospace;
         }
 
         .btn {
             padding: 8px 16px;
-            border: none;
-            border-radius: 6px;
+            border: var(--bw) solid var(--ink);
+            border-radius: 4px;
             font-size: 13px;
-            font-weight: 500;
+            font-weight: 700;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: transform 0.12s ease, box-shadow 0.12s ease;
             display: flex;
             align-items: center;
             gap: 6px;
+            font-family: 'Sarasa Gothic SC', monospace;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: var(--shadow-sm);
+            color: var(--ink);
+        }
+
+        .btn:hover:not(:disabled) {
+            transform: translate(-2px, -2px);
+            box-shadow: var(--shadow);
+        }
+
+        .btn:active:not(:disabled) {
+            transform: translate(2px, 2px);
+            box-shadow: none;
         }
 
         .btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+            transform: none;
+            box-shadow: var(--shadow-sm);
         }
 
         .btn-primary {
-            background: #111111;
-            color: white;
-            border: 1px solid #2a2a2a;
-            box-shadow: none;
-        }
-
-        .btn-primary:hover:not(:disabled) {
-            background: #1a1a1a;
-            transform: none;
-            box-shadow: none;
+            background: var(--green);
+            color: var(--ink);
         }
 
         .btn-danger {
-            background: #111111;
-            color: white;
-            border: 1px solid #2a2a2a;
-            box-shadow: none;
-        }
-
-        .btn-danger:hover:not(:disabled) {
-            background: #1a1a1a;
-            transform: none;
-            box-shadow: none;
+            background: var(--pink);
+            color: var(--ink);
         }
 
         .btn-secondary {
-            background: #0d0d0d;
-            color: white;
-            border: 1px solid #232323;
-        }
-
-        .btn-secondary:hover:not(:disabled) {
-            background: #161616;
+            background: #FFFFFF;
+            color: var(--ink);
         }
 
         .spinner {
             display: inline-block;
             width: 12px;
             height: 12px;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-top-color: white;
+            border: 2px solid var(--ink);
+            border-top-color: transparent;
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
         }
@@ -215,100 +246,118 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 10px;
         }
 
         .logs-container {
-            background: #050505;
-            border-radius: 12px;
-            border: 1px solid #1a1a1a;
-            padding: 20px;
+            background: var(--card);
+            border-radius: 4px;
+            border: var(--bw) solid var(--ink);
+            padding: 16px;
             flex: 1;
             overflow-y: auto;
-            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-            font-size: 13px;
-            line-height: 1.8;
-            box-shadow: none;
+            font-family: 'Sarasa Gothic SC', 'Consolas', 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.7;
+            box-shadow: var(--shadow);
+            color: var(--ink);
         }
 
         .log-line {
-            color: rgba(255, 255, 255, 0.8);
+            color: var(--ink);
             margin-bottom: 6px;
-            padding: 4px 8px;
+            padding: 6px 10px;
             border-radius: 4px;
-            transition: background 0.2s;
+            border: 2px solid transparent;
+            transition: background 0.2s, border-color 0.2s;
         }
 
         .log-line:hover {
-            background: rgba(255, 255, 255, 0.05);
+            background: var(--paper);
+            border-color: var(--ink);
         }
 
         .log-line.info {
-            color: #d9d9d9;
-            border-left: 3px solid #4a4a4a;
-            padding-left: 8px;
+            background: rgba(61, 123, 255, 0.12);
+            border-left: var(--bw) solid var(--blue);
+            padding-left: 10px;
         }
         .log-line.error {
-            color: #f0f0f0;
-            border-left: 3px solid #6a6a6a;
-            padding-left: 8px;
+            background: rgba(255, 95, 162, 0.12);
+            border-left: var(--bw) solid var(--pink);
+            padding-left: 10px;
         }
         .log-line.warning {
-            color: #cfcfcf;
-            border-left: 3px solid #585858;
-            padding-left: 8px;
+            background: rgba(255, 212, 41, 0.25);
+            border-left: var(--bw) solid var(--yellow);
+            padding-left: 10px;
         }
         .log-line.system {
-            color: #ffffff;
-            border-left: 3px solid #7a7a7a;
-            padding-left: 8px;
+            background: rgba(47, 208, 122, 0.14);
+            border-left: var(--bw) solid var(--green);
+            padding-left: 10px;
+            font-weight: 600;
         }
 
         .log-filter {
             display: flex;
             gap: 8px;
+            flex-wrap: wrap;
         }
 
         .filter-btn {
-            padding: 8px 16px;
-            background: #0d0d0d;
-            border: 1px solid #232323;
-            border-radius: 6px;
-            color: rgba(255, 255, 255, 0.7);
-            font-size: 13px;
-            font-weight: 500;
+            padding: 6px 12px;
+            background: #FFFFFF;
+            border: var(--bw) solid var(--ink);
+            border-radius: 999px;
+            color: var(--ink);
+            font-size: 12px;
+            font-weight: 700;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: all 0.12s ease;
+            font-family: 'Sarasa Gothic SC', monospace;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: var(--shadow-sm);
         }
 
         .filter-btn.active {
-            background: #161616;
-            border-color: #3a3a3a;
-            color: white;
-            box-shadow: none;
+            background: var(--yellow);
+            box-shadow: var(--shadow-sm);
         }
 
         .filter-btn:hover {
-            background: #161616;
-            border-color: #3a3a3a;
-            transform: none;
+            transform: translate(-2px, -2px);
+            box-shadow: var(--shadow);
+        }
+
+        .filter-btn:active {
+            transform: translate(1px, 1px);
+            box-shadow: none;
         }
 
         ::-webkit-scrollbar {
-            width: 6px;
+            width: 12px;
+            height: 12px;
         }
 
         ::-webkit-scrollbar-track {
-            background: #050505;
-            border-radius: 3px;
+            background: var(--paper);
+            border-left: 2px solid var(--ink);
         }
 
         ::-webkit-scrollbar-thumb {
-            background: #2f2f2f;
-            border-radius: 3px;
+            background: var(--ink);
+            border: 2px solid var(--paper);
         }
 
         ::-webkit-scrollbar-thumb:hover {
-            background: #424242;
+            background: var(--pink);
+        }
+
+        ::-webkit-scrollbar-corner {
+            background: var(--paper);
         }
 
         /* Toast 通知 */
@@ -316,18 +365,19 @@
             position: fixed;
             top: 24px;
             right: 24px;
-            padding: 14px 24px;
-            background: #050505;
-            border-radius: 10px;
-            border: 1px solid #2a2a2a;
-            color: white;
+            padding: 14px 22px;
+            background: #FFFFFF;
+            border-radius: 4px;
+            border: var(--bw) solid var(--ink);
+            color: var(--ink);
             font-size: 14px;
-            font-weight: 500;
+            font-weight: 700;
             z-index: 1000;
             opacity: 0;
             transform: translateX(400px);
-            transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-            box-shadow: none;
+            transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            box-shadow: var(--shadow-lg);
+            font-family: 'Sarasa Gothic SC', monospace;
         }
 
         .toast.show {
@@ -336,13 +386,13 @@
         }
 
         .toast.success {
-            border-color: #3a3a3a;
-            box-shadow: none;
+            background: var(--green);
+            color: var(--ink);
         }
 
         .toast.error {
-            border-color: #4a4a4a;
-            box-shadow: none;
+            background: var(--pink);
+            color: var(--ink);
         }
 
         #refresh-icon {
@@ -356,51 +406,68 @@
         }
 
         .runtime-status-card {
-            padding: 14px;
-            border-radius: 10px;
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 12px;
+            border-radius: 4px;
+            background: var(--paper);
+            border: var(--bw) solid var(--ink);
+            box-shadow: var(--shadow-sm);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .runtime-status-card:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: var(--shadow);
         }
 
         .runtime-status-name {
-            font-size: 13px;
-            font-weight: 600;
-            color: #fff;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--ink);
             margin-bottom: 8px;
+            font-family: 'Sarasa Gothic SC', monospace;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .runtime-status-pill {
             display: inline-flex;
             align-items: center;
-            padding: 4px 10px;
+            padding: 3px 10px;
             border-radius: 999px;
-            font-size: 12px;
-            font-weight: 600;
+            font-size: 11px;
+            font-weight: 700;
             margin-bottom: 8px;
+            border: 2px solid var(--ink);
+            background: #FFFFFF;
+            color: var(--ink);
+            font-family: 'Sarasa Gothic SC', monospace;
+            letter-spacing: 0.5px;
         }
 
         .runtime-status-pill.online {
-            background: rgba(102, 187, 106, 0.18);
-            color: #8BE28F;
+            background: var(--green);
+            color: var(--ink);
         }
 
         .runtime-status-pill.offline {
-            background: rgba(239, 83, 80, 0.18);
-            color: #FF9E99;
+            background: var(--pink);
+            color: var(--ink);
         }
 
         .runtime-status-meta {
-            font-size: 12px;
-            color: rgba(255, 255, 255, 0.68);
+            font-size: 11px;
+            color: var(--ink);
+            opacity: 0.75;
             word-break: break-all;
             line-height: 1.5;
+            font-family: 'Sarasa Gothic SC', monospace;
         }
-    </style>
+</style>
 </head>
 <body>
     <div class="header">
         <h1>⚙️ 系统设置 & 控制台</h1>
-        <p>进程管理、数据清理与系统日志监控</p>
+        <p>数据清理与系统日志监控</p>
     </div>
 
     <div class="container">
@@ -424,63 +491,6 @@
                         <div class="runtime-status-name">Hermes WebUI</div>
                         <div class="runtime-status-pill offline" id="hermes-webui-pill">离线</div>
                         <div class="runtime-status-meta" id="hermes-webui-meta">未检测到 webui</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 进程控制 -->
-            <div class="section">
-                <div class="section-title">🔧 进程控制</div>
-                <div class="section-subtitle">管理后端服务的启动、停止和重启</div>
-                <div class="action-list">
-                    <div class="action-row">
-                        <div class="action-info">
-                            <span class="action-icon">🔄</span>
-                            <div class="action-text">
-                                <span class="action-label">重启所有服务</span>
-                                <span class="action-desc">Frontend + Supervisor + Backend + Worker + Hermes + Celery</span>
-                            </div>
-                        </div>
-                        <button class="btn btn-primary" onclick="restartAll()">
-                            <span id="restart-all-icon">重启</span>
-                        </button>
-                    </div>
-
-                    <div class="action-row">
-                        <div class="action-info">
-                            <span class="action-icon">🔁</span>
-                            <div class="action-text">
-                                <span class="action-label">重启后端服务</span>
-                                <span class="action-desc">FastAPI Backend</span>
-                            </div>
-                        </div>
-                        <button class="btn btn-primary" onclick="restartBackend()">
-                            <span id="restart-backend-icon">重启</span>
-                        </button>
-                    </div>
-
-                    <div class="action-row">
-                        <div class="action-info">
-                            <span class="action-icon">🛰️</span>
-                            <div class="action-text">
-                                <span class="action-label">重启 Hermes Gateway</span>
-                                <span class="action-desc">仅重启共享 Hermes gateway，不影响 FastAPI / worker / UI 入口</span>
-                            </div>
-                        </div>
-                        <button id="restart-gateway-btn" class="btn btn-primary" onclick="restartHermesGateway()">
-                            <span id="restart-gateway-icon" data-default-label="重启">重启</span>
-                        </button>
-                    </div>
-
-                    <div class="action-row">
-                        <div class="action-info">
-                            <span class="action-icon">🛑</span>
-                            <div class="action-text">
-                                <span class="action-label">停止所有服务</span>
-                                <span class="action-desc">停止所有后端进程</span>
-                            </div>
-                        </div>
-                        <button class="btn btn-danger" onclick="stopAll()">停止</button>
                     </div>
                 </div>
             </div>
@@ -550,17 +560,6 @@
                             </div>
                         </div>
                         <button class="btn btn-primary" onclick="exportLogs()">导出</button>
-                    </div>
-
-                    <div class="action-row">
-                        <div class="action-info">
-                            <span class="action-icon">❌</span>
-                            <div class="action-text">
-                                <span class="action-label">强制终止进程</span>
-                                <span class="action-desc">立即停止所有服务</span>
-                            </div>
-                        </div>
-                        <button class="btn btn-danger" onclick="forceKillProcesses()">终止</button>
                     </div>
                 </div>
             </div>
@@ -724,99 +723,6 @@
             }, 3000);
         }
 
-        // ========== 进程控制 ==========
-
-        async function restartAll() {
-            const btn = document.querySelector('#restart-all-icon');
-            const originalText = btn.textContent;
-            btn.innerHTML = '<span class="spinner"></span>';
-
-            try {
-                const response = await fetch(`${API_BASE}/supervisor/restart`, { method: 'POST' });
-                const data = await response.json();
-
-                if (response.ok) {
-                    showToast('✅ 所有服务已重启', 'success');
-                    addLog('系统', '所有服务重启成功');
-                } else {
-                    throw new Error(data.detail || '重启失败');
-                }
-            } catch (error) {
-                showToast('❌ 重启失败: ' + error.message, 'error');
-                addLog('错误', '重启失败: ' + error.message);
-            } finally {
-                btn.textContent = originalText;
-                refreshHermesRuntimeStatus();
-            }
-        }
-
-        async function restartBackend() {
-            const btn = document.querySelector('#restart-backend-icon');
-            const originalText = btn.textContent;
-            btn.innerHTML = '<span class="spinner"></span>';
-
-            try {
-                const response = await fetch(`${API_BASE}/supervisor/restart/backend`, { method: 'POST' });
-                const data = await response.json();
-
-                if (response.ok) {
-                    showToast('✅ 后端服务已重启', 'success');
-                    addLog('系统', '后端服务重启成功');
-                } else {
-                    throw new Error(data.detail || '重启失败');
-                }
-            } catch (error) {
-                showToast('❌ 重启失败: ' + error.message, 'error');
-                addLog('错误', '重启失败: ' + error.message);
-            } finally {
-                btn.textContent = originalText;
-                refreshHermesRuntimeStatus();
-            }
-        }
-
-        async function restartHermesGateway() {
-            const btn = document.querySelector('#restart-gateway-icon');
-            const originalText = btn.textContent;
-            btn.innerHTML = '<span class="spinner"></span>';
-
-            try {
-                const response = await fetch(`${API_BASE}/supervisor/restart/hermes-gateway`, { method: 'POST' });
-                const data = await response.json();
-
-                if (response.ok) {
-                    showToast('✅ Hermes Gateway 已重启', 'success');
-                    addLog('系统', 'Hermes Gateway 重启成功');
-                } else {
-                    throw new Error(data.detail || '重启失败');
-                }
-            } catch (error) {
-                showToast('❌ 重启失败: ' + error.message, 'error');
-                addLog('错误', 'Hermes Gateway 重启失败: ' + error.message);
-            } finally {
-                btn.textContent = originalText;
-                refreshHermesRuntimeStatus();
-            }
-        }
-
-        async function stopAll() {
-            if (!confirm('确认停止所有服务？')) return;
-
-            try {
-                const response = await fetch(`${API_BASE}/supervisor/stop`, { method: 'POST' });
-                const data = await response.json();
-
-                if (response.ok) {
-                    showToast('🛑 所有服务已停止', 'success');
-                    addLog('系统', '所有服务已停止');
-                } else {
-                    throw new Error(data.detail || '停止失败');
-                }
-            } catch (error) {
-                showToast('❌ 停止失败: ' + error.message, 'error');
-                addLog('错误', '停止失败: ' + error.message);
-            }
-        }
-
         // ========== 数据清理 ==========
 
         async function clearMaterials() {
@@ -917,7 +823,7 @@
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = `prism-logs-${new Date().toISOString().split('T')[0]}.zip`;
+                    a.download = `laoma-logs-${new Date().toISOString().split('T')[0]}.zip`;
                     document.body.appendChild(a);
                     a.click();
                     window.URL.revokeObjectURL(url);
@@ -931,24 +837,6 @@
             } catch (error) {
                 showToast('❌ 导出失败: ' + error.message, 'error');
                 addLog('错误', '导出失败: ' + error.message);
-            }
-        }
-
-        async function forceKillProcesses() {
-            if (!confirm('确认强制终止所有进程？')) return;
-
-            try {
-                const response = await fetch(`${API_BASE}/supervisor/stop`, { method: 'POST' });
-
-                if (response.ok) {
-                    showToast('✅ 进程已强制终止', 'success');
-                    addLog('系统', '所有进程已强制终止');
-                } else {
-                    throw new Error('终止失败');
-                }
-            } catch (error) {
-                showToast('❌ 终止失败: ' + error.message, 'error');
-                addLog('错误', '终止失败: ' + error.message);
             }
         }
 
@@ -1034,72 +922,6 @@
                     .trim();
             });
         }
-
-        restartAll = async function (...args) {
-            const btn = document.querySelector('#restart-all-icon');
-            const originalText = btn?.textContent || '';
-            if (btn) {
-                btn.innerHTML = '<span class="spinner"></span>';
-            }
-
-            try {
-                if (window.electronAPI?.system?.restartAll) {
-                    const result = await window.electronAPI.system.restartAll();
-                    if (!result?.success) {
-                        throw new Error(result?.error || '服务重启失败');
-                    }
-                } else {
-                    const response = await fetch(`${API_BASE}/supervisor/restart`, { method: 'POST' });
-                    if (!response.ok) {
-                        throw new Error(await parseResponseError(response, '服务重启失败'));
-                    }
-                }
-
-                showToast('所有服务已重启', 'success');
-                addLog('系统', '所有服务已重启');
-            } catch (error) {
-                showToast(`重启失败: ${error.message}`, 'error');
-                addLog('错误', '重启失败: ' + error.message);
-            } finally {
-                if (btn) {
-                    btn.textContent = originalText;
-                }
-                refreshHermesRuntimeStatus();
-            }
-        };
-
-        const originalStopAll = stopAll;
-        stopAll = async function (...args) {
-            if (!confirm('确认停止所有服务？')) return;
-
-            try {
-                if (window.electronAPI?.system?.stopAll) {
-                    const result = await window.electronAPI.system.stopAll();
-                    if (!result?.success) {
-                        throw new Error(result?.error || '停止服务失败');
-                    }
-                } else {
-                    return await originalStopAll.apply(this, args);
-                }
-
-                showToast('所有服务已停止', 'success');
-                addLog('系统', '所有服务已停止');
-            } catch (error) {
-                showToast(`停止失败: ${error.message}`, 'error');
-                addLog('错误', '停止失败: ' + error.message);
-            } finally {
-                refreshHermesRuntimeStatus();
-            }
-        };
-
-        const originalForceKillProcesses = forceKillProcesses;
-        forceKillProcesses = async function (...args) {
-            try {
-                return await originalForceKillProcesses.apply(this, args);
-            } finally {
-                refreshHermesRuntimeStatus();
-            }
-        };
 
         stripLeadingIcons();
 

@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import sys
 from pathlib import Path
 from threading import Lock
 from typing import Any, Dict, Iterable, Optional
 
 import yaml
+
+from fastapi_app.utils.subprocess_safe import safe_run
 
 
 _CONFIG_LOCK = Lock()
@@ -36,7 +37,7 @@ def get_source_repo_root() -> Path:
 
 
 def get_repo_root() -> Path:
-    return _resolve_env_path("PRISM_RESOURCES_PATH", "PRISM_APP_ROOT") or get_source_repo_root()
+    return _resolve_env_path("LAOMA_RESOURCES_PATH", "LAOMA_APP_ROOT") or get_source_repo_root()
 
 
 def get_backend_root() -> Path:
@@ -216,7 +217,7 @@ def get_gateway_platform_status() -> Dict[str, Any]:
             exclude=(get_backend_root(),),
         )
         try:
-            result = subprocess.run(
+            result = safe_run(
                 [
                     str(python_path),
                     "-c",
@@ -234,11 +235,7 @@ def get_gateway_platform_status() -> Dict[str, Any]:
                     ),
                     hermes_source_str,
                 ],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                env=env,
+                env_extra=env,
                 cwd=hermes_source_str,
                 check=True,
             )
@@ -387,7 +384,7 @@ def _write_hermes_runtime_config(data: Dict[str, Any]) -> Path:
 
 
 def _build_prism_mcp_server_entry() -> Dict[str, Any]:
-    """Config entry exposing Prism's BaseTool catalog to Hermes as MCP tools."""
+    """Config entry exposing 老马AI工作台's BaseTool catalog to Hermes as MCP tools."""
     backend_root = get_backend_root()
     # In dev the running interpreter already carries the backend deps; in a
     # packaged build this falls back to the shared prismenv interpreter.
@@ -397,7 +394,7 @@ def _build_prism_mcp_server_entry() -> Dict[str, Any]:
         "args": ["-m", "fastapi_app.agent.mcp_server"],
         "env": {
             "PYTHONPATH": str(backend_root),
-            "PRISM_APP_ROOT": str(get_repo_root()),
+            "LAOMA_APP_ROOT": str(get_repo_root()),
         },
     }
 
@@ -430,9 +427,12 @@ _PROJECT_SKILLS: tuple[dict, ...] = (
     }
     for platform in _PUBLISH_PLATFORMS
 )
+# P1a-3：收敛 hermes_config 的双 skills 根——统一走 get_hermes_home_path()。
+# get_hermes_home_path 已经是权威入口（尊重 PRISM_HERMES_HOME env 与打包/源码切换）。
+# 下方 sync 循环仍以 `get_repo_root() / root / ...` 形式拼接；由于 root 是绝对路径，
+# Path / abs_path 语义会直接返回 abs_path，因此不需要改循环体。
 _PROJECT_SKILL_ROOTS = (
-    Path("tools") / "hermes-home" / "skills",
-    Path("runtime-data") / "app" / "hermes-home" / "skills",
+    get_hermes_home_path() / "skills",
 )
 
 
@@ -587,8 +587,8 @@ def sync_agent_config_to_runtime(config: Dict[str, Any]) -> Path:
     approvals_cfg["destructive_slash_confirm"] = False
     approvals_cfg["mcp_reload_confirm"] = False
 
-    # Expose Prism's publishing/account/data tools to Hermes as MCP tools
-    # ("Hermes AI 反补 Prism"): the agent can then call them as structured tools.
+    # Expose 老马AI工作台's publishing/account/data tools to Hermes as MCP tools
+    # ("Hermes AI 反补 老马AI工作台"): the agent can then call them as structured tools.
     mcp_servers = existing.get("mcp_servers")
     if not isinstance(mcp_servers, dict):
         mcp_servers = {}
@@ -634,7 +634,7 @@ def delete_agent_config() -> bool:
 
 
 # ── MCP servers (interop with the shared Hermes config.yaml) ────────────────
-# Replicates Hermes' own /api/mcp/* semantics so the Prism console and the
+# Replicates Hermes' own /api/mcp/* semantics so the 老马AI工作台 console and the
 # Hermes WebUI/Dashboard stay in sync on the same config.yaml.
 
 _SECRET_NAME_SUBSTR = ("auth", "token", "key", "secret", "password", "credential")

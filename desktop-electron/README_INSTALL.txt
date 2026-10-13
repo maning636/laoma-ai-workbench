@@ -1,4 +1,4 @@
-欢迎安装 Prism
+欢迎安装老马AI工作台
 ===========================================
 
 ## 新功能
@@ -51,7 +51,7 @@
 ## 技术支持
 
 如遇问题请查看日志文件：
-- 应用日志: %APPDATA%\Prism\logs
+- 应用日志: %APPDATA%\老马AI工作台\logs
 - 后端日志: 安装目录\prism_backend\logs
 
 ## 数据备份
@@ -62,4 +62,4 @@
 - Cookie: 安装目录\prism_backend\cookiesFile\
 
 ===========================================
-© 2026 Prism Team. All rights reserved.
+© 2026 老马AI工作台 Team. All rights reserved.

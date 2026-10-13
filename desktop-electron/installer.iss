@@ -1,8 +1,8 @@
-; Prism Inno Setup Script
-#define MyAppName "Prism"
+; 老马AI工作台 Inno Setup Script
+#define MyAppName "老马AI工作台"
 #define MyAppPublisher "Laihiujin"
 #define MyAppURL ""
-#define MyAppExeName "Prism.exe"
+#define MyAppExeName "LaomaAI.exe"
 #define APP_VERSION "1.1.0"
 
 ; These will be replaced by the batch script
@@ -41,7 +41,7 @@ DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 LicenseFile=
 OutputDir={#OutputDir}
-OutputBaseFilename=Prism-Setup-v{#MyAppVersionFull}
+OutputBaseFilename=老马AI工作台-Setup-v{#MyAppVersionFull}
 SetupIconFile={#IconFile}
 Compression=lzma2/max
 SolidCompression=yes
@@ -53,7 +53,7 @@ DisableProgramGroupPage=yes
 UninstallDisplayIcon={app}\{#MyAppExeName}
 CloseApplications=yes
 RestartApplications=yes
-CloseApplicationsFilter=Prism.exe
+CloseApplicationsFilter=LaomaAI.exe
 
 [Languages]
 #ifexist "compiler:Languages\ChineseSimplified.isl"
@@ -106,8 +106,8 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"
-Type: filesandordirs; Name: "{userappdata}\Prism\data"; Check: ShouldDeleteUserData
-Type: filesandordirs; Name: "{localappdata}\Prism\data"; Check: ShouldDeleteUserData
+Type: filesandordirs; Name: "{userappdata}\老马AI工作台\data"; Check: ShouldDeleteUserData
+Type: filesandordirs; Name: "{localappdata}\老马AI工作台\data"; Check: ShouldDeleteUserData
 
 [Code]
 var
@@ -117,7 +117,7 @@ var
 
 procedure ForceCloseRunningApp();
 begin
-  Exec('taskkill', '/F /IM Prism.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec('taskkill', '/F /IM LaomaAI.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 
 function InitializeSetup(): Boolean;

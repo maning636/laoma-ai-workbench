@@ -1,5 +1,5 @@
 #!/bin/bash
-# Prism Nginx 配置检查脚本
+# 老马AI工作台 Nginx 配置检查脚本
 
 set -e
 

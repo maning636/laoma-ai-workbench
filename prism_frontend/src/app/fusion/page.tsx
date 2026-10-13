@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { API_ENDPOINTS } from "@/lib/env"
 
 // 注：创作/热点/技能/认知/生图类能力已由 Easel 工作台承担（/easel 与 /easel-inbox），
-// 这里只保留 Prism 自有的运营向能力。后端 /api/v1/fusion/* 接口保留（发布链路依赖）。
+// 这里只保留 老马AI工作台 自有的运营向能力。后端 /api/v1/fusion/* 接口保留（发布链路依赖）。
 const MODULES = [
   {
     id: "providers",

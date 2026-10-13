@@ -3,7 +3,7 @@
 import asyncio, sys
 from pathlib import Path
 
-BASE = Path("/Users/laihiujin/Documents/siuyechu/Prism/prism_backend")
+BASE = Path("/Users/laihiujin/Documents/siuyechu/laoma-ai-workbench/prism_backend")
 OUT = BASE / "_edu_obs"
 OUT.mkdir(exist_ok=True)
 sys.path.insert(0, str(BASE))

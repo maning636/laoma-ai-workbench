@@ -6,6 +6,8 @@ import time
 from pathlib import Path
 
 from fastapi_app.core.logger import logger
+from fastapi_app.core import paths as core_paths
+from fastapi_app.utils.subprocess_safe import safe_run
 
 _RENDER_TIMEOUT_SECONDS = 600
 _PROXY = "http://127.0.0.1:7997"
@@ -19,7 +21,7 @@ def _build_env() -> dict:
     env["PYTHONUTF8"] = "1"
     env["PYTHONIOENCODING"] = "utf-8"
     env["NODE_NO_WARNINGS"] = "1"
-    node_dir = str(Path("C:/Program Files/nodejs"))
+    node_dir = str(core_paths.get_nodejs_dir())
     path_sep = ";" if sys.platform == "win32" else ":"
     cur_path = env.get("PATH", "")
     if node_dir not in cur_path.split(path_sep):
@@ -32,8 +34,8 @@ def _resolve_npx() -> str:
     found = shutil.which("npx")
     if found:
         return found
-    for cand in (Path("C:/Program Files/nodejs/npx.cmd"),
-                 Path("C:/Program Files/nodejs/npx.exe"),
+    for cand in (Path(core_paths.get_nodejs_dir()) / "npx.cmd",
+                 Path(core_paths.get_nodejs_dir()) / "npx.exe",
                  Path(str(Path.home() / "AppData/Roaming/nvm"))):
         if cand.exists():
             return str(cand)
@@ -42,12 +44,11 @@ def _resolve_npx() -> str:
 
 def probe_hyperframes() -> dict:
     try:
-        proc = subprocess.run(
+        proc = safe_run(
             [_resolve_npx(), "hyperframes", "--version"],
-            capture_output=True,
             timeout=30,
-            env=_build_env(),
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0,
+            env_extra=_build_env(),
+            capture_output=True,
         )
         out = (proc.stdout or b"").decode("utf-8", errors="ignore").strip()
         err = (proc.stderr or b"").decode("utf-8", errors="ignore").strip()
@@ -66,13 +67,12 @@ def run_hyperframes_render(composition_dir: Path, quality: str, fps: int, variab
     """
     for check in ("lint", "validate"):
         try:
-            subprocess.run(
+            safe_run(
                 [_resolve_npx(), "hyperframes", check],
                 cwd=str(composition_dir),
                 capture_output=True,
                 timeout=60,
-                env=_build_env(),
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0,
+                env_extra=_build_env(),
             )
         except Exception as e:
             logger.warning(f"[VideoPipeline] hyperframes {check} 跳过: {e}")
@@ -85,13 +85,12 @@ def run_hyperframes_render(composition_dir: Path, quality: str, fps: int, variab
         cmd += [f"--variables={json.dumps(variables, ensure_ascii=False)}"]
     logger.info(f"[VideoPipeline] render cwd={composition_dir} variables={'yes' if variables else 'no'} cmd={' '.join(cmd)}")
     started = time.time()
-    proc = subprocess.run(
+    proc = safe_run(
         cmd,
         cwd=str(composition_dir),
         capture_output=True,
         timeout=_RENDER_TIMEOUT_SECONDS,
-        env=_build_env(),
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0,
+        env_extra=_build_env(),
     )
     elapsed = round(time.time() - started, 1)
     stdout = (proc.stdout or b"").decode("utf-8", errors="ignore")

@@ -11,6 +11,10 @@ import {
   Loader2,
   Music,
   RefreshCw,
+  Copy,
+  Check,
+  Monitor,
+  X,
 } from "lucide-react"
 
 import { PageHeader } from "@/components/layout/page-scaffold"
@@ -48,6 +52,10 @@ function fmtTime(mtime: number) {
   return new Date(mtime * 1000).toLocaleString("zh-CN", { hour12: false })
 }
 
+function isHtml(f: OutputNode): boolean {
+  return /\.(html?|htm)$/i.test(f.name || "")
+}
+
 function flattenFiles(node: OutputNode, out: OutputNode[] = []): OutputNode[] {
   if (node.type === "file") {
     out.push(node)
@@ -70,6 +78,31 @@ export default function ContentLibraryPage() {
   const [selected, setSelected] = useState<OutputNode | null>(null)
   const [preview, setPreview] = useState<{ url: string; kind: string; name: string } | null>(null)
   const [textContent, setTextContent] = useState<{ name: string; content: string } | null>(null)
+  const [previewHtml, setPreviewHtml] = useState<{ name: string; html: string; inline_count: number } | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  const openHtml = async (f: OutputNode) => {
+    try {
+      const res = await fetch(`/api/v1/content-library/preview?path=${encodeURIComponent(f.path)}`, { cache: "no-store" })
+      const data = await res.json()
+      if (data?.result?.html) {
+        setPreviewHtml({ name: f.name, html: data.result.html, inline_count: data.result.inline_count || 0 })
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const copyHtml = async () => {
+    if (!previewHtml) return
+    try {
+      await navigator.clipboard.writeText(previewHtml.html)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      /* ignore */
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -169,16 +202,21 @@ export default function ContentLibraryPage() {
 
                   <div className="space-y-2">
                     {flattenFiles(selected).map((f) => (
-                      <div key={f.path} className="flex items-center justify-between gap-2 rounded-lg border p-2.5">
+                      <div key={f.path} className="flex items-center justify-between gap-2 rounded-lg border border-border p-2.5">
                         <div className="flex min-w-0 items-center gap-2 text-sm">
                           <span className="text-muted-foreground">{fileIcon(f.kind)}</span>
                           <span className="truncate">{f.name}</span>
                           {f.size ? <span className="shrink-0 text-xs text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</span> : null}
                         </div>
                         <div className="flex shrink-0 items-center gap-1">
-                          {f.kind === "text" && (
+                          {f.kind === "text" && !isHtml(f) && (
                             <Button size="sm" variant="ghost" onClick={() => openText(f)}>
                               <FileText className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {isHtml(f) && (
+                            <Button size="sm" variant="ghost" onClick={() => openHtml(f)}>
+                              <Monitor className="h-4 w-4" />
                             </Button>
                           )}
                           {(f.kind === "image" || f.kind === "video" || f.kind === "audio") && (
@@ -217,7 +255,7 @@ export default function ContentLibraryPage() {
             ) : (
               <audio src={preview.url} controls autoPlay className="w-96" />
             )}
-            <div className="mt-2 text-center text-sm text-white/80">{preview.name}（点击空白关闭）</div>
+            <div className="mt-2 text-center text-sm text-foreground/80">{preview.name}（点击空白关闭）</div>
           </div>
         </div>
       )}
@@ -227,6 +265,35 @@ export default function ContentLibraryPage() {
           <div className="max-h-[85vh] w-full max-w-3xl overflow-auto rounded-xl bg-card p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-3 text-sm font-semibold">{textContent.name}</div>
             <pre className="whitespace-pre-wrap break-words text-xs leading-relaxed">{textContent.content}</pre>
+          </div>
+        </div>
+      )}
+
+      {previewHtml && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6" onClick={() => setPreviewHtml(null)}>
+          <div className="flex h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-border p-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <Monitor className="h-4 w-4 text-muted-foreground" />
+                <span className="truncate text-sm font-semibold">{previewHtml.name}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">· 已内联 {previewHtml.inline_count} 处本地媒体</span>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <Button size="sm" variant="outline" onClick={copyHtml}>
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  {copied ? "已复制" : "复制 HTML"}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setPreviewHtml(null)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <iframe
+              title={previewHtml.name}
+              srcDoc={previewHtml.html}
+              sandbox="allow-same-origin"
+              className="flex-1 w-full border-0 bg-white"
+            />
           </div>
         </div>
       )}

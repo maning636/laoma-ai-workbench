@@ -11,6 +11,8 @@ export interface AgentEvent {
   status?: string
   message?: string
   content?: string
+  session_id?: string
+  turn_id?: string
   plan?: {
     goal?: string
     estimated_steps?: string | number
@@ -46,6 +48,8 @@ export interface AgentStreamState {
   }>
   finalResult: any | null
   error: string | null
+  sessionId: string | null
+  turnId: string | null
 }
 
 export function useAgentStream() {
@@ -57,7 +61,9 @@ export function useAgentStream() {
     toolCalls: [],
     tasks: [],
     finalResult: null,
-    error: null
+    error: null,
+    sessionId: null,
+    turnId: null
   })
 
   const eventSourceRef = useRef<EventSource | null>(null)
@@ -79,9 +85,44 @@ export function useAgentStream() {
       toolCalls: [],
       tasks: [],
       finalResult: null,
-      error: null
+      error: null,
+      sessionId: null,
+      turnId: null
     })
   }, [])
+
+  /** 断线补偿：调后端 /hermes-stream/last/{session_id} 回放最近一次 turn 的完整事件流。
+   *  参照 tools/easel-ref/app.py:1112 的 /api/chat/last 模式。 */
+  const replayLast = useCallback(async (sessionId?: string) => {
+    const sid = sessionId
+    if (!sid) {
+      setState(prev => ({ ...prev, error: "无 session_id，无法回放" }))
+      return null
+    }
+    try {
+      const resp = await fetch(
+        `${API_ENDPOINTS.base || "http://localhost:7000"}/api/v1/agent/hermes-stream/last/${encodeURIComponent(sid)}`
+      )
+      if (!resp.ok) {
+        setState(prev => ({ ...prev, error: `回放失败：HTTP ${resp.status}` }))
+        return null
+      }
+      const payload = await resp.json()
+      const events: AgentEvent[] = payload?.data?.events || []
+      // 用当前事件处理逻辑重放
+      resetState()
+      setState(prev => ({ ...prev, sessionId: sid, isStreaming: false }))
+      events.forEach(ev => handleEvent(ev))
+      setState(prev => ({ ...prev, isStreaming: false, sessionId: sid }))
+      return events
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      setState(prev => ({ ...prev, error: `回放失败：${msg}` }))
+      return null
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetState])
+
 
   const startStreaming = useCallback(
     async (
@@ -198,7 +239,9 @@ export function useAgentStream() {
           return {
             ...prev,
             events: newEvents,
-            currentThinking: event.message || ""
+            currentThinking: event.message || "",
+            sessionId: event.session_id || prev.sessionId,
+            turnId: event.turn_id || prev.turnId
           }
 
         case "thinking":
@@ -321,7 +364,8 @@ export function useAgentStream() {
     ...state,
     startStreaming,
     stopStreaming,
-    resetState
+    resetState,
+    replayLast
   }
 }
 

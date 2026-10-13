@@ -1,21 +1,21 @@
 ---
-name: prism-title-topic
-description: "Prism 标题/话题生成技能：给出各平台（抖音/小红书）的「网感」标题与话题规则、生成调用方式与自检标准，让发布标题更符合平台调性。"
+name: laoma-title-topic
+description: "老马AI工作台标题/话题生成技能：给出各平台（抖音/小红书）的「网感」标题与话题规则、生成调用方式与自检标准，让发布标题更符合平台调性。"
 version: 1.0.0
-author: Prism
+author: 老马AI工作台
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
   hermes:
-    tags: [Prism, title, 标题, topic, 话题, douyin, xiaohongshu]
-    related_skills: [prism-project-layout]
+    tags: [老马AI工作台, title, 标题, topic, 话题, douyin, xiaohongshu]
+    related_skills: [laoma-project-layout]
 prerequisites:
   commands: [prism]
 ---
 
-# Prism 标题/话题生成（网感 · 平台差异化）
+# 老马AI工作台标题/话题生成（网感 · 平台差异化）
 
-Prism 是多平台内容编排与发布项目。本技能给出 **抖音** 与 **小红书** 的「网感」标题 + 话题
+老马AI工作台是多平台内容编排与发布项目。本技能给出 **抖音** 与 **小红书** 的「网感」标题 + 话题
 生成规则：每个平台的标题钩子、字数上限、话题组合、语气与合规自检。目标是让标题在信息流里
 **自然、可停留、像"人"在说**，而不是机器腔、模板腔。
 

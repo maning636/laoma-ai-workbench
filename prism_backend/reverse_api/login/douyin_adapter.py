@@ -19,7 +19,7 @@ _STATUS_MAP = {
 
 def _default_adapter_factory() -> Any:
     # Import lazily so protocol metadata and unit tests remain usable without a
-    # browser runtime. Prism starts with prism_backend on sys.path in production.
+    # browser runtime. 老马AI工作台 starts with prism_backend on sys.path in production.
     try:
         from prism_backend.app_new.platforms.douyin import DouyinAdapter
     except ImportError:
@@ -31,7 +31,7 @@ def _default_adapter_factory() -> Any:
 
 
 class DouyinQrLoginAdapter(QrLoginAdapter):
-    """Normalize Prism's current browser login into the reverse-login contract.
+    """Normalize 老马AI工作台's current browser login into the reverse-login contract.
 
     The official page runtime owns dynamic request signing. This class never
     serializes those parameters; it returns the established session payload to

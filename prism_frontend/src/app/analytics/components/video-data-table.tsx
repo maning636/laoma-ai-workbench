@@ -134,14 +134,14 @@ export function VideoDataTable({ data, isLoading }: VideoDataTableProps) {
                     <DropdownMenuTrigger asChild>
                         <Button
                             variant="outline"
-                            className="ml-auto h-8 border-border/70 bg-card/40 px-2.5 text-xs text-foreground/80 hover:text-foreground hover:bg-card/60 data-[state=open]:bg-black data-[state=open]:text-foreground transition-all"
+                            className="ml-auto h-8 border-border/70 bg-card/40 px-2.5 text-xs text-foreground/80 hover:text-foreground hover:bg-card/60 data-[state=open]:bg-popover data-[state=open]:text-foreground transition-all"
                         >
                             <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" />
                             显示列
                             <ChevronDown className="ml-2 h-3 w-3 opacity-50" />
                         </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-44 bg-black border-border/70 p-1 text-foreground">
+                    <DropdownMenuContent align="end" className="w-44 bg-popover border-border/70 p-1 text-foreground">
                         {Object.keys(visibleColumns).map((key) => {
                             const labels: Record<string, string> = {
                                 video: "视频信息",
@@ -161,7 +161,7 @@ export function VideoDataTable({ data, isLoading }: VideoDataTableProps) {
                                     onCheckedChange={(checked) =>
                                         setVisibleColumns(prev => ({ ...prev, [key]: checked }))
                                     }
-                                    className="h-7 whitespace-nowrap py-1 pl-7 pr-2 text-xs leading-none hover:bg-accent/50 focus:bg-black cursor-pointer"
+                                    className="h-7 whitespace-nowrap py-1 pl-7 pr-2 text-xs leading-none hover:bg-accent/50 focus:bg-popover cursor-pointer"
                                 >
                                     {labels[key]}
                                 </DropdownMenuCheckboxItem>
@@ -173,7 +173,7 @@ export function VideoDataTable({ data, isLoading }: VideoDataTableProps) {
 
             <div className="border-y border-border/60 overflow-hidden">
                 <Table>
-                    <TableHeader className="bg-black/80">
+                    <TableHeader className="bg-muted/40">
                         <TableRow className="h-8 border-border/70 hover:bg-transparent">
                             {visibleColumns.video && <TableHead className="w-[28%] text-[10px] uppercase tracking-wider text-muted-foreground">视频</TableHead>}
                             {visibleColumns.link && <TableHead className="w-16 text-[10px] uppercase tracking-wider text-muted-foreground">链接</TableHead>}
@@ -219,7 +219,7 @@ export function VideoDataTable({ data, isLoading }: VideoDataTableProps) {
                                     {visibleColumns.video && (
                                         <TableCell className="py-1.5">
                                             <div className="flex items-center gap-2">
-                                                <div className="relative w-12 h-7 overflow-hidden bg-black shrink-0 border border-border/70">
+                                                <div className="relative w-12 h-7 overflow-hidden bg-popover shrink-0 border border-border/70">
                                                     <img
                                                         src={video.thumbnail || '/placeholder-video.png'}
                                                         alt={video.title}
@@ -240,7 +240,7 @@ export function VideoDataTable({ data, isLoading }: VideoDataTableProps) {
                                                     href={video.videoUrl}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
-                                                    className="inline-flex items-center gap-1 border border-border/60 bg-black px-1.5 py-0.5 text-[10px] text-white hover:bg-accent/50 hover:text-white transition-colors"
+                                                    className="inline-flex items-center gap-1 border border-border/60 bg-popover px-1.5 py-0.5 text-[10px] text-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
                                                 >
                                                     查看
                                                     <ExternalLink className="h-3 w-3" />
@@ -252,22 +252,22 @@ export function VideoDataTable({ data, isLoading }: VideoDataTableProps) {
                                     )}
                                     {visibleColumns.platform && (
                                         <TableCell>
-                                            <Badge variant="outline" className="bg-black px-1.5 py-0 text-[10px] border-border/70 text-foreground/70 hover:bg-accent/50">
+                                            <Badge variant="outline" className="bg-popover px-1.5 py-0 text-[10px] border-border/70 text-foreground/70 hover:bg-accent/50">
                                                 {video.platform}
                                             </Badge>
                                         </TableCell>
                                     )}
                                     {visibleColumns.playCount && (
-                                        <TableCell className="font-mono text-xs font-medium text-white/90">{formatNumber(video.playCount)}</TableCell>
+                                        <TableCell className="font-mono text-xs font-medium text-foreground/90">{formatNumber(video.playCount)}</TableCell>
                                     )}
                                     {visibleColumns.likeCount && (
-                                        <TableCell className="font-mono text-xs text-white/90">{formatNumber(video.likeCount)}</TableCell>
+                                        <TableCell className="font-mono text-xs text-foreground/90">{formatNumber(video.likeCount)}</TableCell>
                                     )}
                                     {visibleColumns.commentCount && (
-                                        <TableCell className="font-mono text-xs text-white/90">{formatNumber(video.commentCount)}</TableCell>
+                                        <TableCell className="font-mono text-xs text-foreground/90">{formatNumber(video.commentCount)}</TableCell>
                                     )}
                                     {visibleColumns.collectCount && (
-                                        <TableCell className="font-mono text-xs text-white/90">{formatNumber(video.collectCount)}</TableCell>
+                                        <TableCell className="font-mono text-xs text-foreground/90">{formatNumber(video.collectCount)}</TableCell>
                                     )}
                                     {visibleColumns.publishDate && (
                                         <TableCell className="text-[10px] text-muted-foreground font-mono">

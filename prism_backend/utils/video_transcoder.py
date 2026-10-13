@@ -8,9 +8,8 @@ import subprocess
 import json
 from pathlib import Path
 from typing import Optional, Tuple
-from utils.log import get_logger
-
-logger = get_logger("video_transcoder")
+from loguru import logger
+from fastapi_app.utils.subprocess_safe import safe_run
 
 
 def get_video_codec(file_path: str) -> Optional[str]:
@@ -24,10 +23,10 @@ def get_video_codec(file_path: str) -> Optional[str]:
         编码格式 (如 'h264', 'hevc', 'vp9') 或 None
     """
     try:
-        result = subprocess.run(
+        result = safe_run(
             ['ffprobe', '-v', 'error', '-select_streams', 'v:0',
              '-show_entries', 'stream=codec_name', '-of', 'json', file_path],
-            capture_output=True, text=True, timeout=10
+            timeout=10,
         )
 
         if result.returncode == 0:
@@ -109,11 +108,9 @@ def transcode_to_h264(
     logger.debug(f"FFmpeg 命令: {' '.join(cmd)}")
 
     try:
-        result = subprocess.run(
+        result = safe_run(
             cmd,
-            capture_output=True,
-            text=True,
-            timeout=600  # 10分钟超时
+            timeout=600,  # 10分钟超时
         )
 
         if result.returncode == 0:
@@ -182,11 +179,9 @@ def check_ffmpeg_available() -> bool:
         FFmpeg 是否已安装
     """
     try:
-        result = subprocess.run(
+        result = safe_run(
             ['ffmpeg', '-version'],
-            capture_output=True,
-            text=True,
-            timeout=5
+            timeout=5,
         )
         return result.returncode == 0
     except Exception:

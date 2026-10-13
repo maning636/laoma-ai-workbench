@@ -1,16 +1,16 @@
 @echo off
 chcp 65001 >nul 2>&1
 echo ============================================
-echo   强制关闭所有 Prism 进程
+echo   强制关闭所有 老马AI工作台 进程
 echo ============================================
 echo.
 
-echo [1/6] 关闭 Prism.exe...
-taskkill /F /IM Prism.exe >nul 2>&1
+echo [1/6] 关闭 LaomaAI.exe...
+taskkill /F /IM LaomaAI.exe >nul 2>&1
 if %errorlevel%==0 (
-    echo ✓ Prism.exe 已关闭
+    echo ✓ LaomaAI.exe 已关闭
 ) else (
-    echo - Prism.exe 未运行
+    echo - LaomaAI.exe 未运行
 )
 
 echo [2/6] 关闭 supervisor.exe...

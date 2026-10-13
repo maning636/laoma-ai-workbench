@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import json
-import subprocess
 import sys
 import time
 import uuid
@@ -17,11 +16,16 @@ from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
+from fastapi_app.core import paths
 from fastapi_app.services.easel_workbench import EASEL_DIR
+from fastapi_app.utils.subprocess_safe import safe_run
 
-PYTHON_EXE = EASEL_DIR / ".venv" / "Scripts" / "python.exe"
+if sys.platform == "win32":
+    PYTHON_EXE = EASEL_DIR / ".venv" / "Scripts" / "python.exe"
+else:
+    PYTHON_EXE = EASEL_DIR / ".venv" / "bin" / "python"
 SCRIPTS_DIR = EASEL_DIR / "skills" / "shared" / "scripts"
-WORKSHOP_DIR = Path("data/workshop")
+WORKSHOP_DIR = paths.get_data_dir() / "workshop"
 
 RUN_TIMEOUT_SECONDS = 900
 
@@ -137,19 +141,12 @@ def run_tool(
 
     logger.info(f"[Workshop] 运行 {tool_id}: {' '.join(cmd[:6])}...")
     started = time.time()
-    import os
-
-    env = os.environ.copy()
-    # 脚本输出含 Unicode 字符（✅ 等），GBK 控制台会直接崩
-    env["PYTHONUTF8"] = "1"
-    env["PYTHONIOENCODING"] = "utf-8"
-    proc = subprocess.run(
+    # safe_run 内部自动注入 UTF-8 环境变量与 Windows CREATE_NO_WINDOW
+    proc = safe_run(
         cmd,
         cwd=str(workdir),
         capture_output=True,
         timeout=RUN_TIMEOUT_SECONDS,
-        env=env,
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0,
     )
     elapsed = round(time.time() - started, 1)
     stdout = (proc.stdout or b"").decode("utf-8", errors="ignore")

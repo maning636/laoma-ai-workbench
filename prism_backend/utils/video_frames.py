@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 import glob
 import sys
+from fastapi_app.utils.subprocess_safe import safe_run
 
 
 def _repo_root() -> Path:
@@ -78,7 +79,7 @@ def extract_first_frame(video_path: str, out_path: str, *, overwrite: bool = Tru
         "scale=iw:ih",
         str(dst),
     ]
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    proc = safe_run(cmd, timeout=30)
     if proc.returncode != 0 or not dst.exists():
         stderr = (proc.stderr or "").strip()
         raise RuntimeError(f"ffmpeg extract_first_frame failed: {stderr[:4000]}")

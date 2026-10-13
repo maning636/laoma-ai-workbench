@@ -4,7 +4,7 @@ import { open, readFile, readdir, stat } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 
 /**
- * 发布产物校验（参考 dsh-desktop verify-release-assets.mjs，Prism Windows 优先）。
+ * 发布产物校验（参考 dsh-desktop verify-release-assets.mjs，老马AI工作台 Windows 优先）。
  *
  * 校验：
  * - 必需产物存在：<version>-setup.exe / .exe.blockmap / latest.yml
@@ -22,8 +22,8 @@ const MIN_BYTES = {
 
 function requiredAssets(version) {
   return [
-    `Prism-${version}-setup.exe`,
-    `Prism-${version}-setup.exe.blockmap`,
+    `LaomaAI-${version}-setup.exe`,
+    `LaomaAI-${version}-setup.exe.blockmap`,
     'latest.yml'
   ];
 }

@@ -3,16 +3,16 @@ chcp 65001 >nul 2>&1
 setlocal enabledelayedexpansion
 
 :: ============================================
-::   Prism Package Script
+::   老马AI工作台 Package Script
 :: ============================================
 echo.
 echo ============================================
-echo   Prism Package Script
+echo   老马AI工作台 Package Script
 echo ============================================
 echo.
 
-set "AUTO_YES=%PRISM_AUTO_YES%"
-set "AUTO_PACKAGE_TYPE=%PRISM_PACKAGE_TYPE%"
+set "AUTO_YES=%LAOMA_AUTO_YES%"
+set "AUTO_PACKAGE_TYPE=%LAOMA_PACKAGE_TYPE%"
 set "PF86="
 set "PF64="
 for %%I in ("%ProgramFiles(x86)%") do set "PF86=%%~sI"
@@ -100,11 +100,6 @@ if not exist "%PROJECT_ROOT%prismenv\Scripts\python.exe" (
     pause
     exit /b 1
 )
-if not exist "%PROJECT_ROOT%prismenv\_python\python.exe" (
-    echo ERROR: embedded runtime missing base python home: %PROJECT_ROOT%prismenv\_python\python.exe
-    pause
-    exit /b 1
-)
 if not exist "%PROJECT_ROOT%prismenv\.hermes-runtime-ready" (
     echo ERROR: embedded runtime readiness marker missing: %PROJECT_ROOT%prismenv\.hermes-runtime-ready
     pause
@@ -146,9 +141,9 @@ echo.
 :: ============================================
 echo [1/7] Check and stop running process...
 echo.
-tasklist /FI "IMAGENAME eq Prism.exe" 2>NUL | find /I /N "Prism.exe">NUL
+tasklist /FI "IMAGENAME eq LaomaAI.exe" 2>NUL | find /I /N "LaomaAI.exe">NUL
 if "%ERRORLEVEL%"=="0" (
-    echo WARNING: Prism.exe is running
+    echo WARNING: LaomaAI.exe is running
     if /I "%AUTO_YES%"=="1" (
         echo Auto mode: stopping process
     ) else (
@@ -160,7 +155,7 @@ if "%ERRORLEVEL%"=="0" (
         )
     )
     echo Stopping process...
-    taskkill /F /IM Prism.exe >nul 2>&1
+    taskkill /F /IM LaomaAI.exe >nul 2>&1
     timeout /t 2 >nul
     echo OK: process stopped
 ) else (
@@ -378,16 +373,6 @@ if exist "%UNPACKED_RES%" (
             echo WARNING: prismenv source missing: %PROJECT_ROOT%prismenv
         )
     )
-    if not exist "%UNPACKED_RES%\prismenv\_python\python.exe" (
-        if exist "%PROJECT_ROOT%prismenv\_python\python.exe" (
-            echo Copying prismenv base python home into win-unpacked resources...
-            xcopy /E /I /Y "%PROJECT_ROOT%prismenv\_python" "%UNPACKED_RES%\prismenv\_python\" >nul
-        ) else (
-            echo ERROR: prismenv base python home missing: %PROJECT_ROOT%prismenv\_python\python.exe
-            pause
-            exit /b 1
-        )
-    )
     if not exist "%UNPACKED_RES%\browsers" (
         if exist "%PROJECT_ROOT%browsers" (
             echo Copying browsers into win-unpacked resources...
@@ -412,7 +397,7 @@ if exist "%UNPACKED_RES%" (
             rd /s /q "%UNPACKED_RES%\prism_backend" 2>nul
         )
         echo   - Copying latest prism_backend ^(excluding user data^)...
-        robocopy "%PROJECT_ROOT%prism_backend" "%UNPACKED_RES%\prism_backend" /E /NFL /NDL /NJH /NJS /XD "__pycache__" ".pytest_cache" "tests" "logs" "backups" "browser_profiles" "videoFile" "cookiesFile" "fingerprints" /XF "*.pyc" "*.pyo" "test_*" "*.db" "*.db-*" "*.sqlite" "*.sqlite-*" "frontend_accounts_snapshot.json" >nul
+        robocopy "%PROJECT_ROOT%prism_backend" "%UNPACKED_RES%\prism_backend" /E /NFL /NDL /NJH /NJS /XD "__pycache__" ".pytest_cache" "tests" "logs" "backups" "browser_profiles" "videoFile" "cookiesFile" "fingerprints" /XF "*.pyc" "*.pyo" "test_*" "*.db" "*.db-*" "*.sqlite" "*.sqlite-*" "frontend_accounts_snapshot.json" ".env" ".env.local" "auth.json" "hermes_agent.toml" "llm_config.toml" "*.pem" "*.p12" "*.pfx" >nul
         if errorlevel 8 (
             echo ERROR: failed to copy prism_backend
             pause
@@ -447,11 +432,6 @@ if exist "%UNPACKED_RES%" (
 if exist "%UNPACKED_RES%" (
     if not exist "%UNPACKED_RES%\prismenv\Scripts\python.exe" (
         echo ERROR: win-unpacked missing prismenv python: %UNPACKED_RES%\prismenv\Scripts\python.exe
-        pause
-        exit /b 1
-    )
-    if not exist "%UNPACKED_RES%\prismenv\_python\python.exe" (
-        echo ERROR: win-unpacked missing prismenv base python home: %UNPACKED_RES%\prismenv\_python\python.exe
         pause
         exit /b 1
     )
@@ -502,7 +482,7 @@ echo.
 echo Output directory: %OUTPUT_DIR%\win-unpacked
 echo.
 echo Please test:
-echo   1. Run: %OUTPUT_DIR%\win-unpacked\Prism.exe
+echo   1. Run: %OUTPUT_DIR%\win-unpacked\LaomaAI.exe
 echo   2. Check Supervisor starts
 echo   3. Check backend service status
 echo   4. Check frontend access
@@ -557,7 +537,7 @@ if "!PACKAGE_TYPE!"=="2" (
     if not exist "!SOURCE_DIR!\resources\prism_backend" (
         if exist "!PROJECT_ROOT!prism_backend" (
             echo INFO: prism_backend missing in output; copying...
-            robocopy "!PROJECT_ROOT!prism_backend" "!SOURCE_DIR!\resources\prism_backend" /E /NFL /NDL /NJH /NJS /XD "__pycache__" ".pytest_cache" "tests" "logs" "backups" "browser_profiles" "videoFile" "cookiesFile" "fingerprints" /XF "*.pyc" "*.pyo" "test_*" "*.db" "*.db-*" "*.sqlite" "*.sqlite-*" "frontend_accounts_snapshot.json" >nul
+            robocopy "!PROJECT_ROOT!prism_backend" "!SOURCE_DIR!\resources\prism_backend" /E /NFL /NDL /NJH /NJS /XD "__pycache__" ".pytest_cache" "tests" "logs" "backups" "browser_profiles" "videoFile" "cookiesFile" "fingerprints" /XF "*.pyc" "*.pyo" "test_*" "*.db" "*.db-*" "*.sqlite" "*.sqlite-*" "frontend_accounts_snapshot.json" ".env" ".env.local" "auth.json" "hermes_agent.toml" "llm_config.toml" "*.pem" "*.p12" "*.pfx" >nul
             if errorlevel 8 (
                 echo ERROR: failed to copy prism_backend
                 pause

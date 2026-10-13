@@ -75,7 +75,7 @@ function EmptyCard({ children }: { children: React.ReactNode }) {
   )
 }
 
-/* ── 本项目的 MCP（prism MCP server：把 Prism 业务工具暴露给 Hermes）──────── */
+/* ── 本项目的 MCP（prism MCP server：把 老马AI工作台 业务工具暴露给 Hermes）──────── */
 
 export function McpPanel({
   baseUrl,
@@ -135,7 +135,7 @@ export function McpPanel({
         <Card key={s.name} className="bg-card/40 border-border/70">
           <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
             <div className="flex items-start gap-3">
-              <div className="rounded-lg border border-white/17 bg-black p-2">
+              <div className="rounded-lg border border-white/17 bg-popover p-2">
                 <Server className="h-5 w-5" />
               </div>
               <div>
@@ -147,7 +147,7 @@ export function McpPanel({
             </div>
             <Badge
               variant="secondary"
-              className={cn("shrink-0 text-xs", s.enabled ? "bg-black text-white border-border" : "bg-muted text-muted-foreground")}
+              className={cn("shrink-0 text-xs", s.enabled ? "bg-popover text-foreground border-border" : "bg-muted text-muted-foreground")}
             >
               {s.enabled ? "运行中" : "已停用"}
             </Badge>
@@ -246,7 +246,7 @@ export function PluginPanel({
           <Card key={p.name} className="bg-card/40 border-border/70">
             <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
               <div className="flex items-start gap-3">
-                <div className="rounded-lg border border-white/17 bg-black p-2">
+                <div className="rounded-lg border border-white/17 bg-popover p-2">
                   <Puzzle className="h-5 w-5" />
                 </div>
                 <div>
@@ -256,7 +256,7 @@ export function PluginPanel({
               </div>
               <Badge
                 variant="secondary"
-                className={cn("shrink-0 text-xs", active ? "bg-black text-white border-border" : "bg-muted text-muted-foreground")}
+                className={cn("shrink-0 text-xs", active ? "bg-popover text-foreground border-border" : "bg-muted text-muted-foreground")}
               >
                 {active ? "已启用" : "已停用"}
               </Badge>

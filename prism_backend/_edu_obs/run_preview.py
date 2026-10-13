@@ -4,7 +4,7 @@ import asyncio
 from pathlib import Path
 import sys
 
-BASE = Path("/Users/laihiujin/Documents/siuyechu/Prism/prism_backend")
+BASE = Path("/Users/laihiujin/Documents/siuyechu/laoma-ai-workbench/prism_backend")
 sys.path.insert(0, str(BASE))
 
 from uploader.douyin_uploader.main_refactored import DouYinVideo

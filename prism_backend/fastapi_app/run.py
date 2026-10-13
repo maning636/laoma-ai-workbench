@@ -1,11 +1,19 @@
 """
 FastAPI Application Startup Script
 """
-
-import sys
 import os
-import asyncio
+import sys
 from pathlib import Path
+
+# 开发模式(非 PyInstaller 打包,frozen=False):数据落项目内 data/,
+# 禁止写 C:\Users\...\AppData\Roaming\老马AI工作台\data。
+# 必须在 import fastapi_app.*(会触发 settings.DATA_DIR 求值)之前设置。
+# 打包模式(frozen=True)不进入,安装机仍用默认 %APPDATA%。
+if not getattr(sys, "frozen", False):
+    _repo_root = Path(__file__).resolve().parents[2]
+    os.environ.setdefault("LAOMA_DATA_DIR", str(_repo_root / "data"))
+
+import asyncio
 
 # CRITICAL: Ensure Windows ProactorEventLoop for asyncio subprocess support (Playwright needs this)
 if sys.platform == "win32":

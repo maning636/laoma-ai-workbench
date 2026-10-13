@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 
 # 导入子路由
 from .browser_profiles import router as browser_profiles_router
+from .preflight import run_preflight_check
 
 # 浏览器引擎「工具组件」（tools/）跨平台下载/安装/校验/卸载
 from tools import browser_components
@@ -121,18 +122,15 @@ def _get_browser_runtime_info() -> Dict[str, Any]:
 
 
 def _run_runtime_command(args: list[str]) -> subprocess.CompletedProcess:
-    env = os.environ.copy()
-    env["PLAYWRIGHT_BROWSERS_PATH"] = str(_browsers_root())
-    env["PRISM_AUTOMATION_RUNTIME"] = _get_browser_runtime_info()["preferredRuntime"]
+    env_extra: dict[str, str] = {
+        "PLAYWRIGHT_BROWSERS_PATH": str(_browsers_root()),
+        "LAOMA_AUTOMATION_RUNTIME": _get_browser_runtime_info()["preferredRuntime"],
+    }
     _browsers_root().mkdir(parents=True, exist_ok=True)
-    return subprocess.run(
+    return safe_run(
         [sys.executable, *args],
         cwd=str(_repo_root()),
-        env=env,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
+        env_extra=env_extra,
     )
 
 
@@ -141,11 +139,12 @@ def _run_hibbiki_chromium_install() -> subprocess.CompletedProcess:
     if not script_path.exists():
         raise FileNotFoundError(f"Hibbiki installer not found: {script_path}")
 
-    env = os.environ.copy()
-    env["PLAYWRIGHT_BROWSERS_PATH"] = str(_browsers_root())
-    env["PRISM_AUTOMATION_RUNTIME"] = _get_browser_runtime_info()["preferredRuntime"]
+    env_extra: dict[str, str] = {
+        "PLAYWRIGHT_BROWSERS_PATH": str(_browsers_root()),
+        "LAOMA_AUTOMATION_RUNTIME": _get_browser_runtime_info()["preferredRuntime"],
+    }
     _browsers_root().mkdir(parents=True, exist_ok=True)
-    return subprocess.run(
+    return safe_run(
         [
             "powershell.exe",
             "-NoProfile",
@@ -158,11 +157,7 @@ def _run_hibbiki_chromium_install() -> subprocess.CompletedProcess:
             "-Clean",
         ],
         cwd=str(_repo_root()),
-        env=env,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
+        env_extra=env_extra,
     )
 
 
@@ -369,12 +364,12 @@ async def set_browser_headless(headless: bool = Body(..., embed=True)):
 
 @router.get("/douyin-login-mode", summary="获取抖音登录模式")
 async def get_douyin_login_mode():
-    """读取 .env 的 PRISM_DOUYIN_LOGIN_MODE（browser=正式/当前模拟，http=逆向HTTP测试）。"""
+    """读取 .env 的 LAOMA_DOUYIN_LOGIN_MODE（browser=正式/当前模拟，http=逆向HTTP测试）。"""
     env_file = _repo_root() / ".env"
     value = "browser"
     try:
         from dotenv import dotenv_values
-        raw = (dotenv_values(env_file) or {}).get("PRISM_DOUYIN_LOGIN_MODE")
+        raw = (dotenv_values(env_file) or {}).get("LAOMA_DOUYIN_LOGIN_MODE")
         if raw:
             value = str(raw).strip().lower()
     except Exception:
@@ -384,14 +379,14 @@ async def get_douyin_login_mode():
 
 @router.put("/douyin-login-mode", summary="设置抖音登录模式")
 async def set_douyin_login_mode(mode: str = Body(..., embed=True)):
-    """写入 .env 的 PRISM_DOUYIN_LOGIN_MODE。修改后需重启后端生效。"""
+    """写入 .env 的 LAOMA_DOUYIN_LOGIN_MODE。修改后需重启后端生效。"""
     mode = (mode or "browser").strip().lower()
     if mode not in {"browser", "http"}:
         raise HTTPException(status_code=400, detail="mode 必须是 browser 或 http")
     env_file = _repo_root() / ".env"
     try:
         from dotenv import set_key
-        set_key(str(env_file), "PRISM_DOUYIN_LOGIN_MODE", mode, quote_mode="never")
+        set_key(str(env_file), "LAOMA_DOUYIN_LOGIN_MODE", mode, quote_mode="never")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"写入 .env 失败: {str(e)}")
     return {"success": True, "mode": mode, "restart_required": True}
@@ -507,13 +502,89 @@ async def cleanup_old_files(days: int = 30):
         raise HTTPException(status_code=500, detail=f"清理失败: {str(e)}")
 
 
+@router.get("/preflight", summary="系统预检（依赖组件聚合）")
+async def system_preflight():
+    """
+    聚合所有依赖组件状态（python / redis / celery / easel / hermes / persona_api /
+    playwright / disk_space / skills_dir / third_party_tools / template_lib）。
+
+    永不抛、永不卡：所有网络探测内部超时 ≤ 2 秒，每项独立 try/except，
+    失败组件以 reachable/installed=false + reason 返回，供前端设置页 / 启动自检使用。
+    """
+    try:
+        return await run_preflight_check()
+    except Exception as e:
+        # 兜底：run_preflight_check 内部本已 try/except，此处仅作终极保险
+        import traceback
+        return {
+            "error": f"{type(e).__name__}: {e}",
+            "traceback": traceback.format_exc(),
+        }
+
+
+def _classify_component(value: Any) -> str:
+    """把组件状态归一化为 ok / unknown / unhealthy 三态。
+
+    - healthy / not_available / "xGB free"  => ok
+    - unknown（初始值/探测失败）              => 保留为 unknown，独立于降级判定
+    - unhealthy                             => unhealthy
+    - 其它未知字符串                          => unknown
+    """
+    if value is None:
+        return "unknown"
+    s = str(value)
+    if s in ("healthy", "not_available"):
+        return "ok"
+    if s == "unknown":
+        return "unknown"
+    if s == "unhealthy":
+        return "unhealthy"
+    if "GB" in s:  # e.g. "42GB free"
+        return "ok"
+    return "unknown"
+
+
+def _rollup_overall(component_values: list) -> str:
+    """聚合组件状态为整体状态。
+
+    优先级：
+      1) 组件有 unhealthy       => 返回降级态
+      2) 无 unhealthy 但有 unknown => 返回信息不足态
+      3) 全部 ok                 => healthy
+    """
+    norms = [_classify_component(v) for v in component_values]
+    if any(n == "unhealthy" for n in norms):
+        return "degraded"
+    if any(n == "unknown" for n in norms):
+        return "unknown"
+    return "healthy"
+
+
 @router.get("/health-check", summary="系统健康检查")
 async def system_health_check():
     """
-    全面的系统健康检查
+    全面的系统健康检查。
+
+    响应结构（本次改动新增 preflight 字段）：
+    {
+      "status": 见 HealthStatus 枚举，
+      "components": {           # 原四组件（DB / Worker / AI / Disk）
+          "database": "healthy" | "unhealthy" | "unknown",
+          "browser":  "healthy" | "unhealthy" | "unknown",
+          "ai_service": "healthy" | "not_available" | "unknown",
+          "disk_space": "<N>GB free" | "unknown"
+      },
+      "preflight": {            # 本次新增：run_preflight_check() 聚合结果
+          "_meta": {...},
+          "python": {...},
+          "redis": {...},
+          ... 
+      },
+      "timestamp": "..."
+    }
     """
     try:
-        health_status = {
+        health_status: dict[str, Any] = {
             "database": "unknown",
             "browser": "unknown",
             "ai_service": "unknown",
@@ -554,15 +625,20 @@ async def system_health_check():
             health_status["disk_space"] = f"{free_gb}GB free"
         except Exception:
             health_status["disk_space"] = "unknown"
-        
-        overall_status = "healthy" if all(
-            v in ["healthy", "not_available"] or "GB" in str(v)
-            for v in health_status.values()
-        ) else "degraded"
+
+        # 调用 P1b-2 的 preflight 聚合，附到响应中（async 端点，直接 await）
+        try:
+            preflight = await run_preflight_check()
+        except Exception as pe:
+            preflight = {"error": f"{type(pe).__name__}: {pe}"}
+
+        # 三态归并：unhealthy -> 降级；unknown -> 信息不足
+        overall_status = _rollup_overall(list(health_status.values()))
         
         return {
             "status": overall_status,
             "components": health_status,
+            "preflight": preflight,
             "timestamp": datetime.now().isoformat()
         }
     except Exception as e:
@@ -712,7 +788,7 @@ async def restart_frontend():
         if not script_path.exists():
             raise HTTPException(status_code=404, detail=f"Launcher not found: {script_path}")
 
-        subprocess.Popen(
+        safe_popen(
             ["cmd", "/c", "start", "", str(script_path)],
             cwd=str(script_path.parent)
         )
@@ -1111,7 +1187,7 @@ async def diagnostic_paths():
 
     paths_info = {
         "environment": {
-            "PRISM_DATA_DIR": os.getenv("PRISM_DATA_DIR"),
+            "LAOMA_DATA_DIR": os.getenv("LAOMA_DATA_DIR"),
             "LOCALAPPDATA": os.getenv("LOCALAPPDATA"),
         },
         "settings_config": {

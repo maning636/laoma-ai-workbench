@@ -116,7 +116,7 @@ if not errorlevel 1 (
 exit /b 0
 
 :usage
-echo Prism root launcher
+echo 老马AI工作台 root launcher
 echo.
 echo Usage:
 echo   start.bat

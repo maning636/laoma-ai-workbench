@@ -14,7 +14,7 @@ set "REDIS_CLI=redis-cli"
 if exist "%ROOT%\prism_backend\Redis\redis-cli.exe" set "REDIS_CLI=%ROOT%\prism_backend\Redis\redis-cli.exe"
 
 echo ============================================
-echo   Prism Celery Worker (prismenv)
+echo   老马AI工作台 Celery Worker (prismenv)
 echo ============================================
 echo.
 

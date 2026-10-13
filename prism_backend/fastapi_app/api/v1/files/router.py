@@ -1134,7 +1134,7 @@ async def transcribe_audio(
         # 使用OpenAI Whisper API进行转录
         # 这里需要提取音频并调用Whisper
         import tempfile
-        import subprocess
+        from fastapi_app.utils.subprocess_safe import safe_run
 
         # 提取音频到临时文件
         with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_audio:
@@ -1143,12 +1143,12 @@ async def transcribe_audio(
         try:
             # 使用ffmpeg提取音频
             logger.info(f"Extracting audio from {file_path} to {temp_audio_path}")
-            subprocess.run([
+            safe_run([
                 "ffmpeg", "-i", file_path,
                 "-vn", "-acodec", "libmp3lame",
                 "-q:a", "2", temp_audio_path,
                 "-y"
-            ], check=True, capture_output=True)
+            ], check=True)
 
             # 调用Whisper API（配置统一走 model-configs 单一配置源，service_type=speech，缺省回退 chat）
             # 注意：需要支持Whisper的提供商（如OpenAI兼容接口）
@@ -1183,12 +1183,12 @@ async def transcribe_audio(
             # 获取视频时长
             if not duration:
                 # 使用ffprobe获取时长
-                result = subprocess.run([
+                result = safe_run([
                     "ffprobe", "-v", "error",
                     "-show_entries", "format=duration",
                     "-of", "default=noprint_wrappers=1:nokey=1",
                     file_path
-                ], capture_output=True, text=True, check=True)
+                ], check=True)
                 duration = float(result.stdout.strip())
 
                 # 更新数据库

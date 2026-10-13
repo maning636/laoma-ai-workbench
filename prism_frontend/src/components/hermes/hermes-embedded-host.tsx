@@ -193,7 +193,7 @@ export function HermesEmbeddedHost({ active }: { active: boolean }) {
               >
                 重试启动
               </button>
-              <a href="/ai-agent/settings" className="rounded-xl bg-foreground px-4 py-2 text-sm text-background">
+              <a href="/ai-agent/settings" className="rounded-xl bg-popover px-4 py-2 text-sm text-foreground border border-border/70">
                 打开运行时设置
               </a>
             </div>

@@ -1,9 +1,9 @@
 """
-技能库注册中心（Prism × Easel 融合）。
+技能库注册中心（老马AI工作台 × Easel 融合）。
 
 直接扫描 Easel 本地技能目录（skills/openclaw/*/SKILL.md，Anthropic Agent Skills
 标准格式），提供目录/详情/刷新接口 —— 这是"实时更新 skills"商业接口的地基：
-技能更新 = 磁盘重新扫描（Easel git pull 后无需重启 Prism 即可生效）。
+技能更新 = 磁盘重新扫描（Easel git pull 后无需重启老马AI工作台即可生效）。
 
 数据不落库：以 mtime 缓存为主，磁盘即真相源（skills 目录是唯一事实源）。
 """

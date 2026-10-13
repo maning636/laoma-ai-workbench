@@ -28,7 +28,7 @@ def _clear_proxy_env() -> None:
 # 大陆直连平台：浏览器默认不走本机 VPN/全局代理（自动清 HTTP_PROXY/HTTPS_PROXY 环境变量
 # 并加 --no-proxy-server --proxy-bypass-list=*），避免抖音/小红书等访问走境外节点导致卡顿。
 # 仅当该平台/账号显式配置了代理（fingerprint_policy 的 proxy 或 PLAYWRIGHT_PROXY_*）时才走代理。
-# 可通过 PRISM_DIRECT_PLATFORMS（逗号分隔）覆盖/追加。
+# 可通过 LAOMA_DIRECT_PLATFORMS（逗号分隔）覆盖/追加。
 DIRECT_CONNECT_PLATFORMS: set[str] = {
     "douyin", "xiaohongshu", "kuaishou", "tencent", "channels",
     "bilibili", "xigua", "baijiahao", "weibo",
@@ -36,7 +36,7 @@ DIRECT_CONNECT_PLATFORMS: set[str] = {
 
 
 def _load_direct_connect_platforms() -> set[str]:
-    override = os.getenv("PRISM_DIRECT_PLATFORMS")
+    override = os.getenv("LAOMA_DIRECT_PLATFORMS")
     if override is not None and override.strip():
         # 运行时设置（前端/调度器）显式给出直连平台列表时，以它为准，避免“inherit”
         # 的平台仍被默认清单强制直连。默认清单仅在未配置时兜底。

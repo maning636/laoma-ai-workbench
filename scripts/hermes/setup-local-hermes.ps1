@@ -87,7 +87,7 @@ if (-not (Test-Path $pythonExe)) {
 }
 
 if (-not (Test-Path $pythonExe)) {
-    throw "Prism Python runtime not found: $pythonExe"
+    throw "老马AI工作台 Python runtime not found: $pythonExe"
 }
 
 & $pythonExe -m pip install --upgrade pip wheel "setuptools<82"
@@ -209,6 +209,6 @@ if ($gitBashPath) {
 }
 Write-Host ""
 Write-Host "Next:"
-Write-Host "  1. Save model config in the Prism Hermes settings page."
+Write-Host "  1. Save model config in the 老马AI工作台 Hermes settings page."
 Write-Host "  2. Start Hermes WebUI from the same page, or run:"
 Write-Host "     powershell -ExecutionPolicy Bypass -File `"$repoRoot\scripts\hermes\hermes.ps1`" --version"

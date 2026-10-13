@@ -10,12 +10,12 @@ set "BACKEND_DIR=%ROOT%\prism_backend"
 set "VENV_PATH=%ROOT%\prismenv"
 set "PY=%VENV_PATH%\Scripts\python.exe"
 if not defined BACKEND_PORT set "BACKEND_PORT=7000"
-if not defined PRISM_BACKEND_PORT set "PRISM_BACKEND_PORT=%BACKEND_PORT%"
-if not defined PRISM_BACKEND_URL set "PRISM_BACKEND_URL=http://127.0.0.1:%BACKEND_PORT%"
+if not defined LAOMA_BACKEND_PORT set "LAOMA_BACKEND_PORT=%BACKEND_PORT%"
+if not defined LAOMA_BACKEND_URL set "LAOMA_BACKEND_URL=http://127.0.0.1:%BACKEND_PORT%"
 if not defined PORT set "PORT=%BACKEND_PORT%"
 
 echo ========================================
-echo   Prism Backend Startup (prismenv)
+echo   老马AI工作台 Backend Startup (prismenv)
 echo ========================================
 echo.
 
@@ -48,7 +48,7 @@ if defined PORT_OWNER (
 REM Bundle Playwright browsers inside this repo (important for packaging to exe)
 REM Playwright 会自动在 browsers 目录下查找对应版本的浏览器
 set "PLAYWRIGHT_BROWSERS_PATH=%ROOT%\browsers"
-if not defined MANUS_API_BASE_URL set "MANUS_API_BASE_URL=%PRISM_BACKEND_URL%/api/v1"
+if not defined MANUS_API_BASE_URL set "MANUS_API_BASE_URL=%LAOMA_BACKEND_URL%/api/v1"
 if not defined AGENT_API_BASE_URL set "AGENT_API_BASE_URL=%MANUS_API_BASE_URL%"
 REM Enable OCR/Selenium helpers (can be overridden by existing env vars)
 if not defined ENABLE_OCR_RESCUE set "ENABLE_OCR_RESCUE=1"
@@ -136,10 +136,10 @@ echo   [7/7] Starting FastAPI Service (Port: %BACKEND_PORT%)
 echo ========================================
 echo.
 echo Access URLs:
-echo   - API: %PRISM_BACKEND_URL%/api/v1
-echo   - API Docs: %PRISM_BACKEND_URL%/api/docs
-echo   - ReDoc: %PRISM_BACKEND_URL%/api/redoc
-echo   - Health Check: %PRISM_BACKEND_URL%/health
+echo   - API: %LAOMA_BACKEND_URL%/api/v1
+echo   - API Docs: %LAOMA_BACKEND_URL%/api/docs
+echo   - ReDoc: %LAOMA_BACKEND_URL%/api/redoc
+echo   - Health Check: %LAOMA_BACKEND_URL%/health
 echo.
 echo Press Ctrl+C to stop service
 echo ========================================

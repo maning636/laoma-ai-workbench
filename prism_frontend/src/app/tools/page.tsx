@@ -44,10 +44,10 @@ interface DevTool {
 }
 
 const TYPE_META: Record<string, { label: string; icon: any; color: string }> = {
-    skill: { label: "Skill", icon: Sparkles, color: "bg-black text-white border-border" },
-    mcp: { label: "MCP", icon: Server, color: "bg-black text-white border-border" },
-    plugin: { label: "插件", icon: Puzzle, color: "bg-black text-white border-border" },
-    component: { label: "组件", icon: Component, color: "bg-black text-white border-border" },
+    skill: { label: "Skill", icon: Sparkles, color: "bg-popover text-foreground border-border" },
+    mcp: { label: "MCP", icon: Server, color: "bg-popover text-foreground border-border" },
+    plugin: { label: "插件", icon: Puzzle, color: "bg-popover text-foreground border-border" },
+    component: { label: "组件", icon: Component, color: "bg-popover text-foreground border-border" },
 }
 
 const CATEGORY_TABS = [
@@ -218,8 +218,8 @@ export default function ToolsPage() {
                     <Badge
                         variant="secondary"
                         className={cn("text-xs shrink-0",
-                            isSkill ? (enabled ? "bg-black text-white border-border" : "bg-muted text-muted-foreground")
-                                : (tool.installed ? "bg-black text-white border-border" : "bg-muted text-muted-foreground"))}
+                            isSkill ? (enabled ? "bg-popover text-foreground border-border" : "bg-muted text-muted-foreground")
+                                : (tool.installed ? "bg-popover text-foreground border-border" : "bg-muted text-muted-foreground"))}
                     >
                         {isSkill ? (enabled ? "已启用" : "已停用") : (tool.installed ? "已安装" : "未安装")}
                     </Badge>
@@ -237,7 +237,7 @@ export default function ToolsPage() {
                         <div className="flex flex-wrap gap-2">
                             {!isSkill && tool.install_url && (
                                 <a href={tool.install_url} target="_blank" rel="noreferrer" className="inline-flex">
-                                    <Button size="sm" variant="secondary" className="h-8 rounded-lg text-xs bg-foreground/10">
+                                    <Button size="sm" variant="secondary" className="h-8 rounded-lg text-xs bg-muted">
                                         <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
                                         安装链接
                                     </Button>
@@ -336,7 +336,7 @@ export default function ToolsPage() {
                 actions={
                     <Button
                         variant="outline"
-                        className="rounded-xl border-border/70 bg-black hover:bg-accent/50"
+                        className="rounded-xl border-border/70 bg-popover hover:bg-accent/50"
                         onClick={() => {
                             refetch()
                             setHermesRefreshKey((k) => k + 1)
@@ -356,7 +356,7 @@ export default function ToolsPage() {
                         className={cn(
                             "rounded-xl border px-3 py-1.5 text-sm transition",
                             category === tab.key
-                                ? "border-border/80 bg-black text-foreground"
+                                ? "border-border/80 bg-popover text-foreground"
                                 : "border-border/70 bg-card/40 text-muted-foreground hover:bg-accent/40"
                         )}
                     >

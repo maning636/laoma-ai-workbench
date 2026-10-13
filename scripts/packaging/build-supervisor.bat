@@ -75,7 +75,7 @@ echo [3/3] 开始编译 supervisor...
 echo ⏱️  这可能需要 1-3 分钟...
 echo.
 
-pyinstaller build\supervisor.spec --clean
+pyinstaller desktop-electron\resources\supervisor\supervisor.py --onefile --name supervisor --distpath desktop-electron\resources\supervisor --console --noconfirm --clean
 
 echo.
 echo ============================================

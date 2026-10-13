@@ -232,7 +232,7 @@ export default function DistributionPage() {
                     <div className="flex items-center gap-3">
                         <Button
                             variant="outline"
-                            className="rounded-xl border-border/70 bg-black hover:bg-accent/50"
+                            className="rounded-xl border-border/70 bg-popover hover:bg-accent/50"
                             onClick={() => refetch()}
                             disabled={isLoading}
                         >
@@ -326,7 +326,7 @@ export default function DistributionPage() {
                                                         <div
                                                             key={file.id}
                                                             className={`flex items-center gap-2 p-2 rounded cursor-pointer text-sm ${checked
-                                                                ? "bg-black text-primary"
+                                                                ? "bg-popover text-primary"
                                                                 : "hover:bg-accent/40"
                                                                 }`}
                                                             onClick={() => toggleMaterial(fileKey)}
@@ -380,7 +380,7 @@ export default function DistributionPage() {
                 </CardHeader>
                 <CardContent>
                     <div className="flex flex-wrap items-center gap-3 mb-4">
-                        <div className="inline-flex rounded-full bg-black p-1 border border-border/70">
+                        <div className="inline-flex rounded-full bg-popover p-1 border border-border/70">
                             <Button
                                 variant={statusFilter === "pending" ? "default" : "ghost"}
                                 size="sm"
@@ -457,7 +457,7 @@ export default function DistributionPage() {
                                             {task.title_template}
                                         </TableCell>
                                         <TableCell>
-                                            <span className="text-white">{task.available_count}</span> / {task.total_videos}
+                                            <span className="text-foreground">{task.available_count}</span> / {task.total_videos}
                                         </TableCell>
                                         <TableCell>{task.distributed_count}</TableCell>
                                         <TableCell className="text-sm text-muted-foreground">
@@ -492,7 +492,7 @@ export default function DistributionPage() {
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
-                                                    className="rounded-xl border border-border text-white hover:bg-black"
+                                                    className="rounded-xl border border-border text-foreground hover:bg-popover"
                                                     onClick={(e) => {
                                                         e.stopPropagation()
                                                         handleDelete(task.task_id)

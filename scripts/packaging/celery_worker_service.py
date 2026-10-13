@@ -2,60 +2,24 @@ import os
 import sys
 from pathlib import Path
 
-def _iter_candidate_roots() -> list[Path]:
-    roots: list[Path] = []
+# 加载 _paths(仅 stdlib,不触发 fastapi_app.settings)以做根目录探测。
+# 双 try 兼容源码与 PyInstaller 打包两种布局。
+_path_src_root = Path(__file__).resolve().parents[2] / "prism_backend"
+if str(_path_src_root) not in sys.path:
+    sys.path.insert(0, str(_path_src_root))
 
-    def add_roots(base: Path | None) -> None:
-        if not base:
-            return
-        roots.append(base)
-        roots.extend(base.parents)
+try:
+    from _paths import get_backend_root  # type: ignore[import-not-found]  # noqa: E402
+except ModuleNotFoundError:
+    from prism_backend._paths import get_backend_root  # noqa: E402
 
-    add_roots(Path(sys.executable).resolve().parent)
-    add_roots(Path(__file__).resolve().parent)
-    meipass = getattr(sys, "_MEIPASS", None)
-    if meipass:
-        add_roots(Path(meipass).resolve())
+backend_root = get_backend_root()
+os.chdir(backend_root)
+if str(backend_root) not in sys.path:
+    sys.path.insert(0, str(backend_root))
 
-    seen: set[str] = set()
-    unique: list[Path] = []
-    for root in roots:
-        key = str(root).lower()
-        if key not in seen:
-            seen.add(key)
-            unique.append(root)
-    return unique
-
-
-def _looks_like_backend_root(candidate: Path) -> bool:
-    return (candidate / "fastapi_app").exists()
-
-
-def _pick_existing(roots: list[Path], name: str) -> Path | None:
-    for root in roots:
-        candidate = root / name
-        if candidate.exists() and _looks_like_backend_root(candidate):
-            return candidate
-    return None
-
-
-def resolve_backend_dir() -> Path:
-    roots = _iter_candidate_roots()
-    backend_dir = _pick_existing(roots, "backend")
-    if backend_dir:
-        return backend_dir
-    prism_backend_dir = _pick_existing(roots, "prism_backend")
-    if prism_backend_dir:
-        return prism_backend_dir
-    return Path(__file__).resolve().parents[2] / "prism_backend"
-
-
-project_root = resolve_backend_dir()
-os.chdir(project_root)
-sys.path.insert(0, str(project_root))
-
-from fastapi_app.tasks.celery_app import celery_app
-from fastapi_app.tasks import publish_tasks  # noqa: F401
+from fastapi_app.tasks.celery_app import celery_app  # noqa: E402
+from fastapi_app.tasks import publish_tasks  # noqa: E402,F401
 
 
 def main() -> None:

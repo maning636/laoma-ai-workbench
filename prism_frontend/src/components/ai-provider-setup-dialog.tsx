@@ -109,7 +109,7 @@ export function AIProviderSetupDialog({ onProviderAdded }: AIProviderSetupDialog
           <div>
             <label className="text-sm font-medium text-foreground mb-2 block">选择提供商</label>
             <Select value={provider} onValueChange={setProvider}>
-              <SelectTrigger className="h-10 bg-black border-border/80 text-foreground">
+              <SelectTrigger className="h-10 bg-popover border-border/80 text-foreground">
                 <SelectValue placeholder="选择 AI 提供商..." />
               </SelectTrigger>
               <SelectContent className="bg-white border-border/70">
@@ -124,7 +124,7 @@ export function AIProviderSetupDialog({ onProviderAdded }: AIProviderSetupDialog
 
           {/* 提供商信息 */}
           {selectedInfo && (
-            <div className="bg-black rounded-lg p-4 border border-border/70 space-y-3">
+            <div className="bg-popover rounded-lg p-4 border border-border/70 space-y-3">
               <div>
                 <p className="text-sm text-foreground/80">{selectedInfo.description}</p>
               </div>
@@ -134,7 +134,7 @@ export function AIProviderSetupDialog({ onProviderAdded }: AIProviderSetupDialog
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="gap-2 text-white hover:text-white"
+                  className="gap-2 text-foreground hover:text-foreground"
                   onClick={handleCopyLink}
                 >
                   {copied ? (
@@ -161,7 +161,7 @@ export function AIProviderSetupDialog({ onProviderAdded }: AIProviderSetupDialog
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               type="password"
-              className="h-10 bg-black border-border/80 text-foreground placeholder:text-foreground/40"
+              className="h-10 bg-popover border-border/80 text-foreground placeholder:text-foreground/40"
               disabled={!provider}
             />
             <p className="text-xs text-muted-foreground mt-2">
@@ -171,8 +171,8 @@ export function AIProviderSetupDialog({ onProviderAdded }: AIProviderSetupDialog
 
           {/* 提示信息 */}
           {provider && (
-            <div className="bg-black border border-border rounded-lg p-3">
-              <p className="text-xs text-white">
+            <div className="bg-popover border border-border rounded-lg p-3">
+              <p className="text-xs text-foreground">
                 💡 请确保 API Key 有足够的配额。首次使用建议先执行健康检查测试连接。
               </p>
             </div>

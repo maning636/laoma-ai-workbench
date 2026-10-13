@@ -8,10 +8,10 @@ for %%I in ("%SCRIPT_DIR%..\..") do set "PROJECT_ROOT=%%~fI\"
 
 set "REDIS_CLI=redis-cli"
 if exist "%PROJECT_ROOT%prism_backend\Redis\redis-cli.exe" set "REDIS_CLI=%PROJECT_ROOT%prism_backend\Redis\redis-cli.exe"
-if exist "%PROJECT_ROOT%prism_backend\Redis\redis-server.exe" set "PRISM_REDIS_PATH=%PROJECT_ROOT%prism_backend\Redis\redis-server.exe"
+if exist "%PROJECT_ROOT%prism_backend\Redis\redis-server.exe" set "LAOMA_REDIS_PATH=%PROJECT_ROOT%prism_backend\Redis\redis-server.exe"
 
 echo ============================================
-echo   Prism Supervisor Startup
+echo   老马AI工作台 Supervisor Startup
 echo ============================================
 echo.
 

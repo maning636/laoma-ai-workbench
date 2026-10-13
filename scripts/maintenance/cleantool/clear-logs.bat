@@ -6,7 +6,7 @@ set PYTHONIOENCODING=utf-8
 set "ROOT_DIR=%~dp0..\..\.."
 REM 清理 Supervisor 日志文件脚本
 echo ========================================
-echo   Prism 日志清理工具
+echo   老马AI工作台日志清理工具
 echo ========================================
 echo.
 
