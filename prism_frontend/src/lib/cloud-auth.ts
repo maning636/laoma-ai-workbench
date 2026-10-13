@@ -1,7 +1,8 @@
 /**
  * C19 客户端云端认证 / 订阅客户端封装。
  *
- * 与 `env.ts` 中的 `API_ENDPOINTS.cloud*` 端点配对,面向浏览器渲染进程;
+ * 底层 HTTP 已收敛到 `client-gateway.ts`(云端/本地路由 + token 注入 + 错误归一化),
+ * 本文件不再直接拼云端端点,也不再手写 fetch。
  * Electron 环境若挂了 `window.electronAPI.credential`,token 会通过
  * `safeStorage` 加密后落盘(见 `desktop-electron/src/main/index.js` 的
  * `credential:save`)。
@@ -13,7 +14,7 @@
  *   - token 字段只在内存 & 加密 blob 中出现,不打印日志。
  */
 
-import { API_ENDPOINTS } from "./env"
+import { gatewayRequest, setTokenProvider, type GatewayErrorCode } from "./client-gateway"
 
 export interface CloudUser {
   id: number
@@ -198,44 +199,44 @@ function remainingSeconds(pair: Pick<TokenPair, "obtained_at" | "expires_in">): 
 /** 触发 refresh 前的宽裕度(秒) */
 const REFRESH_LEEWAY_SECONDS = 60
 
+/**
+ * 请求封装:走 client-gateway,不再直接 fetch / 拼端点。
+ *
+ * GatewayResult 与旧 requestJson 返回结构兼容(`{ok, status, data, detail}`),
+ * 因此所有调用点的 `r.ok / r.status / r.data / r.detail` 保持不变;
+ * 只是错误码通过 `r.code` 语义化。
+ */
 async function requestJson<T>(
   method: "GET" | "POST",
-  url: string,
+  path: string,
   init?: {
     headers?: Record<string, string>;
     token?: string;
     body?: unknown;
   },
-): Promise<{ ok: boolean; status: number; data: T; detail?: string }> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Accept: "application/json",
-    ...(init?.headers as Record<string, string>),
-  }
-  if (init?.token) headers["Authorization"] = `Bearer ${init.token}`
-  const opts: RequestInit = {
+): Promise<{
+  ok: boolean;
+  status: number;
+  data: T;
+  detail?: string;
+  code?: GatewayErrorCode;
+}> {
+  // 端点白名单 —— 云端业务统一走 feature="cloud" 由 client-gateway 拼 URL。
+  const r = await gatewayRequest<T>({
+    feature: "cloud",
+    path,
     method,
-    headers,
-    credentials: "omit",
-    body: init?.body ? JSON.stringify(init.body) : undefined,
-  }
-  let resp: Response
-  try {
-    resp = await fetch(url, opts)
-  } catch (e) {
-    throw new CloudAuthError("cloud unreachable", "network")
-  }
-  let data: any = {}
-  try {
-    data = await resp.json()
-  } catch {
-    data = {}
-  }
+    body: init?.body,
+    headers: init?.headers,
+    // `token` 显式覆盖:即使为空字符串也不会再自动刷新一次
+    token: init?.token ?? "",
+  })
   return {
-    ok: resp.ok,
-    status: resp.status,
-    data: data as T,
-    detail: (data && typeof data.detail === "string" && data.detail) || undefined,
+    ok: r.ok,
+    status: r.status,
+    data: r.data,
+    detail: r.detail,
+    code: r.code,
   }
 }
 
@@ -268,7 +269,7 @@ async function refreshAccessToken(pair: {
   if (!pair.refresh_token) return null
   const r = await requestJson<{ access_token: string; expires_in: number; token_type?: string }>(
     "POST",
-    API_ENDPOINTS.cloudAuthRefresh,
+    "auth/refresh",
     { body: { refresh_token: pair.refresh_token } },
   )
   if (!r.ok || !r.data.access_token) return null
@@ -302,7 +303,7 @@ export const cloudAuth = {
   async login(body: LoginBody): Promise<TokenPair> {
     const r = await requestJson<TokenPair & { token_type?: string }>(
       "POST",
-      API_ENDPOINTS.cloudAuthLogin,
+      "auth/login",
       { body },
     )
     if (!r.ok) {
@@ -323,7 +324,7 @@ export const cloudAuth = {
   async register(body: RegisterBody): Promise<CloudUser> {
     const r = await requestJson<CloudUser>(
       "POST",
-      API_ENDPOINTS.cloudAuthRegister,
+      "auth/register",
       { body },
     )
     if (!r.ok) {
@@ -343,7 +344,7 @@ export const cloudAuth = {
       expires_in: payload.expires_in,
     } as TokenPair)
     if (!token) return null
-    const r = await requestJson<CloudUser>("GET", API_ENDPOINTS.cloudAuthMe, { token })
+    const r = await requestJson<CloudUser>("GET", "auth/me", { token })
     if (!r.ok) {
       // 401/403 → 清 token
       if (r.status === 401 || r.status === 403) await logout()
@@ -400,7 +401,7 @@ export const cloudAuth = {
     if (!token) return null
     const r = await requestJson<SubscriptionStatus>(
       "GET",
-      API_ENDPOINTS.cloudSubscription,
+      "subscription",
       { token },
     )
     if (!r.ok) return null
@@ -429,7 +430,7 @@ export const cloudAuth = {
     }
     const r = await requestJson<SubscriptionStatus>(
       "POST",
-      API_ENDPOINTS.cloudLicenseVerify,
+      "license/verify",
       { token, body: {} },
     )
     if (r.status === 401) {
@@ -474,3 +475,7 @@ export const _internal = {
   hasSafeStorage,
   remainingSeconds,
 }
+
+// 把 token 拉取能力注入 client-gateway,让 gateway 在 needToken=true 时
+// 自动拿到"可用" access token;此处是运行时的最后一行,依赖已就绪。
+setTokenProvider(() => cloudAuth.getAccessToken())
