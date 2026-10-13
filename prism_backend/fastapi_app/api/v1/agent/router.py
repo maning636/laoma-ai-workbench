@@ -4,10 +4,14 @@ Agent API routes.
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import StreamingResponse
-from typing import Dict, Any, Optional, Union, AsyncGenerator
+from typing import Dict, Any, Optional, Union, AsyncGenerator, List
 from pydantic import BaseModel, Field
 import asyncio
 import json
+import os
+import time
+import uuid
+from pathlib import Path
 
 from .models import (
     SaveScriptRequest,
@@ -19,16 +23,144 @@ from .models import (
 from .services import agent_service
 from .config_routes import router as config_router
 from ....core.logger import logger
+from ....core import paths
 from ....schemas.common import Response
 
 
 router = APIRouter(prefix="/agent", tags=["AI Agent"])
 router.include_router(config_router, prefix="")
 
+
+# ── Easel status（P2-1）：独立端点，避免把 3s 网络探测内嵌进 /hermes 拖慢响应 ──
+@router.get("/easel/status")
+async def easel_status():
+    """返回 Easel Web 工作台状态 + skills_dir。
+
+    `get_easel_status` 本身是 async 函数，内部已经用 httpx.AsyncClient 做
+    3s 超时的 Web API / gateway 探测，直接 await 即可，事件循环不会被阻塞。
+    """
+    try:
+        from ....services.easel_workbench import get_easel_status
+
+        status = await get_easel_status()
+        try:
+            status["skills_dir"] = str(paths.get_skills_dir())
+        except Exception:
+            status["skills_dir"] = None
+        return {"data": status}
+    except Exception as exc:  # noqa: BLE001
+        return {"data": {"error": str(exc)}}
+
+
+# ── Easel update 只读端点（P3-3a）：只暴露 status/check，不暴露 apply/rollback ──
+# apply_update / rollback_update 是危险操作，保留 CLI 或后续独立确认端点。
+@router.get("/easel/update/status")
+async def easel_update_status():
+    """返回 Easel 上游更新的状态与设置（读本地 JSON，无副作用）。"""
+    try:
+        from ....agent.easel_update import _settings_path, _state_path, _read_json
+
+        state = _read_json(_state_path()) if _state_path().exists() else {}
+        settings = _read_json(_settings_path()) if _settings_path().exists() else {}
+        return {"data": {"state": state, "settings": settings}}
+    except Exception as exc:  # noqa: BLE001
+        return {"data": {"error": str(exc)}}
+
+
+@router.post("/easel/update/check")
+async def easel_update_check():
+    """只读检查上游是否有更新：git fetch --depth 1 + 对比 SHA，不 modify 本地。
+
+    `check_for_updates` 目前是同步函数（内部含 git subprocess），
+    用 asyncio.to_thread 包一层避免阻塞事件循环；若后续改成 async 则直接 await。
+    """
+    try:
+        from ....agent.easel_update import check_for_updates
+        import inspect
+
+        if inspect.iscoroutinefunction(check_for_updates):
+            result = await check_for_updates()
+        else:
+            result = await asyncio.to_thread(check_for_updates)
+        return {"data": result}
+    except Exception as exc:  # noqa: BLE001
+        return {"data": {"error": str(exc)}}
+
+
 _agent_stream_lock = asyncio.Lock()
 _agent_stop_event: Optional[asyncio.Event] = None
 _agent_confirm_event: Optional[asyncio.Event] = None
 _agent_confirm_approved: Optional[bool] = None
+
+# Hermes 会话持久化（SSE 断线补偿）—— 参考 tools/easel-ref/app.py 的 SESSIONS_DIR/_turn_file 模式。
+# 目录：<DATA_DIR>/ai-sessions/hermes/<session_id>/<turn_id>.jsonl
+_SESSIONS_DIR = Path(os.getenv("LAOMA_SESSIONS_DIR") or str(paths.get_data_dir() / "ai-sessions" / "hermes"))
+
+
+def _session_dir(session_id: str) -> Path:
+    """规范化 session_id，创建并返回会话目录。"""
+    safe = "".join(c if c.isalnum() or c in "-_." else "_" for c in session_id)[:128]
+    if not safe:
+        safe = uuid.uuid4().hex[:16]
+    p = _SESSIONS_DIR / safe
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def _append_turn_event(session_id: str, turn_id: str, event: Dict[str, Any]) -> None:
+    """把一条 SSE 事件 append 到该 turn 的 JSONL 文件。失败仅记日志。"""
+    try:
+        d = _session_dir(session_id)
+        safe_turn = "".join(c if c.isalnum() or c in "-_." else "_" for c in turn_id)[:64]
+        f = d / f"{safe_turn}.jsonl"
+        line = json.dumps({"ts": time.time(), "event": event}, ensure_ascii=False)
+        with open(f, "a", encoding="utf-8") as fp:
+            fp.write(line + "\n")
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[HermesSession] append failed session={session_id} turn={turn_id}: {e}")
+
+
+def _write_session_meta(session_id: str, turn_id: str, goal: str, context: Optional[Dict[str, Any]]) -> None:
+    """更新会话元数据：把当前 turn 记为最新。"""
+    try:
+        d = _session_dir(session_id)
+        meta = {"session_id": session_id, "current_turn": turn_id, "updated_at": time.time()}
+        p = d / "meta.json"
+        if p.exists():
+            try:
+                meta = json.loads(p.read_text(encoding="utf-8"))
+            except Exception:
+                meta = {}
+        meta.update({"session_id": session_id, "current_turn": turn_id, "updated_at": time.time()})
+        p.write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+        # turn 的 goal/context 首行
+        safe_turn = "".join(c if c.isalnum() or c in "-_." else "_" for c in turn_id)[:64]
+        turn_meta = d / f"{safe_turn}.meta.json"
+        turn_meta.write_text(json.dumps({"goal": goal, "context": context or {}, "turn_id": turn_id, "created_at": time.time()}, ensure_ascii=False), encoding="utf-8")
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[HermesSession] meta write failed: {e}")
+
+
+def _last_turn_file(session_id: str) -> Optional[Path]:
+    """返回该会话最新的 turn jsonl 文件；无则 None。"""
+    d = _session_dir(session_id)
+    meta = d / "meta.json"
+    if meta.exists():
+        try:
+            data = json.loads(meta.read_text(encoding="utf-8"))
+            cur = data.get("current_turn")
+            if cur:
+                safe_turn = "".join(c if c.isalnum() or c in "-_." else "_" for c in cur)[:64]
+                f = d / f"{safe_turn}.jsonl"
+                if f.exists():
+                    return f
+        except Exception:
+            pass
+    # 回退：按 mtime 找最新
+    files = [f for f in d.glob("*.jsonl") if f.is_file()]
+    if not files:
+        return None
+    return max(files, key=lambda p: p.stat().st_mtime)
 
 
 class AgentRunRequest(BaseModel):
@@ -102,8 +234,14 @@ async def hermes_stream_execution(
     context: Optional[Union[Dict[str, Any], str, list]] = None,
     require_confirmation: bool = False,
     thread_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    turn_id: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
-    del thread_id
+    """SSE 流式执行 Hermes Agent；每条事件同步 append 到 JSONL 供断线补偿。"""
+    if not session_id:
+        session_id = thread_id or f"sess-{uuid.uuid4().hex[:12]}"
+    if not turn_id:
+        turn_id = f"turn-{int(time.time() * 1000)}-{uuid.uuid4().hex[:6]}"
     global _agent_stop_event, _agent_confirm_event, _agent_confirm_approved
 
     from ....agent.hermes_agent import run_hermes_goal
@@ -112,58 +250,46 @@ async def hermes_stream_execution(
     _agent_confirm_event = None
     _agent_confirm_approved = None
 
+    normalized_context = _normalize_agent_context(context)
+    _write_session_meta(session_id, turn_id, goal, normalized_context)
+
+    async def emit(event: Dict[str, Any]) -> str:
+        line = _format_sse(event)
+        _append_turn_event(session_id, turn_id, event)
+        return line
+
     async def on_event(event: Dict[str, Any], queue: "asyncio.Queue[Optional[Dict[str, Any]]]") -> None:
         mapped = event
         if event["type"] == "assistant_message":
             mapped = {"type": "thinking", "content": event.get("content", "")}
         elif event["type"] == "tool_call":
-            mapped = {
-                "type": "tool_call",
-                "tool_name": event.get("tool_name"),
-                "arguments": event.get("arguments"),
-            }
+            mapped = {"type": "tool_call", "tool_name": event.get("tool_name"), "arguments": event.get("arguments")}
         elif event["type"] == "tool_result":
-            mapped = {
-                "type": "step_complete",
-                "tool_name": event.get("tool_name"),
-                "result": event.get("result"),
-            }
+            mapped = {"type": "step_complete", "tool_name": event.get("tool_name"), "result": event.get("result")}
         await queue.put(mapped)
 
     try:
         async with _agent_stream_lock:
-            normalized_context = _normalize_agent_context(context)
             queue: "asyncio.Queue[Optional[Dict[str, Any]]]" = asyncio.Queue()
             step_counter = 0
 
-            yield _format_sse(
-                {
-                    "type": "init",
-                    "status": "starting",
-                    "message": "Hermes Agent 正在准备运行环境。",
-                }
-            )
-            yield _format_sse(
-                {
-                    "type": "plan",
-                    "plan": {
-                        "goal": goal,
-                        "context": normalized_context or {},
-                        "mode": "hermes-agent",
-                    },
-                }
-            )
+            yield await emit({
+                "type": "init", "status": "starting",
+                "session_id": session_id, "turn_id": turn_id,
+                "message": "Hermes Agent 正在准备运行环境。",
+            })
+            yield await emit({
+                "type": "plan",
+                "plan": {"goal": goal, "context": normalized_context or {}, "mode": "hermes-agent"},
+            })
 
             if require_confirmation:
                 _agent_confirm_event = asyncio.Event()
-                yield _format_sse(
-                    {
-                        "type": "confirmation_required",
-                        "message": "请确认是否执行这个 Hermes Agent 任务。",
-                        "task_summary": {"goal": goal, "context": normalized_context or {}},
-                    }
-                )
-
+                yield await emit({
+                    "type": "confirmation_required",
+                    "message": "请确认是否执行这个 Hermes Agent 任务。",
+                    "task_summary": {"goal": goal, "context": normalized_context or {}},
+                })
                 wait_tasks = [asyncio.create_task(_agent_confirm_event.wait())]
                 if _agent_stop_event:
                     wait_tasks.append(asyncio.create_task(_agent_stop_event.wait()))
@@ -175,24 +301,21 @@ async def hermes_stream_execution(
                         await task
                     except asyncio.CancelledError:
                         pass
-
                 if _agent_stop_event and _agent_stop_event.is_set():
-                    yield _format_sse({"type": "error", "error": "Task stopped by user"})
-                    yield _format_sse({"type": "done"})
+                    yield await emit({"type": "error", "error": "Task stopped by user"})
+                    yield await emit({"type": "done"})
                     return
-
                 approved = bool(_agent_confirm_approved)
-                yield _format_sse({"type": "confirmation_received", "approved": approved})
+                yield await emit({"type": "confirmation_received", "approved": approved})
                 if not approved:
-                    yield _format_sse({"type": "error", "error": "Task rejected by user"})
-                    yield _format_sse({"type": "done"})
+                    yield await emit({"type": "error", "error": "Task rejected by user"})
+                    yield await emit({"type": "done"})
                     return
 
             async def worker() -> None:
                 try:
                     result = await run_hermes_goal(
-                        goal=goal,
-                        context=normalized_context,
+                        goal=goal, context=normalized_context,
                         event_handler=lambda event: on_event(event, queue),
                         should_stop=lambda: bool(_agent_stop_event and _agent_stop_event.is_set()),
                     )
@@ -214,14 +337,14 @@ async def hermes_stream_execution(
                     event["step"] = step_counter
                 elif event.get("type") == "step_complete":
                     event["step"] = step_counter
-                yield _format_sse(event)
+                yield await emit(event)
                 if event.get("type") == "done":
                     break
 
             await task
     except Exception as e:
         logger.error(f"[HermesStream] failed: {e}", exc_info=True)
-        yield _format_sse({"type": "error", "error": str(e)})
+        yield await emit({"type": "error", "error": str(e)})
     finally:
         _agent_stop_event = None
         _agent_confirm_event = None
@@ -232,14 +355,46 @@ async def hermes_stream_execution(
 async def hermes_stream(request: StreamAgentRequest):
     return StreamingResponse(
         hermes_stream_execution(
-            request.goal,
-            request.context,
+            request.goal, request.context,
             request.require_confirmation,
             request.thread_id,
+            session_id=request.thread_id,
         ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
     )
+
+
+@router.get("/hermes-stream/last/{session_id}")
+async def hermes_stream_last(session_id: str):
+    """SSE 断线补偿：重放该 session 最近一次 turn 的完整事件流。参照 tools/easel-ref/app.py:1112。"""
+    f = _last_turn_file(session_id)
+    if not f:
+        return Response(success=True, data={"session_id": session_id, "turn_id": None, "events": [], "replay": True})
+    events: List[Dict[str, Any]] = []
+    ts_list: List[float] = []
+    try:
+        for raw in f.read_text(encoding="utf-8").splitlines():
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                obj = json.loads(raw)
+                events.append(obj.get("event"))
+                ts_list.append(obj.get("ts") or 0.0)
+            except json.JSONDecodeError:
+                continue
+    except Exception as e:
+        logger.error(f"[HermesLast] read failed: {e}")
+        raise HTTPException(status_code=500, detail=f"读取会话失败：{e}")
+    return Response(success=True, data={
+        "session_id": session_id,
+        "turn_id": f.stem,
+        "events": events,
+        "first_ts": ts_list[0] if ts_list else None,
+        "last_ts": ts_list[-1] if ts_list else None,
+        "replay": True,
+    })
 
 
 @router.post("/openclaw-stream")

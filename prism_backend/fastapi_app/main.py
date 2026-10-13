@@ -46,9 +46,14 @@ app = FastAPI(
 @app.middleware("http")
 async def _normalize_duplicated_api_prefix(request: Request, call_next):
     # Next.js rewrites may accidentally turn `/api/v1/...` into `/api/v1/v1/...`.
+    # 过渡兼容:部分 6 模块(dedup/health/insight/receipts/review/webhooks)
+    # 曾经的 router 自带 /api/v1 前缀,加上外层挂载后又形成 `/api/v1/api/v1/xxx`。
+    # 现已从 router 中移除冗余前缀,但保留归一化规则让按旧双重 URL 调用的前端继续工作。
     path = request.scope.get("path") or ""
     if path.startswith("/api/v1/v1/"):
         request.scope["path"] = path.replace("/api/v1/v1/", "/api/v1/", 1)
+    elif path.startswith("/api/v1/api/v1/"):
+        request.scope["path"] = path.replace("/api/v1/api/v1/", "/api/v1/", 1)
     return await call_next(request)
 
 
@@ -133,6 +138,32 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 # 启动和关闭事件
+async def _run_startup_preflight():
+    """P1b-3: 启动末段异步执行一次 preflight 聚合。
+
+    设计要点：
+    - 通过 asyncio.create_task 调度，**不阻塞启动**
+    - 全 try/except，任何异常仅 warning，绝不抛
+    - 判定 missing：ready=False 且 installed=False 且 reachable=False（三者皆为真）
+    """
+    try:
+        from fastapi_app.api.v1.system.preflight import run_preflight_check
+        result = await run_preflight_check()
+        missing = [
+            k for k, v in result.items()
+            if isinstance(v, dict)
+            and not v.get("ready")
+            and not v.get("installed")
+            and v.get("reachable") is False
+        ]
+        if missing:
+            logger.warning(f"[Startup] 组件未就绪: {missing}")
+        else:
+            logger.info("[Startup] 全部依赖就绪")
+    except Exception as e:
+        logger.warning(f"[Startup] preflight 失败: {e}")
+
+
 @app.on_event("startup")
 async def startup_event():
     """应用启动事件"""
@@ -140,7 +171,10 @@ async def startup_event():
     logger.info(f" API: http://{settings.HOST}:{settings.PORT}/api/docs")
     logger.info(f" 数据库: {settings.DATABASE_PATH}")
 
-    os.environ.setdefault("PRISM_DATA_DIR", str(settings.DATA_DIR))
+    try:
+        os.environ.setdefault("LAOMA_DATA_DIR", str(settings.DATA_DIR))
+    except Exception as e:
+        logger.warning(f"[Startup] setdefault LAOMA_DATA_DIR failed: {e}")
 
     def _migrate_dir(label: str, old_path: Path, new_path: Path) -> None:
         try:
@@ -154,7 +188,7 @@ async def startup_event():
             # If data was previously moved to LOCALAPPDATA, move it back when using project data dir.
             alt_root = os.getenv("LOCALAPPDATA")
             if alt_root:
-                alt_path = Path(alt_root) / "Prism" / "data" / old_path.name
+                alt_path = Path(alt_root) / "老马AI工作台" / "data" / old_path.name
                 if alt_path.exists() and not new_path.exists():
                     new_path.parent.mkdir(parents=True, exist_ok=True)
                     shutil.move(str(alt_path), str(new_path))
@@ -283,26 +317,18 @@ async def startup_event():
 
 
     # Initialize OpenClaw/Hermes agent
-    try:
-        from fastapi_app.agent.openclaw_agent import get_openclaw_agent
-        agent = await get_openclaw_agent()
-        app.state.openclaw_agent = agent
-        logger.info("OpenClaw/Hermes agent initialized")
-    except Exception as e:
-        logger.warning(f"OpenClaw/Hermes agent init failed (optional): {e}")
+    # B10 懒加载:startup 不再直接初始化 agent。agent 首次调用时(get_openclaw_agent /
+    # get_hermes_agent / run_hermes_goal)由 hermes_agent.py 内的 _agent_init_lock
+    # 保护并 await initialize,首次慢约 4s,后续直接返回。此处不再阻塞 startup。
+    # 若启动需要预热,可通过环境变量或后续任务重新加回。
 
     # Hermes UI can be managed centrally by Supervisor in desktop mode.
-    if os.getenv("PRISM_SUPERVISOR_MANAGES_HERMES_UI", "0") != "1":
-        try:
-            from fastapi_app.agent.hermes_agent import start_hermes_dashboard
-
-            runtime = await start_hermes_dashboard()
-            logger.info(
-                f"Hermes dashboard ready: {runtime.get('dashboard_url')} "
-                f"backend={runtime.get('dashboard_backend')}"
-            )
-        except Exception as e:
-            logger.warning(f"Hermes dashboard autostart failed (continuing): {e}")
+    # B10 懒加载:startup 不再 create_task(start_hermes_dashboard())。
+    # dashboard 首次真正请求时(POST /api/v1/agent/config/hermes/dashboard/start)
+    # 由 ensure_hermes_dashboard_started() 触发,合并并发首次请求。
+    # 首次请求会 await ~18s 启动流程,前端 hermes-embedded-host 已有 loading/重试 UI。
+    # 注释:保留旧后台启动逻辑仅作参考,已在 hermes_agent 内实现等价的
+    # 懒加载入口(见 ensure_hermes_dashboard_started),避免 startup 承担 ~18s。
 
     # 启动账号数据清理调度器（每6小时清理一次）
     try:
@@ -319,6 +345,17 @@ async def startup_event():
     except Exception as e:
         logger.warning(f"Hermes update scheduler startup failed: {e}")
 
+    # P3-3a: 注册 Easel 上游更新调度器（默认 enabled=False，仅心跳 check，不自动 apply）
+    try:
+        from fastapi_app.agent.easel_update import start_easel_update_scheduler
+        await start_easel_update_scheduler()
+        logger.info("Easel update scheduler started")
+    except Exception as e:
+        logger.warning(f"Easel update scheduler startup failed: {e}")
+
+    # P1b-3: 启动末段异步跑一次 preflight 聚合（不阻塞启动）
+    asyncio.create_task(_run_startup_preflight())
+
 
 
 @app.on_event("shutdown")
@@ -331,6 +368,13 @@ async def shutdown_event():
         await stop_hermes_update_scheduler()
     except Exception as e:
         logger.warning(f"Hermes update scheduler shutdown failed: {e}")
+
+    # P3-3a: 停止 Easel 上游更新调度器
+    try:
+        from fastapi_app.agent.easel_update import stop_easel_update_scheduler
+        await stop_easel_update_scheduler()
+    except Exception as e:
+        logger.warning(f"Easel update scheduler shutdown failed: {e}")
 
     # 停止账号数据清理调度器
     try:

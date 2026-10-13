@@ -10,6 +10,10 @@ from __future__ import annotations
 import asyncio
 import datetime as _dt
 import json
+import os
+import re
+import subprocess
+import sys
 import time as _time
 import uuid
 from pathlib import Path
@@ -19,6 +23,7 @@ from fastapi import HTTPException, Request
 
 from fastapi_app.core.config import settings
 from fastapi_app.core.logger import logger
+from fastapi_app.core import paths as core_paths
 
 from .render import run_hyperframes_render as _run_hyperframes_render
 
@@ -39,8 +44,8 @@ STAGES: list[dict] = [
 _STAGES_BY_NAME = {s["name"]: s for s in STAGES}
 
 
-# ==================== 模板素材库（E:\FDE\fde-landing-delivery，542 专业模板）====================
-_TEMPLATE_LIB_DIR = Path(r"E:\FDE\fde-landing-delivery")
+# ==================== 模板素材库（读 env LAOMA_TEMPLATE_LIB_DIR；降级为空目录）====================
+_TEMPLATE_LIB_DIR = core_paths.get_template_lib_dir()
 _catalog_cache: dict | None = None
 
 
@@ -99,7 +104,7 @@ def _resolve_model_config() -> dict:
         import yaml
     except ImportError:
         raise HTTPException(status_code=500, detail="服务端缺少 pyyaml，无法读取模型配置")
-    cfg_path = Path("D:/工作台/Prism-Fusion/tools/hermes-home/config.yaml")
+    cfg_path = core_paths.get_hermes_runtime_config_path()
     if not cfg_path.is_file():
         raise HTTPException(status_code=500, detail=f"未找到模型配置文件: {cfg_path}")
     try:
@@ -284,7 +289,261 @@ def _log_history(run: dict, action: str, note: str = "") -> None:
     run["updated_at"] = _now_iso()
 
 
-# ==================== 各阶段 prompt ====================
+_STAGE_PROMPT_SYSTEM = ""
+
+
+_VIDEO_EXTS = (".mp4", ".mov", ".mkv", ".webm", ".m4v", ".avi", ".flv", ".ts", ".mpg", ".mpeg", ".3gp")
+_SUBTITLE_EXTS = (".srt", ".vtt", ".ass")
+_RESEARCH_TRANSCRIPT_MAX_CHARS = 8000
+_SF_MODEL = os.getenv("LAOMA_SILICONFLOW_ASR_MODEL") or "stepfun-ai/Step-Audio-A1"
+_SF_BASE = (os.getenv("LAOMA_SILICONFLOW_BASE_URL") or "https://api.siliconflow.cn").rstrip("/")
+_PLACEHOLDER_KEY_RE = re.compile(r"(replace[_\-]?me|your[_\-]?api[_\-]?key|x{3,}|\.\.\.|<[^>]+>)", re.IGNORECASE)
+
+
+def _sf_key_available() -> Optional[str]:
+    key = (os.getenv("LAOMA_SILICONFLOW_API_KEY") or os.getenv("SILICONFLOW_API_KEY") or "").strip()
+    if not key or _PLACEHOLDER_KEY_RE.search(key):
+        return None
+    return key
+
+
+def _download_video_to_tmp(url: str, run_dir: Path) -> Path:
+    """下载视频 URL 到 run_dir/transcribe/<ext>。"""
+    import httpx
+    from urllib.parse import urlparse
+    run_dir.mkdir(parents=True, exist_ok=True)
+    url_lower = url.lower()
+    if "douyin" in url_lower or "iesdouyin" in url_lower:
+        ext = ".mp4"
+    else:
+        path = urlparse(url).path.lower()
+        ext = Path(path).suffix or ".mp4"
+        if ext not in _VIDEO_EXTS:
+            ext = ".mp4"
+    out = run_dir / f"ref{ext}"
+    with httpx.Client(timeout=180.0, follow_redirects=True) as client:
+        r = client.get(url)
+        r.raise_for_status()
+        out.write_bytes(r.content)
+    return out
+
+
+def _find_external_subtitle(video_path: Path) -> Optional[Path]:
+    """Level 1：在视频同目录找同名 srt/vtt/ass。"""
+    stem = video_path.with_suffix("")
+    for ext in _SUBTITLE_EXTS:
+        p = stem.with_suffix(ext)
+        if p.exists() and p.stat().st_size > 0:
+            return p
+    return None
+
+
+def _siliconflow_asr(video_path: Path, fmt: str, out_path: Path) -> bool:
+    """Level 2：调 SiliconFlow ASR，成功写 out_path 返回 True，否则 False。"""
+    api_key = _sf_key_available()
+    if not api_key:
+        return False
+    import httpx
+    try:
+        with httpx.Client(timeout=180.0) as client:
+            with open(video_path, "rb") as fp:
+                r = client.post(
+                    f"{_SF_BASE}/v1/audio/transcriptions",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                    files={"file": (video_path.name, fp, "application/octet-stream")},
+                    data={"model": _SF_MODEL, "response_format": "json",
+                           "language": os.getenv("LAOMA_SILICONFLOW_ASR_LANG") or "zh"},
+                )
+            if r.status_code != 200:
+                logger.warning(f"[Research-ASR] SiliconFlow HTTP {r.status_code}: {r.text[:200]}")
+                return False
+            data = r.json()
+    except Exception as e:
+        logger.warning(f"[Research-ASR] SiliconFlow 请求失败: {e}")
+        return False
+    return _write_siliconflow_to_output(data, fmt, out_path)
+
+
+def _write_siliconflow_to_output(resp: dict, fmt: str, out_path: Path) -> bool:
+    """归一化 SiliconFlow 返回体，写出 srt/vtt/txt/json。失败返回 False。"""
+    data = resp.get("data") or {}
+    segments: list[tuple[float, float, str]] = []
+    if isinstance(data, dict):
+        info = data.get("audio_info") or {}
+        if isinstance(info, dict):
+            for seg in info.get("segments") or []:
+                try:
+                    segments.append((float(seg.get("start_time", 0)),
+                                     float(seg.get("end_time", 0)),
+                                     str(seg.get("text", "")).strip()))
+                except Exception:
+                    continue
+        for seg in data.get("segments") or []:
+            try:
+                segments.append((float(seg.get("start", seg.get("start_time", 0))),
+                                 float(seg.get("end", seg.get("end_time", 0))),
+                                 str(seg.get("text", "")).strip()))
+            except Exception:
+                continue
+        text = data.get("text") or data.get("output") or ""
+        if isinstance(text, str) and text.strip() and not segments:
+            segments.append((0.0, 0.0, text.strip()))
+    if not segments:
+        return False
+    fmt = (fmt or "srt").lower()
+    if fmt == "txt":
+        out_path.write_text("\n".join(t for _, _, t in segments if t), encoding="utf-8")
+    elif fmt == "vtt":
+        lines = ["WEBVTT", ""]
+        for i, (s, e, t) in enumerate(segments, 1):
+            lines.append(f"{i}")
+            lines.append(f"{_fmt_time_vtt(s)} --> {_fmt_time_vtt(e)}")
+            lines.append(t)
+            lines.append("")
+        out_path.write_text("\n".join(lines), encoding="utf-8")
+    elif fmt == "json":
+        out_path.write_text(json.dumps([{"start": s, "end": e, "text": t} for s, e, t in segments],
+                                       ensure_ascii=False, indent=2), encoding="utf-8")
+    else:  # srt
+        lines = []
+        for i, (s, e, t) in enumerate(segments, 1):
+            lines.append(str(i))
+            lines.append(f"{_fmt_time_srt(s)} --> {_fmt_time_srt(e)}")
+            lines.append(t)
+            lines.append("")
+        out_path.write_text("\n".join(lines), encoding="utf-8")
+    return True
+
+
+def _fmt_time_srt(sec: float) -> str:
+    ms = int(round(sec * 1000))
+    h, ms = divmod(ms, 3600_000); m, ms = divmod(ms, 60_000); s, ms = divmod(ms, 1000)
+    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+
+def _fmt_time_vtt(sec: float) -> str:
+    ms = int(round(sec * 1000))
+    h, ms = divmod(ms, 3600_000); m, ms = divmod(ms, 60_000); s, ms = divmod(ms, 1000)
+    return f"{h:02d}:{m:02d}:{s:02d}.{ms:03d}"
+
+
+def _local_whisper_transcribe(video_path: Path, out_path: Path, fmt: str = "srt") -> bool:
+    """Level 3：本地 faster-whisper。走 Easel venv 的 asr.py transcribe。"""
+    from fastapi_app.services.easel_workbench import EASEL_DIR
+    py = EASEL_DIR / ".venv" / "Scripts" / "python.exe"
+    script = EASEL_DIR / "skills" / "shared" / "scripts" / "asr.py"
+    if not py.is_file() or not script.is_file():
+        logger.warning(f"[Research-ASR] whisper 依赖缺失: py={py} script={script}")
+        return False
+    cmd = [str(py), str(script), "transcribe", "--format", fmt or "srt",
+           "--model", os.getenv("LAOMA_ASR_MODEL") or "base",
+           "-o", str(out_path), "-i", str(video_path)]
+    from fastapi_app.utils.subprocess_safe import safe_run
+    try:
+        proc = safe_run(cmd, timeout=900, capture_output=True)
+        if proc.returncode != 0:
+            logger.warning(f"[Research-ASR] whisper rc={proc.returncode}: {(proc.stderr or b'')[-300:].decode('utf-8', 'ignore')}")
+            return False
+        return out_path.exists() and out_path.stat().st_size > 0
+    except Exception as e:
+        logger.warning(f"[Research-ASR] whisper 异常: {e}")
+        return False
+
+
+def _transcribe_reference(video_path: Path, workdir: Path) -> dict:
+    """三级降级调度：外挂字幕 → SiliconFlow → 本地 whisper。
+    返回 {level: 'external'|'siliconflow'|'whisper', path: str, engine: str}。
+    三级全部失败时 level='failed'。"""
+    stem = video_path.with_suffix("")
+    ext = _find_external_subtitle(video_path)
+    if ext:
+        logger.info(f"[Research-ASR] 使用外挂字幕 {ext.name}")
+        return {"level": "external", "path": str(ext), "engine": "external-subtitle"}
+
+    out_srt = workdir / f"{stem.name}.srt"
+    if _siliconflow_asr(video_path, "srt", out_srt):
+        logger.info(f"[Research-ASR] SiliconFlow ASR 成功")
+        return {"level": "siliconflow", "path": str(out_srt), "engine": "siliconflow"}
+
+    if _local_whisper_transcribe(video_path, out_srt, "srt"):
+        logger.info(f"[Research-ASR] 本地 whisper 兜底成功")
+        return {"level": "whisper", "path": str(out_srt), "engine": "local-whisper"}
+
+    return {"level": "failed", "path": None, "engine": "none"}
+
+
+def _looks_like_video_url(url: str) -> bool:
+    """简单判断 URL 是否指向视频文件。query 参数忽略。"""
+    from urllib.parse import urlparse
+    u = url.strip()
+    if not u or not u.lower().startswith(("http://", "https://")):
+        return False
+    try:
+        path = (urlparse(u).path or "").lower()
+    except Exception:
+        return False
+    return any(path.endswith(ext) for ext in _VIDEO_EXTS)
+
+
+def _download_to_tmp(url: str, run_dir: Path) -> Path:
+    """下载视频 URL 到 run_dir/transcribe/<ext>。"""
+    import httpx
+    from urllib.parse import urlparse
+    run_dir.mkdir(parents=True, exist_ok=True)
+    url_lower = url.lower()
+    if "douyin" in url_lower or "iesdouyin" in url_lower:
+        ext = ".mp4"
+    else:
+        path = urlparse(url).path.lower()
+        ext = Path(path).suffix or ".mp4"
+        if ext not in _VIDEO_EXTS:
+            ext = ".mp4"
+    out = run_dir / f"ref{ext}"
+    with httpx.Client(timeout=180.0, follow_redirects=True) as client:
+        r = client.get(url)
+        r.raise_for_status()
+        out.write_bytes(r.content)
+    return out
+
+
+def _transcription_to_text(path: Path) -> str:
+    """把字幕文件转成纯文本喂 prompt。srt/vtt/ass 抽文本行；txt/json 直读。"""
+    text = path.read_text(encoding="utf-8", errors="ignore")
+    if path.suffix.lower() == ".json":
+        try:
+            data = json.loads(text)
+            if isinstance(data, list):
+                parts = [str(x.get("text", "")) if isinstance(x, dict) else str(x) for x in data]
+                return "\n".join(p for p in parts if p.strip())
+        except Exception:
+            pass
+        return text
+    # 去时间轴/序号
+    lines: list[str] = []
+    for ln in text.splitlines():
+        s = ln.strip()
+        if not s:
+            continue
+        # srt: 1, 00:00:00,000 --> 00:00:01,000 等
+        if s.isdigit():
+            continue
+        if "-->" in s:
+            continue
+        # vtt: WEBVTT / NOTE / 时间戳行 / 00:00.000 起始
+        if s.startswith(("WEBVTT", "NOTE", "Kind:", "Language:")):
+            continue
+        if s.startswith("[") and ("-->") in s:
+            continue
+        # ass: [Events] / Format: / Dialogue:
+        if s.startswith("[") or s.startswith("Format:") or s.startswith("Dialogue:"):
+            continue
+        # 时间戳模式 00:00:00,000 或 00:00.000
+        if s and ":" in s and len(s) <= 20 and any(c.isdigit() for c in s) and s.replace(":", "").replace(".", "").replace(",", "").isdigit():
+            continue
+        lines.append(s)
+    return "\n".join(lines)
+
+
 def _stage_prompt(stage_name: str, topic: str, style: str, artifacts: dict) -> tuple[str, str, int]:
     if stage_name == "research":
         system = (

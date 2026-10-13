@@ -37,8 +37,12 @@ _SUPERVISOR_DIR = Path(__file__).resolve().parent
 if str(_SUPERVISOR_DIR) not in sys.path:
     sys.path.insert(0, str(_SUPERVISOR_DIR))
 
-_LOGS_DIR = Path("logs")
-_LOGS_DIR.mkdir(exist_ok=True)
+# 日志目录：使用 supervisor.py 所在目录下的 logs/，而不是相对 cwd。
+# 之前用相对路径 Path("logs") 会导致 PyInstaller 打包后 cwd 变化，日志写不进预期目录。
+_SUPERVISOR_LOGS_DIR = Path(os.environ.get("LAOMA_SUPERVISOR_LOGS_DIR") or "").expanduser() \
+    if os.environ.get("LAOMA_SUPERVISOR_LOGS_DIR") else _SUPERVISOR_DIR / "logs"
+_SUPERVISOR_LOGS_DIR.mkdir(parents=True, exist_ok=True)
+_LOGS_DIR = _SUPERVISOR_LOGS_DIR
 _LOG_FORMATTER = logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s")
 
 _stream_handler = logging.StreamHandler(sys.stdout)
@@ -76,6 +80,117 @@ PLATFORM_PROXY_DEFAULTS: Dict[str, str] = {
     "bilibili": "direct",
 }
 
+# =============================================================================
+# B7: SERVICE_REGISTRY —— 打包服务元数据集中描述
+# ----------------------------------------------------------------------------
+# 覆盖 supervisor 管理的所有服务(backend / automation-worker / celery-worker /
+# hermes-dashboard / hermes-webui / hermes-gateway / redis)。
+#
+# 字段说明：
+#   exe_paths        打包可执行相对路径(顺序即优先级);相对 self.services_dir 解析。
+#                    redis/hermes-* 为脚本或独立 exe,不列入 service_executables。
+#   host             HTTP/探针默认 host(None 表示无 HTTP 探针)。
+#   port_default     默认监听端口(None=不监听 TCP)。
+#   env_port_keys    端口环境变量候选(顺序即优先级)。
+#   log_file         服务日志文件名。
+#   start_order      启动顺序(数值升序)。
+#   stop_order       停止顺序(数值升序)。
+#   health_paths     就绪探针路径(元组);空元组=仅 TCP 连接,非 HTTP 服务走 _probe_redis。
+#   status_extras    get_service_status 需要附加的命名 URL 字段(如 dashboard_url/webui_url)。
+#   restart_policy   崩溃重启策略 {max_restarts, backoff, stable_after}。
+#
+# 说明:
+#   - backend 默认监听 7000,与 prism_backend/fastapi_app/run.py 保持一致。
+#   - redis 走 prism_backend/Redis/redis-server.exe,由 start_redis 独立处理,
+#     registry 仅用于诊断/停止顺序/端口登记。
+# =============================================================================
+SERVICE_REGISTRY: Dict[str, Dict[str, object]] = {
+    "redis": {
+        "exe_paths": (),
+        "host": "127.0.0.1",
+        "port_default": 6379,
+        "env_port_keys": (),
+        "log_file": "redis.log",
+        "start_order": 0,
+        "stop_order": 9,
+        "health_paths": (),
+        "restart_policy": {"max_restarts": 0, "backoff": 5.0, "stable_after": 120.0},
+        "status_extras": (),
+    },
+    "automation-worker": {
+        "exe_paths": ("automation-worker/automation-worker.exe", "automation-worker.exe"),
+        "host": "127.0.0.1",
+        "port_default": 7001,
+        "env_port_keys": ("AUTOMATION_WORKER_PORT", "LAOMA_AUTOMATION_WORKER_PORT"),
+        "log_file": "automation-worker.log",
+        "start_order": 1,
+        "stop_order": 5,
+        "health_paths": ("/health",),
+        "restart_policy": {"max_restarts": 3, "backoff": 3.0, "stable_after": 60.0},
+        "status_extras": (),
+    },
+    "backend": {
+        "exe_paths": ("backend/backend.exe", "backend.exe"),
+        "host": "127.0.0.1",
+        "port_default": 7000,
+        "env_port_keys": ("BACKEND_PORT", "LAOMA_BACKEND_PORT"),
+        "log_file": "backend.log",
+        "start_order": 2,
+        "stop_order": 4,
+        "health_paths": ("/health",),
+        "restart_policy": {"max_restarts": 3, "backoff": 3.0, "stable_after": 60.0},
+        "status_extras": (),
+    },
+    "celery-worker": {
+        "exe_paths": ("celery-worker/celery-worker.exe", "celery-worker.exe"),
+        "host": None,
+        "port_default": None,
+        "env_port_keys": (),
+        "log_file": "celery-worker.log",
+        "start_order": 3,
+        "stop_order": 3,
+        "health_paths": (),
+        "restart_policy": {"max_restarts": 2, "backoff": 5.0, "stable_after": 90.0},
+        "status_extras": (),
+    },
+    "hermes-dashboard": {
+        "exe_paths": (),
+        "host": "127.0.0.1",
+        "port_default": 9119,
+        "env_port_keys": ("LAOMA_HERMES_DASHBOARD_PORT",),
+        "log_file": "hermes-dashboard.log",
+        "start_order": 4,
+        "stop_order": 2,
+        "health_paths": ("/",),
+        "restart_policy": {"max_restarts": 2, "backoff": 5.0, "stable_after": 90.0},
+        "status_extras": ("dashboard_url",),
+    },
+    "hermes-webui": {
+        "exe_paths": (),
+        "host": "127.0.0.1",
+        "port_default": 9131,
+        "env_port_keys": ("LAOMA_HERMES_WEBUI_PORT",),
+        "log_file": "hermes-webui.log",
+        "start_order": 5,
+        "stop_order": 1,
+        "health_paths": ("/?prism_shell_health=1", "/static/boot.js?prism_shell_health=1"),
+        "restart_policy": {"max_restarts": 2, "backoff": 5.0, "stable_after": 90.0},
+        "status_extras": ("webui_url",),
+    },
+    "hermes-gateway": {
+        "exe_paths": (),
+        "host": None,
+        "port_default": None,
+        "env_port_keys": (),
+        "log_file": "hermes-gateway.log",
+        "start_order": 6,
+        "stop_order": 0,
+        "health_paths": (),
+        "restart_policy": {"max_restarts": 1, "backoff": 8.0, "stable_after": 120.0},
+        "status_extras": (),
+    },
+}
+
 
 class ProcessManager:
     def __init__(self) -> None:
@@ -107,8 +222,8 @@ class ProcessManager:
                 pass
             old_handler.close()
 
-        logs_dir = Path("logs")
-        logs_dir.mkdir(exist_ok=True)
+        logs_dir = _LOGS_DIR
+        logs_dir.mkdir(parents=True, exist_ok=True)
         handler = RotatingFileHandler(
             logs_dir / f"{name}.log",
             maxBytes=LOG_MAX_BYTES,
@@ -258,15 +373,12 @@ class ProcessManager:
 
     def stop_all(self) -> None:
         logger.info("Stopping all managed services...")
-        stop_order = [
-            "hermes-gateway",
-            "hermes-webui",
-            "hermes-dashboard",
-            "celery-worker",
-            "backend",
-            "automation-worker",
-            "redis",
-        ]
+        # B7: 停止顺序读 SERVICE_REGISTRY[svc]["stop_order"](数值升序),
+        # 未登记在 registry 中的进程(极端情况)兜底关闭。
+        stop_order = sorted(
+            SERVICE_REGISTRY.keys(),
+            key=lambda name: int(SERVICE_REGISTRY[name]["stop_order"]),
+        )
         for name in stop_order:
             if name in self.processes:
                 self.stop_process(name)
@@ -277,12 +389,24 @@ class ProcessManager:
 class Supervisor:
     def __init__(self) -> None:
         self.manager = ProcessManager()
-        self.service_ports = {
-            "backend": self._read_env_port(("BACKEND_PORT", "PRISM_BACKEND_PORT"), 9200),
-            "automation-worker": self._read_env_port(("AUTOMATION_WORKER_PORT", "PRISM_AUTOMATION_WORKER_PORT"), 7001),
-            "hermes-dashboard": self._read_env_port(("PRISM_HERMES_DASHBOARD_PORT",), 9119),
-            "hermes-webui": self._read_env_port(("PRISM_HERMES_WEBUI_PORT",), 9131),
-        }
+        # B7: service_ports 从 SERVICE_REGISTRY 派生。
+        # 仅登记 registry 中带 port_default 且 health_paths 非空或服务名==redis 的条目:
+        #   - backend / automation-worker / hermes-dashboard / hermes-webui:HTTP 动态端口 + 就绪探测
+        #   - redis:非 HTTP 但需被 can_start_service / get_service_status 探测 6379 冲突与外部实例
+        #   - celery-worker / hermes-gateway:port_default=None,无需登记
+        dynamic_or_probed = (
+            "backend", "automation-worker", "hermes-dashboard", "hermes-webui", "redis",
+        )
+        self.service_ports: Dict[str, int] = {}
+        for _name in dynamic_or_probed:
+            _meta = SERVICE_REGISTRY[_name]
+            _default_port = _meta.get("port_default")
+            if _default_port is None:
+                continue
+            self.service_ports[_name] = self._read_env_port(
+                tuple(_meta["env_port_keys"]),
+                int(_default_port),
+            )
         self.preferred_service_ports = dict(self.service_ports)
         self.external_services: Dict[str, bool] = {}
         self.kill_port_conflict = os.environ.get("SUPERVISOR_KILL_PORT_CONFLICT", "1") != "0"
@@ -290,25 +414,24 @@ class Supervisor:
         # ── 启动令牌与状态文件（供 Electron 主进程发现 API 端口/服务端口/归属校验）──
         self.launch_token = uuid.uuid4().hex
         self.state_path = Path(
-            os.environ.get("PRISM_SUPERVISOR_STATE_PATH")
+            os.environ.get("LAOMA_SUPERVISOR_STATE_PATH")
             or str(Path.home() / ".prism-supervisor" / "state.json")
         )
         self.started_at = time.time()
 
         # ── 失败诊断与重启策略 ──
-        # failures: {name: {count, stage, detail, exit_code, last_error_at, restart_count}}
+        # B7: restart_policy 从 SERVICE_REGISTRY 聚合;monitor_loop 使用 self.restart_policy。
+        # 仅保留 max_restarts > 0 的服务(redis=0 表示不参与自动重启,保持旧行为)。
         self.failures: Dict[str, Dict[str, object]] = {}
-        self.restart_policy = {
-            "backend": {"max_restarts": 3, "backoff": 3.0, "stable_after": 60.0},
-            "automation-worker": {"max_restarts": 3, "backoff": 3.0, "stable_after": 60.0},
-            "hermes-dashboard": {"max_restarts": 2, "backoff": 5.0, "stable_after": 90.0},
-            "hermes-webui": {"max_restarts": 2, "backoff": 5.0, "stable_after": 90.0},
-            "celery-worker": {"max_restarts": 2, "backoff": 5.0, "stable_after": 90.0},
-            "hermes-gateway": {"max_restarts": 1, "backoff": 8.0, "stable_after": 120.0},
+        self.restart_policy: Dict[str, Dict[str, float]] = {
+            name: dict(meta["restart_policy"])  # type: ignore[arg-type]
+            for name, meta in SERVICE_REGISTRY.items()
+            if meta.get("restart_policy")
+            and int(meta["restart_policy"].get("max_restarts", 0)) > 0  # type: ignore[union-attr]
         }
         self._login_env_cache: Optional[Dict[str, str]] = None
 
-        env_resources_path = os.environ.get("PRISM_RESOURCES_PATH") or os.environ.get("PRISM_APP_ROOT")
+        env_resources_path = os.environ.get("LAOMA_RESOURCES_PATH") or os.environ.get("LAOMA_APP_ROOT")
         if env_resources_path:
             self.resources_path = Path(env_resources_path)
             self.is_packaged = True
@@ -338,19 +461,12 @@ class Supervisor:
         self.services_dir = self.resources_path / "services"
         self.python_exe = self._resolve_prismenv_python()
 
+        # 打包可执行路径：从 SERVICE_REGISTRY 读取 exe_paths(顺序即优先级),相对 services_dir。
+        # 仅登记 exe_paths 非空的 exe 类服务;hermes-*/redis 走脚本或独立启动路径。
         self.service_executables = {
-            "backend": (
-                self.services_dir / "backend" / "backend.exe",
-                self.services_dir / "backend.exe",
-            ),
-            "automation-worker": (
-                self.services_dir / "automation-worker" / "automation-worker.exe",
-                self.services_dir / "automation-worker.exe",
-            ),
-            "celery-worker": (
-                self.services_dir / "celery-worker" / "celery-worker.exe",
-                self.services_dir / "celery-worker.exe",
-            ),
+            name: tuple(self.services_dir / rel for rel in SERVICE_REGISTRY[name]["exe_paths"])
+            for name in SERVICE_REGISTRY
+            if SERVICE_REGISTRY[name].get("exe_paths")
         }
 
         logger.info("Environment: %s", "packaged" if self.is_packaged else "dev")
@@ -538,14 +654,8 @@ class Supervisor:
     def get_diagnostics(self) -> Dict[str, object]:
         """失败根因上报：服务状态 + 失败记录 + 环境摘要 + 日志路径。"""
         services: Dict[str, object] = {}
-        for name in (
-            "backend",
-            "automation-worker",
-            "celery-worker",
-            "hermes-gateway",
-            "hermes-dashboard",
-            "hermes-webui",
-        ):
+        # B7: 遍历 SERVICE_REGISTRY 全部已登记服务。
+        for name in sorted(SERVICE_REGISTRY.keys()):
             status = self.get_service_status(name)
             failure = self.failures.get(name)
             if failure:
@@ -571,7 +681,7 @@ class Supervisor:
             },
             "logPaths": {
                 "supervisor": str(Path("logs") / "supervisor.log"),
-                "backend": str(Path("logs") / "backend.log"),
+                "backend": str(Path("logs") / SERVICE_REGISTRY["backend"]["log_file"]),
             },
         }
 
@@ -862,14 +972,23 @@ class Supervisor:
         return resolved_port
 
     def _refresh_dynamic_service_ports(self) -> None:
+        # B7: 动态端口仅针对 registry 中带 port_default 且监听 HTTP 的服务(redis 由 start_redis 独立处理)。
+        http_services = [
+            name
+            for name, meta in SERVICE_REGISTRY.items()
+            if meta.get("port_default") is not None and name != "redis"
+        ]
         reserved_ports: set[int] = set()
-        for service_name in ("backend", "automation-worker", "hermes-dashboard", "hermes-webui"):
+        for service_name in http_services:
             reserved_ports.add(self._resolve_dynamic_service_port(service_name, reserved_ports))
 
     def _get_reserved_dynamic_ports(self, current_name: str) -> set[int]:
+        # B7: 冲突候选从 SERVICE_REGISTRY 派生(排除 redis)。
         reserved_ports: set[int] = set()
-        for service_name in ("backend", "automation-worker", "hermes-dashboard", "hermes-webui"):
-            if service_name == current_name:
+        for service_name, meta in SERVICE_REGISTRY.items():
+            if service_name == current_name or service_name == "redis":
+                continue
+            if meta.get("port_default") is None:
                 continue
             port = self.service_ports.get(service_name)
             if isinstance(port, int) and port > 0:
@@ -988,18 +1107,18 @@ class Supervisor:
             "false" if isinstance(browser_headless, bool) else
             os.getenv("PLAYWRIGHT_HEADLESS", "true")
         )
-        env["PRISM_AUTOMATION_RUNTIME"] = "patchright"
+        env["LAOMA_AUTOMATION_RUNTIME"] = "patchright"
         if settings_path_raw:
             env["PRISM_RUNTIME_SETTINGS_PATH"] = settings_path_raw
         env["PRISM_PLATFORM_BROWSER_PREFERENCES"] = json.dumps(platform_browser_preferences)
         for platform, choice in platform_browser_preferences.items():
             env[f"PRISM_PLATFORM_BROWSER_{platform.upper()}"] = choice
         env["PRISM_PLATFORM_BROWSER_TENCENT"] = platform_browser_preferences.get("channels", "chromium")
-        env["PRISM_DIRECT_PLATFORMS"] = ",".join(
+        env["LAOMA_DIRECT_PLATFORMS"] = ",".join(
             self.build_direct_connect_platforms(runtime_settings.get("platformProxyPreferences"))
         )
         env["BACKEND_PORT"] = str(self.service_ports["backend"])
-        env["PRISM_BACKEND_PORT"] = str(self.service_ports["backend"])
+        env["LAOMA_BACKEND_PORT"] = str(self.service_ports["backend"])
         env["AUTOMATION_WORKER_PORT"] = str(self.service_ports["automation-worker"])
         env["ENABLE_OCR_RESCUE"] = "1"
         env["ENABLE_SELENIUM_RESCUE"] = "1"
@@ -1008,9 +1127,9 @@ class Supervisor:
         env["HERMES_HOME"] = str(self.hermes_home_dir)
         env["HERMES_CONFIG_PATH"] = str(self.hermes_home_dir / "config.yaml")
         env["PRISM_HERMES_HOME"] = str(self.hermes_home_dir)
-        env["PRISM_SUPERVISOR_MANAGES_HERMES_UI"] = "1"
-        env["PRISM_HERMES_DASHBOARD_PORT"] = str(self.service_ports["hermes-dashboard"])
-        env["PRISM_HERMES_WEBUI_PORT"] = str(self.service_ports["hermes-webui"])
+        env["LAOMA_SUPERVISOR_MANAGES_HERMES_UI"] = "1"
+        env["LAOMA_HERMES_DASHBOARD_PORT"] = str(self.service_ports["hermes-dashboard"])
+        env["LAOMA_HERMES_WEBUI_PORT"] = str(self.service_ports["hermes-webui"])
         # 启动令牌：子进程携带，供归属校验与未来 readiness 校验使用
         env["PRISM_LAUNCH_TOKEN"] = self.launch_token
         if self.python_exe:
@@ -1049,12 +1168,12 @@ class Supervisor:
             env["LOCAL_FIREFOX_PATH"] = str(firefox_path)
 
         logger.info(
-            "Runtime settings applied: PLAYWRIGHT_HEADLESS=%s PRISM_AUTOMATION_RUNTIME=%s "
-            "PRISM_PLATFORM_BROWSER_PREFERENCES=%s PRISM_DIRECT_PLATFORMS=%s",
+            "Runtime settings applied: PLAYWRIGHT_HEADLESS=%s LAOMA_AUTOMATION_RUNTIME=%s "
+            "PRISM_PLATFORM_BROWSER_PREFERENCES=%s LAOMA_DIRECT_PLATFORMS=%s",
             env["PLAYWRIGHT_HEADLESS"],
-            env["PRISM_AUTOMATION_RUNTIME"],
+            env["LAOMA_AUTOMATION_RUNTIME"],
             env.get("PRISM_PLATFORM_BROWSER_PREFERENCES", ""),
-            env.get("PRISM_DIRECT_PLATFORMS", ""),
+            env.get("LAOMA_DIRECT_PLATFORMS", ""),
         )
 
         return env
@@ -1179,46 +1298,39 @@ class Supervisor:
             return False
 
     def _is_service_ready(self, name: str) -> bool:
+        """通用就绪探针(B7 统一):按 SERVICE_REGISTRY[name] 派生。
+
+        - 未在 registry 中:退化返回 False(防御,理论上不会走到这里)。
+        - 未运行:False。
+        - port_default 为 None(celery-worker / hermes-gateway):无 TCP 探测,直接返回 True。
+        - health_paths 为空(redis):仅 TCP connect(端口在听且归属本进程)。
+        - health_paths 非空(HTTP 服务):TCP + pid 校验 + 全部 HTTP path 通过。
+        """
         if not self.manager.is_running(name):
             return False
+        meta = SERVICE_REGISTRY.get(name)
+        if meta is None:
+            return False
+        port_default = meta.get("port_default")
+        if port_default is None:
+            # 无监听端口的服务(celery-worker/hermes-gateway)视为就绪。
+            return True
 
+        port = self.service_ports.get(name)
+        if port is None:
+            return False
         proc = self.manager.processes.get(name)
         child_pid = proc.pid if proc is not None else None
 
-        if name == "hermes-dashboard":
-            port = self.service_ports["hermes-dashboard"]
-            return (
-                self.is_port_in_use(port)
-                and self._is_pid_listening(child_pid, port)
-                and self._http_ok(f"http://127.0.0.1:{port}/")
-            )
+        if not self.is_port_in_use(port):
+            return False
+        if not self._is_pid_listening(child_pid, int(port)):
+            return False
 
-        if name == "hermes-webui":
-            port = self.service_ports["hermes-webui"]
-            if not self.is_port_in_use(port):
+        host = meta.get("host") or "127.0.0.1"
+        for path in tuple(meta.get("health_paths") or ()):
+            if not self._http_ok(f"http://{host}:{int(port)}{path}"):
                 return False
-            return (
-                self._is_pid_listening(child_pid, port)
-                and self._http_ok(f"http://127.0.0.1:{port}/?prism_shell_health=1")
-                and self._http_ok(f"http://127.0.0.1:{port}/static/boot.js?prism_shell_health=1")
-            )
-
-        if name == "backend":
-            port = self.service_ports["backend"]
-            return (
-                self.is_port_in_use(port)
-                and self._is_pid_listening(child_pid, port)
-                and self._http_ok(f"http://127.0.0.1:{port}/health")
-            )
-
-        if name == "automation-worker":
-            port = self.service_ports["automation-worker"]
-            return (
-                self.is_port_in_use(port)
-                and self._is_pid_listening(child_pid, port)
-                and self._http_ok(f"http://127.0.0.1:{port}/health")
-            )
-
         return True
 
     def wait_for_service_ready(self, name: str, timeout: float = 20.0, poll_interval: float = 0.5) -> bool:
@@ -1241,7 +1353,10 @@ class Supervisor:
             if not started:
                 self._record_failure(name, "start", "进程启动失败（start_process 返回 False）")
                 return False
-            if name in {"backend", "automation-worker", "hermes-dashboard", "hermes-webui"}:
+            # B7: 仅对 registry 中声明了 port_default 且健康探针非空的 HTTP 服务做就绪探测;
+            # redis/celery-worker/hermes-gateway 无 health_paths,依赖进程存活即视为就绪。
+            meta = SERVICE_REGISTRY.get(name)
+            if meta and meta.get("port_default") is not None and tuple(meta.get("health_paths") or ()):
                 ready = self.wait_for_service_ready(name)
                 if not ready:
                     probe_port = self.service_ports.get(name)
@@ -1351,20 +1466,6 @@ class Supervisor:
             "managed": managed_running,
             "source": source,
         }
-        if name == "backend":
-            payload["port"] = self.service_ports["backend"]
-            payload["url"] = f"http://127.0.0.1:{self.service_ports['backend']}"
-        elif name == "automation-worker":
-            payload["port"] = self.service_ports["automation-worker"]
-            payload["url"] = f"http://127.0.0.1:{self.service_ports['automation-worker']}"
-        elif name == "hermes-dashboard":
-            payload["port"] = self.service_ports["hermes-dashboard"]
-            payload["url"] = f"http://127.0.0.1:{self.service_ports['hermes-dashboard']}"
-            payload["dashboard_url"] = payload["url"]
-        elif name == "hermes-webui":
-            payload["port"] = self.service_ports["hermes-webui"]
-            payload["url"] = f"http://127.0.0.1:{self.service_ports['hermes-webui']}"
-            payload["webui_url"] = payload["url"]
         if gateway_platform_status is not None:
             payload["configured"] = bool(gateway_platform_status["configured"])
             payload["platforms"] = gateway_platform_status["platforms"]
@@ -1375,6 +1476,17 @@ class Supervisor:
                 payload["external"] = False
                 payload["managed"] = False
                 payload["source"] = "disabled"
+        # B7: 端口 / URL 附加字段统一由 SERVICE_REGISTRY 驱动。
+        meta = SERVICE_REGISTRY.get(name)
+        if meta and meta.get("port_default") is not None:
+            svc_port = self.service_ports.get(name)
+            host = meta.get("host") or "127.0.0.1"
+            if svc_port is not None:
+                base_url = f"http://{host}:{int(svc_port)}"
+                payload["port"] = svc_port
+                payload["url"] = base_url
+                for extra_key in tuple(meta.get("status_extras") or ()):
+                    payload[extra_key] = base_url
         return payload
 
     def can_start_service(self, name: str) -> bool:
@@ -1414,9 +1526,16 @@ class Supervisor:
         return True
 
     def _kill_conflicting_processes(self) -> None:
-        for port in (6379,):
-            if self.is_port_in_use(port) and self.kill_port_conflict:
-                for pid in self._find_pids_by_port(port):
+        # B7: 冲突清理端口来自 SERVICE_REGISTRY(redis=6379),非硬编码元组。
+        for name, meta in SERVICE_REGISTRY.items():
+            port_default = meta.get("port_default")
+            if not port_default or name in {"backend", "automation-worker", "hermes-dashboard", "hermes-webui"}:
+                # HTTP 服务的动态端口冲突由 _resolve_dynamic_service_port / can_start_service 处理,
+                # 这里只清理外部非 HTTP 服务(redis)可能占用的静态端口。
+                continue
+            port = self.service_ports.get(name, int(port_default))
+            if self.is_port_in_use(int(port)) and self.kill_port_conflict:
+                for pid in self._find_pids_by_port(int(port)):
                     self._terminate_pid(pid)
                 time.sleep(0.5)
 
@@ -1458,7 +1577,7 @@ class Supervisor:
 
     def start_services(self) -> None:
         logger.info("=" * 60)
-        logger.info("   Prism Supervisor Start")
+        logger.info("   老马AI工作台 Supervisor Start")
         logger.info("=" * 60)
 
         self._kill_conflicting_processes()
@@ -1466,23 +1585,34 @@ class Supervisor:
         env = self.build_env()
         self.external_services = {}
 
+        # B7: 启动顺序按 SERVICE_REGISTRY[svc]["start_order"] 数值升序。
+        # - redis(start_order=0):由 start_redis 独立启动(exe+conf 探测),不在 start_named_service 里跑。
+        # - celery-worker/hermes-gateway(start_order>=3 且 port_default=None):进程拉起即视为就绪,
+        #   _is_service_ready 内部对无端口的服务直接返回 True,不会走 HTTP 探测。
+        # - hermes-gateway 依赖 gateway 配置:若未配置则跳过(由 start_named_service -> can_start_service 处理)。
+        # - backend 与 automation-worker 启动后等待其就绪(2s/3s)以确保 worker 后续能连到 backend。
         self.start_redis(env)
 
-        if self.start_named_service("automation-worker", env):
-            time.sleep(2)
-        if self.start_named_service("backend", env):
-            time.sleep(3)
-        self.start_named_service("hermes-dashboard", env)
-        self.start_named_service("hermes-webui", env)
-        self.start_named_service("celery-worker", env)
-        gateway_platform_status = self._get_gateway_platform_status()
-        if gateway_platform_status["configured"]:
-            self.start_named_service("hermes-gateway", env)
-        else:
-            logger.info(
-                "Skipping hermes-gateway startup: %s",
-                gateway_platform_status["reason"],
-            )
+        start_order = sorted(
+            SERVICE_REGISTRY.keys(),
+            key=lambda name: int(SERVICE_REGISTRY[name]["start_order"]),
+        )
+        startup_delays = {"automation-worker": 2, "backend": 3}  # 保持与旧实现一致的启动延迟
+        for name in start_order:
+            if name == "redis":
+                continue  # 已在上面处理
+            if name == "hermes-gateway":
+                gateway_platform_status = self._get_gateway_platform_status()
+                if not gateway_platform_status["configured"]:
+                    logger.info(
+                        "Skipping hermes-gateway startup: %s",
+                        gateway_platform_status["reason"],
+                    )
+                    continue
+            self.start_named_service(name, env)
+            delay = startup_delays.get(name)
+            if delay:
+                time.sleep(delay)
 
         logger.info("=" * 60)
         logger.info("All services started")

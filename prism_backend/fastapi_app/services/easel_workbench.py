@@ -1,12 +1,14 @@
 """
-Easel Web 工作台托管服务（内嵌进 Prism 前端）。
+Easel Web 工作台托管服务（内嵌进 老马AI工作台前端）。
 
 管理外部 Easel 项目（默认 D:\\工作台\\Easel）的 `easel web` 进程生命周期。
 模式与 persona_dashboard.py 一致：单实例进程句柄 + 端口探测 + 幂等启动。
 
 环境变量:
-- PRISM_EASEL_DIR:  Easel 仓库根目录（默认 ../Easel，与 Prism-Fusion 同级）
-- PRISM_EASEL_PORT: Easel Web 端口（默认 7861）
+- LAOMA_EASEL_DIR:  Easel 仓库根目录（默认 ../Easel，与 LaomaAI-Fusion 同级）
+- LAOMA_EASEL_PORT: Easel Web 端口（默认 7860，与 Easel web/app.py:4975 一致）
+- OPENCLAW_GATEWAY_PORT / EASEL_GATEWAY_PORT: OpenClaw gateway 端口覆盖
+  （优先级：OPENCLAW_GATEWAY_PORT > EASEL_GATEWAY_PORT > profile=easel 哈希默认 37289）
 """
 from __future__ import annotations
 
@@ -24,11 +26,16 @@ from loguru import logger
 BACKEND_ROOT = Path(__file__).resolve().parents[2]  # fastapi_app/../.. = prism_backend
 REPO_ROOT = BACKEND_ROOT.parent
 
-EASEL_DIR = Path(os.getenv("PRISM_EASEL_DIR") or (REPO_ROOT.parent / "Easel"))
-EASEL_PORT = int(os.getenv("PRISM_EASEL_PORT") or 7861)
+EASEL_DIR = Path(os.getenv("LAOMA_EASEL_DIR") or (REPO_ROOT.parent / "Easel"))
+EASEL_PORT = int(os.getenv("LAOMA_EASEL_PORT") or 7860)
 EASEL_HOST = "127.0.0.1"
-# OpenClaw gateway 默认端口（Easel .env: OPENCLAW_PORT）
-GATEWAY_PORT = int(os.getenv("PRISM_EASEL_GATEWAY_PORT") or 18789)
+# OpenClaw gateway 默认端口：profile=easel 哈希 20000+fnv1a32("easel")%40000 = 37289
+# env 覆盖优先级对齐 Easel gateway_endpoint.py: OPENCLAW_GATEWAY_PORT > EASEL_GATEWAY_PORT > profile 哈希
+GATEWAY_PORT = int(
+    os.getenv("OPENCLAW_GATEWAY_PORT")
+    or os.getenv("EASEL_GATEWAY_PORT")
+    or 37289
+)
 
 # 进程状态（单实例）
 _easel_process: Optional[asyncio.subprocess.Process] = None
@@ -78,7 +85,7 @@ def _pid_listening_on_port(port: int) -> Optional[int]:
 
 
 async def _pump_logs(process: asyncio.subprocess.Process) -> None:
-    """把 Easel 子进程 stdout 转发到 Prism 日志。"""
+    """把 Easel 子进程 stdout 转发到老马AI工作台日志。"""
     assert process.stdout is not None
     while True:
         chunk = await process.stdout.readline()
@@ -139,7 +146,7 @@ async def get_easel_status() -> Dict[str, Any]:
 
 
 async def start_easel() -> Dict[str, Any]:
-    """拉起 `easel web --port 7861` 子进程（幂等：已在运行则直接返回状态）。"""
+    """拉起 `easel web --port <EASEL_PORT>` 子进程（幂等：已在运行则直接返回状态）。"""
     global _easel_process, _log_task
 
     status = await get_easel_status()
@@ -178,13 +185,13 @@ async def start_easel() -> Dict[str, Any]:
     for _ in range(60):
         await asyncio.sleep(1)
         if _easel_process.returncode is not None:
-            raise RuntimeError(f"Easel web 进程退出，退出码 {_easel_process.returncode}，详见 Prism 后端日志")
+            raise RuntimeError(f"Easel web 进程退出，退出码 {_easel_process.returncode}，详见老马AI工作台后端日志")
         if await _probe_web_api():
             break
 
     status = await get_easel_status()
     if not status["web_api_online"]:
-        raise RuntimeError("Easel web 启动超时（60s 内 API 未就绪），详见 Prism 后端日志")
+        raise RuntimeError("Easel web 启动超时（60s 内 API 未就绪），详见老马AI工作台后端日志")
     return status
 
 

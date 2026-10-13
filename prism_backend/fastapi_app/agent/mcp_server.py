@@ -1,4 +1,4 @@
-"""Stdlib MCP (Model Context Protocol) stdio server exposing Prism's tool catalog.
+"""Stdlib MCP (Model Context Protocol) stdio server exposing 老马AI工作台's tool catalog.
 
 Run as::
 
@@ -19,7 +19,7 @@ Register it in ``tools/hermes-home/config.yaml``::
       prism:
         command: "<python>"
         args: ["-m", "fastapi_app.agent.mcp_server"]
-        env: { "PRISM_APP_ROOT": "<repo root>" }
+        env: { "LAOMA_APP_ROOT": "<repo root>" }
 """
 
 from __future__ import annotations

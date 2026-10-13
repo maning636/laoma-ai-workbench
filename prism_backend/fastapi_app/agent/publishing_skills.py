@@ -7,7 +7,7 @@ first-class tool registered in ``fastapi_app.services.tool_catalog`` (see the
 and CLI subcommands.
 
 These entries are guidance + the stable CLI/API/MCP contract, not a second
-automation engine: Hermes must call the Prism CLI, backend APIs, or the MCP tool
+automation engine: Hermes must call the 老马AI工作台 CLI, backend APIs, or the MCP tool
 catalog and keep every platform-specific field intact.
 """
 
@@ -52,7 +52,7 @@ PUBLISHING_SKILLS = tuple(
 
 def render_publishing_skills() -> str:
     lines = [
-        "Prism publishing skills (one per platform):",
+        "老马AI工作台 publishing skills (one per platform):",
         "- Read docs/agent-bootstrap.md before first-run setup.",
         "- Use the project CLI executable: prism. Do not use upstream sau or historical examples.",
         "- A publish task must preserve the exact command contract for its target platform.",

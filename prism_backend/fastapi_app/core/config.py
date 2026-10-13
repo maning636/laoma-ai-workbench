@@ -2,13 +2,20 @@
 配置管理模块
 使用 pydantic-settings 管理环境变量和配置
 """
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import os
 from typing import List
 from pathlib import Path
 
+# P1a-1: settings.DATA_DIR 收敛到 paths.get_data_dir() 单一入口。
+# 单向依赖：config -> paths；paths.py 不反向 import config，无循环。
+from . import paths as _paths
+
 
 def _is_dev_repo(base_dir: Path) -> bool:
+    # [DEPRECATED] P1a-1 后 settings.DATA_DIR 不再使用本 helper；
+    # 保留仅供其他可能的调用方兼容，后续可统一清理。
     env = (os.getenv("PRISM_ENV") or os.getenv("NODE_ENV") or "").strip().lower()
     if env in ("dev", "development", "local"):
         return True
@@ -19,6 +26,7 @@ def _is_dev_repo(base_dir: Path) -> bool:
 
 
 def _has_data_payload(root: Path) -> bool:
+    # [DEPRECATED] 同 _is_dev_repo。
     try:
         for name in ("cookiesFile", "fingerprints", "browser_profiles", "db"):
             if (root / name).exists():
@@ -29,7 +37,9 @@ def _has_data_payload(root: Path) -> bool:
 
 
 def _resolve_default_data_dir(base_dir: Path) -> Path:
-    env_dir = os.getenv("PRISM_DATA_DIR")
+    # [DEPRECATED] P1a-1: settings.DATA_DIR 已直接以 paths.get_data_dir() 为默认值，
+    # 本 helper 不再被 DATA_DIR 字段使用，保留以避免外部引用失效。
+    env_dir = os.getenv("LAOMA_DATA_DIR")
     if env_dir:
         return Path(env_dir)
 
@@ -40,9 +50,9 @@ def _resolve_default_data_dir(base_dir: Path) -> Path:
     appdata = os.getenv("APPDATA")
     localappdata = os.getenv("LOCALAPPDATA")
     if appdata:
-        candidates.append(Path(appdata) / "Prism" / "data")
+        candidates.append(Path(appdata) / "老马AI工作台" / "data")
     if localappdata and localappdata != appdata:
-        candidates.append(Path(localappdata) / "Prism" / "data")
+        candidates.append(Path(localappdata) / "老马AI工作台" / "data")
 
     for candidate in candidates:
         if _has_data_payload(candidate):
@@ -84,7 +94,17 @@ class Settings(BaseSettings):
     BASE_DIR: Path = Path(__file__).parent.parent.parent
 
     # 数据库路径
-    DATA_DIR: str = str(_resolve_default_data_dir(BASE_DIR))
+    # P1a-1: 默认值直接来自 paths.get_data_dir()（权威入口），
+    # 并由下方 field_validator 做最终强制——即使 env 里出现 DATA_DIR 等被忽略
+    # 的旧名字，也不会污染结果。唯一生效的 env 是 LAOMA_DATA_DIR（在 paths.py 内读）。
+    DATA_DIR: str = str(_paths.get_data_dir())
+
+    @field_validator("DATA_DIR", mode="before")
+    @classmethod
+    def _force_data_dir_from_paths(cls, _value):
+        # 忽略传入的 raw（可能是 pydantic 从 env/.env 抓到的任意值），
+        # 统一走 paths.get_data_dir() 权威实现。
+        return str(_paths.get_data_dir())
 
     DATABASE_PATH: str = str(Path(DATA_DIR) / "db" / "database.db")
     COOKIE_DB_PATH: str = str(Path(DATA_DIR) / "db" / "cookie_store.db")
@@ -124,16 +144,16 @@ class Settings(BaseSettings):
     # 浏览器环境启动超时（秒）
     PERSONA_LAUNCH_TIMEOUT: int = 60
     # 默认浏览器后端（patchright / persona）。账号 browser_backend=persona 时才走 PersonaBackend
-    PRISM_BROWSER_BACKEND_DEFAULT: str = "patchright"
+    LAOMA_BROWSER_BACKEND_DEFAULT: str = "patchright"
 
     # 抖音登录模式：
     #   browser = 浏览器二维码登录（DouyinAdapter，正式/当前模拟路径）
     #   http    = 逆向 HTTP API 登录（DouyinHttpAdapter，测试路径）
-    PRISM_DOUYIN_LOGIN_MODE: str = "browser"
+    LAOMA_DOUYIN_LOGIN_MODE: str = "browser"
 
     # ── Account Runtime 分布式锁（Redis per-account）──
-    PRISM_RUNTIME_LOCK_ENABLED: bool = True      # 是否启用 Runtime 锁
-    PRISM_RUNTIME_LOCK_TTL: int = 300            # 锁 TTL（秒），长任务靠 heartbeat 续期
+    LAOMA_RUNTIME_LOCK_ENABLED: bool = True      # 是否启用 Runtime 锁
+    LAOMA_RUNTIME_LOCK_TTL: int = 300            # 锁 TTL（秒），长任务靠 heartbeat 续期
 
     # 任务队列配置
     TASK_QUEUE_MAX_WORKERS: int = 3  # 并发任务数（降低资源占用）

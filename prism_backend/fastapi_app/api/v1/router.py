@@ -42,6 +42,12 @@ from .workshop.router import router as workshop_router  # 创作工坊（Easel �
 from .video_pipeline.router import router as video_pipeline_router  # 视频流水线（HyperFrames 引擎，并行第二条流水线）
 from .content_library.router import router as content_library_router  # 原生内容库（outputs 直读）
 from .profile.router import router as profile_router  # 账号画像（build/list/get）
+from .receipts.router import router as receipts_router  # 发布回执（Phase 0.1）
+from .webhooks.router import router as webhooks_router  # Webhook（Phase 5）
+from .health.router import router as health_router  # 账号健康（Phase 1）
+from .review.router import router as review_router  # 审核队列（Phase 3.3）
+from .dedup.router import router as dedup_router  # 去重查重（Phase 4.3）
+from .insight.router import router as insight_router  # 数据洞察（Phase 4.2）
 
 # 导入平台路由
 from .platforms.douyin.router import router as douyin_router
@@ -53,7 +59,17 @@ from .platforms.tasks.router import router as platform_tasks_router
 from .tools.router import router as tools_router
 from .ccswitch.router import router as ccswitch_router  # CC Switch 桥接（读取本机 cc-switch 库并应用到项目内）
 from .tool_catalog.router import router as tool_catalog_router  # 声明式工具注册中心（能力暴露为 tool）
-from fusion_ai.router import router as fusion_router  # Prism-Fusion 能力扩展（AI 多 Provider/平台风格/生图/热点/审核/模型广场/技能/认知/NL→SQL/配置中心）
+from fusion_ai.router import router as fusion_router  # LaomaAI-Fusion 能力扩展（AI 多 Provider/平台风格/生图/热点/审核/模型广场/技能/认知/NL→SQL/配置中心）
+
+# 新增路由：任务状态机/平台字段/登录态检查/内容版本
+from .task_state_machine.router import router as task_state_machine_router  # 幂等任务状态机（Phase 0.2）
+from .platform_fields.router import router as platform_fields_router  # 平台字段管理（Phase 1.1-1.5）
+from .platform_login_checker.router import router as platform_login_checker_router  # 登录态检查（Phase 1.6）
+from .content_variant.router import router as content_variant_router  # 内容版本与审核队列（Phase 3.1+3.3）
+from .diagnostics.router import router as diagnostics_router  # 诊断工件采集（Phase 2.2）
+from .monitor.router import router as monitor_router  # 任务监控与告警（Phase 0.3）
+from .selectors.router import router as selectors_router  # 选择器版本管理（Phase 2.1）
+from .matrix_route.router import router as matrix_route_router  # 矩阵分组路由（Phase 2.3）
 
 # 创建API路由器
 api_router = APIRouter()
@@ -97,6 +113,12 @@ api_router.include_router(workshop_router)  # /workshop 创作工坊
 api_router.include_router(video_pipeline_router)  # /video-pipeline 视频流水线（HyperFrames）
 api_router.include_router(content_library_router)  # /content-library 原生内容库（outputs 直读）
 api_router.include_router(profile_router)  # /content-library/profile 账号画像（build/list/get）
+api_router.include_router(receipts_router)  # /receipts 发布回执（Phase 0.1）
+api_router.include_router(webhooks_router)  # /webhooks Webhook（Phase 5）
+api_router.include_router(health_router)  # /health 账号健康（Phase 1）
+api_router.include_router(review_router)  # /review 审核队列（Phase 3.3）
+api_router.include_router(dedup_router)  # /dedup 去重查重（Phase 4.3）
+api_router.include_router(insight_router)  # /insights 数据洞察（Phase 4.2）
 
 # 注册平台路由
 api_router.include_router(douyin_router)  # router 已自带 /platforms/douyin 前缀
@@ -109,8 +131,18 @@ api_router.include_router(tools_router)  # 开发者工具 /tools 前缀
 api_router.include_router(ccswitch_router)  # /ccswitch 前缀
 api_router.include_router(tool_catalog_router)  # 声明式工具目录 /tool-catalog 前缀
 
-# Prism-Fusion 扩展（P0-P1 能力）
+# LaomaAI-Fusion 扩展（P0-P1 能力）
 api_router.include_router(fusion_router)  # /fusion 前缀（AI多Provider/平台风格/生图/热点/审核/模型广场/技能工坊/认知/NL→SQL/配置中心）
+
+# 新增路由：任务状态机/平台字段/登录态检查/内容版本（Phase 0.2/1.1-1.6/3.1+3.3）
+api_router.include_router(task_state_machine_router, prefix="/task-state", tags=["任务状态机"])
+api_router.include_router(platform_fields_router, prefix="/platform-fields", tags=["平台字段管理"])
+api_router.include_router(platform_login_checker_router, prefix="/login-check", tags=["登录态检查"])
+api_router.include_router(content_variant_router, prefix="/content-variants", tags=["内容版本管理"])
+api_router.include_router(diagnostics_router, prefix="/diagnostics", tags=["诊断工件采集"])
+api_router.include_router(monitor_router, prefix="/monitor", tags=["任务监控"])
+api_router.include_router(selectors_router, prefix="/selectors", tags=["选择器管理"])
+api_router.include_router(matrix_route_router)
 
 
 @api_router.get("/ping")
