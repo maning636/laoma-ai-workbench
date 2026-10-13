@@ -73,6 +73,72 @@ foreach ($dllDir in $runtimeDllDirs) {
   }
 }
 
+# --- C18: 客户端混淆试点(pyarmor 优先,缺失时降级跳过,不阻塞打包) ---
+# 流水线:check → backup → obfuscate → inject → [PyInstaller] → restore
+# 混淆产物就地替换源码,保证 PyInstaller 只看到混淆版本;打包结束后恢复源码。
+$obfuscateOut = Join-Path $root "dist\obfuscate-out"
+$obfuscateScript = Join-Path $PSScriptRoot "obfuscate.py"
+$pyarmorArgs = @()
+$obfuscationActive = $false
+$obfuscationTargets = @()
+
+if ((Test-Path $obfuscateScript) -and $env:SKIP_OBFUSCATE -ne "1") {
+  try {
+    Write-Host "---- C18 obfuscate: check ----"
+    $obfCheck = & $python $obfuscateScript check 2>&1
+    $obfCheckText = (@($obfCheck) -join "`n")
+    Write-Host $obfCheckText
+
+    if ($LASTEXITCODE -ne 0) {
+      Write-Warning "obfuscate.py check failed; downgrade: skip obfuscation"
+    } else {
+      $checkJson = $obfCheckText | ConvertFrom-Json -ErrorAction SilentlyContinue
+      if ($null -ne $checkJson -and $checkJson.pyarmor_available) {
+        # 试点范围与默认一致,如需扩展可设置 OBFUSCATE_TARGETS
+        $obfuscationTargets = @()
+        if ($env:OBFUSCATE_TARGETS) {
+          $obfuscationTargets = $env:OBFUSCATE_TARGETS.Split(",") | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+        }
+
+        Write-Host "---- C18 obfuscate: obfuscate ----"
+        $obfArgs = @("obfuscate", "--out", $obfuscateOut)
+        if ($obfuscationTargets.Count -gt 0) {
+          $obfArgs += @("--targets"); $obfArgs += $obfuscationTargets
+        }
+        $obfOutput = & $python $obfuscateScript @obfArgs 2>&1
+        ($obfOutput | Out-String).TrimEnd() | Write-Host
+        if ($LASTEXITCODE -ne 0) {
+          Write-Warning "obfuscate failed; downgrade: skip obfuscation"
+        } elseif (Test-Path $obfuscateOut) {
+          # 就地注入混淆产物到 prism_backend/(混淆 .py 覆盖源码,pyarmor_runtime_* 放在 prism_backend/ 根)
+          # 打包完成后由 restore + cleanup 步骤清理,不留残余
+          Write-Host "---- C18 obfuscate: inject ----"
+          $injArgs = @("inject", "--out", $obfuscateOut)
+          if ($obfuscationTargets.Count -gt 0) {
+            $injArgs += @("--targets"); $injArgs += $obfuscationTargets
+          }
+          $injOutput = & $python $obfuscateScript @injArgs 2>&1
+          ($injOutput | Out-String).TrimEnd() | Write-Host
+
+          # PyInstaller 已 --paths prism_backend;注入的 pyarmor_runtime_* 也在其下,
+          # 显式 --collect-all 保证 runtime 全部打进 exe
+          Get-ChildItem -Path (Join-Path $root "prism_backend") -Directory -Filter "pyarmor_runtime_*" -ErrorAction SilentlyContinue | ForEach-Object {
+            $pyarmorArgs += @("--collect-all", $_.Name)
+            Write-Host "Collected pyarmor runtime: $($_.Name)"
+          }
+          $obfuscationActive = $true
+        }
+      } else {
+        Write-Host "pyarmor not installed; downgrade: skip obfuscation (set SKIP_OBFUSCATE=1 to silence)."
+      }
+    }
+  } catch {
+    Write-Warning "obfuscation stage error: $_; downgrade: skip obfuscation"
+  }
+} elseif ($env:SKIP_OBFUSCATE -eq "1") {
+  Write-Host "SKIP_OBFUSCATE=1 set; skipping C18 obfuscation."
+}
+
 $common = @(
   "--noconfirm",
   "--clean",
@@ -84,7 +150,7 @@ $common = @(
   "--distpath", $dist,
   "--workpath", $build,
   "--specpath", $spec
-)
+) + $pyarmorArgs
 
 $backendExcludes = @(
   "--exclude-module", "patchright",
@@ -328,26 +394,51 @@ function Prune-PlaywrightDriverNode {
   }
 }
 
-foreach ($target in $targets) {
-  if (-not $entryScripts.ContainsKey($target)) {
-    Write-Error "Unsupported packaging target: $target"
-    exit 1
+# --- C18: 混淆阶段结束后恢复源码 + 清理注入的 pyarmor_runtime_* 目录 ---
+# 放在 finally 语义下:即使 PyInstaller 失败、Prune 抛错,也必须 restore 源码。
+try {
+  foreach ($target in $targets) {
+    if (-not $entryScripts.ContainsKey($target)) {
+      Write-Error "Unsupported packaging target: $target"
+      exit 1
+    }
+    $targetArgs = $targetOptions[$target]
+    if (-not $targetArgs) {
+      Write-Error "Missing PyInstaller option set for target: $target"
+      exit 1
+    }
+    $extraArgs = @()
+    if ($target -eq "backend") {
+      $extraArgs += $backendExcludes
+    }
+    & $python -m PyInstaller @common @targetArgs @extraArgs @runtimeDllArgs --name $target $entryScripts[$target]
+    if ($LASTEXITCODE -ne 0) {
+      Write-Error "PyInstaller build failed for target: $target"
+      exit $LASTEXITCODE
+    }
+    Prune-PlaywrightDriverNode -TargetName $target
   }
-  $targetArgs = $targetOptions[$target]
-  if (-not $targetArgs) {
-    Write-Error "Missing PyInstaller option set for target: $target"
-    exit 1
+} finally {
+  if ($obfuscationActive -and (Test-Path $obfuscateScript)) {
+    try {
+      Write-Host "---- C18 obfuscate: restore ----"
+      $rstArgs = @("restore")
+      if ($obfuscationTargets.Count -gt 0) {
+        $rstArgs += @("--targets"); $rstArgs += $obfuscationTargets
+      }
+      $rstOutput = & $python $obfuscateScript @rstArgs 2>&1
+      ($rstOutput | Out-String).TrimEnd() | Write-Host
+
+      # 清理注入的 pyarmor_runtime_*(仅在 prism_backend 下,不影响用户手工产物)
+      Get-ChildItem -Path (Join-Path $root "prism_backend") -Directory -Filter "pyarmor_runtime_*" -ErrorAction SilentlyContinue | ForEach-Object {
+        Remove-Item -LiteralPath $_.FullName -Recurse -Force
+        Write-Host "Cleaned injected pyarmor runtime: $($_.Name)"
+      }
+      $obfuscationActive = $false
+    } catch {
+      Write-Warning "obfuscation restore failed: $_ (manual cleanup may be required)"
+    }
   }
-  $extraArgs = @()
-  if ($target -eq "backend") {
-    $extraArgs += $backendExcludes
-  }
-  & $python -m PyInstaller @common @targetArgs @extraArgs @runtimeDllArgs --name $target $entryScripts[$target]
-  if ($LASTEXITCODE -ne 0) {
-    Write-Error "PyInstaller build failed for target: $target"
-    exit $LASTEXITCODE
-  }
-  Prune-PlaywrightDriverNode -TargetName $target
 }
 
 Write-Host "Service executables built in dist/services"

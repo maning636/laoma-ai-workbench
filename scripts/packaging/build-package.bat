@@ -127,6 +127,8 @@ if exist "%PROJECT_ROOT%prismenv\Scripts\python.exe" (
     set "PACKAGING_PYTHON=%PROJECT_ROOT%prismenv\Scripts\python.exe"
 )
 if not defined PACKAGING_TARGETS set "PACKAGING_TARGETS=backend,celery-worker,automation-worker"
+:: C18: obfuscation stage runs inside build_services.ps1 before PyInstaller.
+:: Set SKIP_OBFUSCATE=1 to disable; missing pyarmor auto-downgrades to skip.
 powershell -NoProfile -ExecutionPolicy Bypass -File "%PROJECT_ROOT%scripts\packaging\build_services.ps1"
 if errorlevel 1 (
     echo ERROR: packaged backend service build failed
