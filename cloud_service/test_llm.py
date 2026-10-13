@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 import tempfile
@@ -61,12 +62,49 @@ def _install_llm_mock():
     llm_client.call_cloud_llm = _fake_call_cloud_llm  # type: ignore[assignment]
 
 
+def _install_stream_mock():
+    """把 `llm_client.stream_cloud_llm` 替换为异步生成器 mock。
+
+    行为:分 4 段吐 delta,最后一帧带 usage —— 覆盖"边流边累计 usage"路径。
+    """
+    from cloud_service.llm_proxy import llm_client
+
+    def _chunks(rendered: str):
+        # 简单稳定:每段 2-4 字符,便于断言顺序
+        return ["Hello ", "world ", "from ", "mock!"]
+
+    async def _fake_stream_cloud_llm(*, messages, prompt_name, prompt_version, **_kw):
+        rendered = messages[0]["content"] if messages else ""
+        for tok in _chunks(rendered):
+            yield llm_client.LLMStreamEvent(delta=tok, usage={})
+        yield llm_client.LLMStreamEvent(
+            delta="",
+            usage={"prompt_tokens": max(1, len(rendered) // 2), "completion_tokens": 20},
+        )
+
+    llm_client.stream_cloud_llm = _fake_stream_cloud_llm  # type: ignore[assignment]
+
+
+def _install_stream_error_mock():
+    """上游抛错的流式 mock —— 用于验证 error 帧路径。"""
+    from cloud_service.llm_proxy import llm_client
+
+    async def _fake_stream_cloud_llm(*, messages, prompt_name, prompt_version, **_kw):
+        yield llm_client.LLMStreamEvent(delta="prefix ", usage={})
+        raise RuntimeError("boom")
+        # 让 mypy/静态工具认为这是异步生成器
+        yield  # pragma: no cover
+
+    llm_client.stream_cloud_llm = _fake_stream_cloud_llm  # type: ignore[assignment]
+
+
 def run() -> int:
     from fastapi.testclient import TestClient
 
     from cloud_service.main import app
 
     _install_llm_mock()
+    _install_stream_mock()
 
     fails = 0
 
@@ -272,6 +310,182 @@ def run() -> int:
         check("render 后 prompt 被注入(非空)",
               "rendered_len=" in c4.get("content", ""),
               f"content={c4.get('content')!r}")
+
+        # ── 13. /cloud/llm/stream:happy path ──────────────
+        # 用第二用户避免污染 dave 的 pro 状态;free quota = 3
+        r = client.post(
+            "/cloud/auth/register",
+            json={"username": "dave2", "email": "d2@example.com", "password": "supers3cret"},
+        )
+        check("register dave2", r.status_code == 201, f"status={r.status_code}")
+        r = client.post(
+            "/cloud/auth/login",
+            json={"username": "dave2", "password": "supers3cret"},
+        )
+        check("login dave2", r.status_code == 200, f"status={r.status_code}")
+        H2 = {"Authorization": f"Bearer {r.json().get('access_token','') }"}
+
+        with client.stream(
+            "POST",
+            "/cloud/llm/stream",
+            json={"prompt_name": "title.basic_generate", "variables": {"topic": "AI", "count": 3}},
+            headers=H2,
+        ) as resp:
+            check("POST /cloud/llm/stream -> 200", resp.status_code == 200,
+                  f"status={resp.status_code}")
+            ct = (resp.headers.get("content-type") or "").lower()
+            check("stream content-type == text/event-stream",
+                  ct.startswith("text/event-stream"), f"ct={ct}")
+            check("stream header 含 mock-model",
+                  (resp.headers.get("x-llm-model") or "") == "mock-model",
+                  f"x-llm-model={resp.headers.get('x-llm-model')!r}")
+            check("stream header 含 prompt_name(不含 template)",
+                  (resp.headers.get("x-llm-prompt-name") or "") == "title.basic_generate",
+                  f"x-llm-prompt-name={resp.headers.get('x-llm-prompt-name')!r}")
+            check("stream header 含 prompt_tier=basic",
+                  (resp.headers.get("x-llm-prompt-tier") or "") == "basic",
+                  f"x-llm-prompt-tier={resp.headers.get('x-llm-prompt-tier')!r}")
+            stream_text = "".join(resp.iter_text())
+
+        # 分帧解析
+        frames = [f for f in stream_text.split("\n\n") if f.strip()]
+        check("stream 帧数 > 0", len(frames) > 0, f"frames={len(frames)}")
+        done_frames = [f for f in frames if "[DONE]" in f]
+        check("stream 含 [DONE] 终止帧", len(done_frames) == 1, f"frames={frames}")
+
+        # 收集 data: 行的 JSON 内容
+        message_data: list[dict] = []
+        for f in frames:
+            data_lines = [ln[6:] for ln in f.split("\n") if ln.startswith("data: ")]
+            joined = "\n".join(data_lines)
+            if joined.strip() == "[DONE]" or not joined:
+                continue
+            try:
+                obj = json.loads(joined)
+                if isinstance(obj, dict):
+                    message_data.append(obj)
+            except json.JSONDecodeError:
+                pass
+        check("stream 至少 3 条 message data", len(message_data) >= 3,
+              f"n={len(message_data)} payload={message_data}")
+
+        # 首帧必须带 meta(仅一次)
+        meta_frames = [m for m in message_data if "meta" in m]
+        check("stream 首帧 meta 恰好一次", len(meta_frames) == 1,
+              f"n={len(meta_frames)} frames={message_data}")
+        check("stream meta.prompt_name 正确",
+              bool(meta_frames) and meta_frames[0]["meta"]["prompt_name"] == "title.basic_generate",
+              f"meta={meta_frames[:1]}")
+
+        # 顺序与拼接(过滤 usage-only / done 帧)
+        deltas = [m["delta"] for m in message_data if m.get("delta")]
+        check("stream delta 顺序正确",
+              deltas == ["Hello ", "world ", "from ", "mock!"],
+              f"deltas={deltas}")
+        check("stream 拼接得到完整 content",
+              "".join(deltas) == "Hello world from mock!",
+              f"joined={''.join(deltas)!r}")
+
+        # 终帧 tokens
+        done_frames_json = [m for m in message_data if m.get("done")]
+        check("stream 含 done=true 终帧", len(done_frames_json) == 1,
+              f"n={len(done_frames_json)} all={message_data}")
+        if done_frames_json:
+            check("stream done.tokens_in > 0",
+                  done_frames_json[0]["tokens_in"] > 0,
+                  f"body={done_frames_json[0]}")
+            check("stream done.tokens_out == 20",
+                  done_frames_json[0]["tokens_out"] == 20,
+                  f"body={done_frames_json[0]}")
+
+        # 防逆向:任何响应体/帧都不应出现 template 字段或模板源码
+        raw_render_hint = "生成 3 个"  # title.basic_generate 模板里的固定文本
+        check("stream 响应不泄露 template 字段",
+              "template" not in stream_text,
+              f"text[:300]={stream_text[:300]!r}")
+        check("stream 响应不泄露模板固定文本",
+              raw_render_hint not in stream_text,
+              f"text[:300]={stream_text[:300]!r}")
+
+        # ── 14. 未鉴权 stream → 401 ──────────────────────
+        r = client.post(
+            "/cloud/llm/stream",
+            json={"prompt_name": "title.basic_generate", "variables": {"topic": "x", "count": 1}},
+        )
+        check("POST /cloud/llm/stream without JWT -> 401", r.status_code == 401,
+              f"status={r.status_code}")
+
+        # ── 15. 前置额度检查:402 直接返回 JSON(不进入 SSE)──
+        # dave2 已用 1/3;再连发 5 次,期望其中一次 402
+        stream_statuses: list[int] = []
+        for _ in range(5):
+            with client.stream(
+                "POST",
+                "/cloud/llm/stream",
+                json={"prompt_name": "title.basic_generate", "variables": {"topic": "x", "count": 1}},
+                headers=H2,
+            ) as sresp:
+                stream_statuses.append(sresp.status_code)
+                if sresp.status_code == 402:
+                    break
+        check("stream 前置额度检查:free quota=3 触发 402",
+              402 in stream_statuses, f"statuses={stream_statuses}")
+        # 402 时 content-type 应是 JSON,不应是 event-stream
+        ct_402 = None
+        for status_code in stream_statuses:
+            if status_code == 402:
+                # 复用:直接 GET 一次拿到 headers
+                with client.stream(
+                    "POST",
+                    "/cloud/llm/stream",
+                    json={"prompt_name": "title.basic_generate", "variables": {"topic": "x", "count": 1}},
+                    headers=H2,
+                ) as sresp:
+                    ct_402 = sresp.headers.get("content-type", "")
+                    sresp.close()
+                break
+        check("stream 402 返回 JSON(不进入 SSE)",
+              bool(ct_402) and "application/json" in ct_402,
+              f"ct={ct_402!r}")
+
+        # ── 16. 未知 prompt → 404(前置校验)──
+        r = client.post(
+            "/cloud/llm/stream",
+            json={"prompt_name": "not.exist", "variables": {}},
+            headers=H,
+        )
+        check("POST /cloud/llm/stream unknown prompt -> 404",
+              r.status_code == 404, f"status={r.status_code} body={r.text[:200]}")
+        check("stream 404 是 JSON(不进入 SSE)",
+              "application/json" in (r.headers.get("content-type") or ""),
+              f"ct={r.headers.get('content-type')!r}")
+
+        # ── 17. 上游异常:发出 error 帧后 [DONE],不 consume ──
+        # dave 已 pro 无限额度,便于触发流而不受额度影响
+        _install_stream_error_mock()
+        used_before_err = client.get("/cloud/subscription", headers=H).json().get("used", 0)
+        err_text = ""
+        with client.stream(
+            "POST",
+            "/cloud/llm/stream",
+            json={"prompt_name": "title.basic_generate", "variables": {"topic": "x", "count": 1}},
+            headers=H,
+        ) as sresp:
+            check("stream upstream-err response 200", sresp.status_code == 200,
+                  f"status={sresp.status_code}")
+            err_text = "".join(sresp.iter_text())
+        check("stream upstream-err 含 event: error", "event: error" in err_text,
+              f"tail={err_text[:400]}")
+        check("stream upstream-err 错误文本包含 boom",
+              "boom" in err_text, f"err_text={err_text[:400]}")
+        check("stream upstream-err 以 [DONE] 结束", err_text.rstrip().endswith("[DONE]"),
+              f"tail={err_text[-80:]!r}")
+        # 恢复 mock,便于后续(如果追加测试)
+        _install_stream_mock()
+        used_after_err = client.get("/cloud/subscription", headers=H).json().get("used", 0)
+        check("stream upstream-err 未 consume 额度",
+              used_after_err == used_before_err,
+              f"before={used_before_err} after={used_after_err}")
 
     try:
         Path(_tmp.name).unlink(missing_ok=True)

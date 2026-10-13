@@ -18,8 +18,8 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
-from typing import Any, Awaitable, Callable
+from dataclasses import dataclass, field
+from typing import Any, AsyncIterator, Awaitable, Callable
 
 _DEFAULT_BASE_URL = "https://api.siliconflow.cn/v1"
 _DEFAULT_MODEL = "deepseek-ai/DeepSeek-V3"
@@ -49,6 +49,19 @@ class LLMCallResult:
             "tokens_in": self.tokens_in,
             "tokens_out": self.tokens_out,
         }
+
+
+@dataclass
+class LLMStreamEvent:
+    """`stream_cloud_llm()` 的一帧增量。
+
+    - `delta`: 上游给出的文本增量(可能为空,例如首帧仅带 usage)。
+    - `usage`: 上游返回的 token 用量(OpenAI 兼容:prompt_tokens / completion_tokens)。
+      部分上游仅在最后一帧给出 `usage`;若全程未给出,调用方需要按估算兜底。
+    """
+
+    delta: str = ""
+    usage: dict[str, int] = field(default_factory=dict)
 
 
 def _env(name: str, default: str = "") -> str:
@@ -132,10 +145,59 @@ async def call_cloud_llm(
     )
 
 
+async def stream_cloud_llm(
+    *,
+    messages: list[dict[str, Any]],
+    prompt_name: str,
+    prompt_version: str,
+    model: str | None = None,
+    temperature: float = 0.7,
+    max_tokens: int = 1024,
+) -> AsyncIterator[LLMStreamEvent]:
+    """流式调用云端 LLM(OpenAI 兼容接口,`stream=True`)。
+
+    - 每一帧产出 `LLMStreamEvent(delta=..., usage=...)`。
+    - 上游通常只在最后一帧给出 `usage`;若最后一帧未给,调用方可自行估算。
+    - **不返回 `prompt` 源**:渲染发生在 router 层,这里只接收 messages。
+
+    与 `call_cloud_llm` 共享 key / base_url / model 解析。测试可用 monkey-patch
+    替换本函数,避免真发 HTTP。
+    """
+    client = _build_client()
+    use_model = model or get_vault()["model"]
+    stream = await client.chat.completions.create(
+        model=use_model,
+        messages=messages,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        stream=True,
+    )
+    async for chunk in stream:
+        delta = ""
+        choices = getattr(chunk, "choices", None) or []
+        if choices:
+            try:
+                delta = getattr(choices[0], "delta", None) and getattr(
+                    choices[0].delta, "content", None
+                ) or ""
+            except Exception:  # pragma: no cover - 防御性:不同 SDK 版本字段差异
+                delta = ""
+        usage = getattr(chunk, "usage", None)
+        usage_dict: dict[str, int] = {}
+        if usage is not None:
+            usage_dict = {
+                "prompt_tokens": int(getattr(usage, "prompt_tokens", 0) or 0),
+                "completion_tokens": int(getattr(usage, "completion_tokens", 0) or 0),
+            }
+        yield LLMStreamEvent(delta=str(delta or ""), usage=usage_dict)
+
+
 __all__ = [
     "LLMKeyNotConfiguredError",
     "LLMCallResult",
+    "LLMStreamEvent",
     "get_vault",
     "get_api_key",
     "call_cloud_llm",
+    "stream_cloud_llm",
 ]
