@@ -101,6 +101,47 @@ class PaymentAdapter(ABC):
         """
         ...
 
+    # ─────────────────────────────────────────────────────────
+    # 退款 / 对账(mock 阶段;真实环境替换为商户接口)
+    # ─────────────────────────────────────────────────────────
+
+    def refund(
+        self,
+        *,
+        order_no: str,
+        pay_trade_no: str,
+        amount: float,
+    ) -> tuple[bool, str, dict[str, Any]]:
+        """发起退款。默认实现为 mock:直接成功,回显一份 refund 单据。
+
+        返回值:
+          - `ok`            : 是否受理成功
+          - `message`       : 简短描述(成功/失败原因)
+          - `fields`        : 平台返回的补充字段(如 `refund_trade_no`)
+
+        真实环境应在子类覆盖本方法,调用支付宝 `alipay.trade.refund`
+        或微信 v3 `POST /v3/refund/domestic/refunds`。
+        """
+        return True, "mock refund accepted", {
+            "channel": self.name,
+            "refund_trade_no": f"REF_{self.name.upper()}_{pay_trade_no}",
+            "refund_amount": round(float(amount), 2),
+        }
+
+    def fetch_bill(self, *, start_date: str, end_date: str) -> list[dict[str, Any]]:
+        """拉取支付平台账单(对账用,mock)。
+
+        返回形如真实"平台账单"的 list,每条含:
+          - `out_trade_no` : 商户订单号
+          - `pay_trade_no` : 渠道交易号
+          - `amount`       : 支付金额(元)
+          - `trade_time`   : 交易时间 ISO 字符串
+          - `trade_type`   : "payment" | "refund"
+
+        真实环境应调用支付宝"商户账户账单"下载 / 微信 v3 交易账单接口。
+        """
+        return []
+
 
 # ──────────────────────────────────────────────────────────────
 # 注册表

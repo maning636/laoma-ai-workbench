@@ -19,12 +19,13 @@
 
 from __future__ import annotations
 
+import hmac
 import os
 import secrets
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -41,6 +42,7 @@ from .models import (
     SUPPORTED_CHANNELS,
     STATUS_CREATED,
     STATUS_PAID,
+    STATUS_REFUNDED,
     Order,
 )
 from .schemas import (
@@ -48,6 +50,8 @@ from .schemas import (
     CreateOrderRequest,
     CreateOrderResponse,
     OrderResponse,
+    RefundRequest,
+    RefundResponse,
 )
 
 
@@ -237,6 +241,14 @@ async def payment_callback(
             activated=False,
             subscription=None,
         )
+    # 幂等:已退款订单 —— 迟到的支付回调不应再激活订阅(可能已退款,订阅已撤销)
+    if order.status == STATUS_REFUNDED:
+        return CallbackResponse(
+            order_no=out_trade_no,
+            ok=False,
+            activated=False,
+            subscription=None,
+        )
 
     # 金额一致性校验(元)
     try:
@@ -303,6 +315,144 @@ def get_order(
         pay_trade_no=d["pay_trade_no"],
         created_at=d["created_at"],
         paid_at=d["paid_at"],
+        refunded_at=d.get("refunded_at"),
+    )
+
+
+# ──────────────────────────────────────────────────────────────
+# 退款(admin + JWT)
+# ──────────────────────────────────────────────────────────────
+
+def _get_admin_token_env() -> str:
+    """读取 `CLOUD_ADMIN_TOKEN`。空/未设置 → 503(与 llm_proxy 一致,防空密钥误放行)。"""
+    token = (os.getenv("CLOUD_ADMIN_TOKEN") or "").strip()
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="admin token not configured (CLOUD_ADMIN_TOKEN)",
+        )
+    return token
+
+
+@router.post(
+    "/payment/refund",
+    response_model=RefundResponse,
+)
+def refund_order(
+    payload: RefundRequest,
+    current_user: User = Depends(get_current_user),  # JWT 必须有效
+    x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
+    db: Session = Depends(get_db),
+) -> RefundResponse:
+    """发起退款(管理员)。
+
+    双重门禁:JWT 有效 + `X-Admin-Token` 匹配 `CLOUD_ADMIN_TOKEN`。
+    任一不满足 → 401 / 403;admin token 未配置 → 503。
+
+    行为:
+      - 找到 `order_no` 对应的 Order,不存在 → 404;
+      - 校验状态:`paid` 才能退款;`created`/`closed` → 400;`refunded` → 409(幂等拒绝);
+      - `amount` 不传 = 全额退款;`amount` > Order.amount 或 <=0 → 400;
+      - 调 `adapter.refund(...)`(mock 默认返回成功)→ 失败返回 502;
+      - 全额退款时 `Order.status=refunded`, `Order.refunded_at=now`;
+      - 部分退款暂保持 `Order.status=paid`(决策点,见遗留说明);
+      - **不主动撤销/缩短订阅**(决策:先只做订单侧状态,避免破坏性变更;
+        真实上线前应与业务侧确认,见文件底部注释)。
+    """
+    # 1. Admin token 校验(先 token,再 JWT 语义,避免空 admin token 直接吞掉所有请求)
+    expected = _get_admin_token_env()
+    if not x_admin_token or not hmac.compare_digest(x_admin_token, expected):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="invalid admin token",
+        )
+
+    # 2. 查找订单
+    order = db.execute(
+        select(Order).where(Order.order_no == payload.order_no)
+    ).scalar_one_or_none()
+    if order is None:
+        raise HTTPException(status_code=404, detail="order not found")
+
+    # 3. 状态机校验
+    if order.status == STATUS_REFUNDED:
+        raise HTTPException(
+            status_code=409,
+            detail="order already refunded",
+        )
+    if order.status != STATUS_PAID:
+        raise HTTPException(
+            status_code=400,
+            detail=f"order status={order.status}, only paid can be refunded",
+        )
+    if not order.pay_trade_no:
+        raise HTTPException(
+            status_code=400,
+            detail="order has no pay_trade_no",
+        )
+
+    # 4. 金额校验
+    refund_amount = float(payload.amount) if payload.amount is not None else float(order.amount)
+    if refund_amount <= 0:
+        raise HTTPException(status_code=400, detail="refund amount must be > 0")
+    if refund_amount > float(order.amount) + 1e-6:
+        raise HTTPException(
+            status_code=400,
+            detail=f"refund amount {refund_amount} exceeds order amount {order.amount}",
+        )
+    full_refund = abs(refund_amount - float(order.amount)) <= 1e-6
+
+    # 5. 调 adapter 退款(mock)
+    adapter = get_adapter(order.channel)
+    if adapter is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"unsupported channel: {order.channel}",
+        )
+    try:
+        ok, msg, fields = adapter.refund(
+            order_no=order.order_no,
+            pay_trade_no=order.pay_trade_no,
+            amount=refund_amount,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"refund adapter error: {e}",
+        ) from e
+    if not ok:
+        raise HTTPException(status_code=502, detail=f"refund failed: {msg}")
+
+    # 6. 落库
+    refund_trade_no = str(fields.get("refund_trade_no") or "")
+    if full_refund:
+        order.status = STATUS_REFUNDED
+        order.refunded_at = _utcnow()
+    else:
+        # 部分退款:暂不改变 status(决策见下方 note)
+        pass
+    db.commit()
+    db.refresh(order)
+
+    # 决策点(遗留):
+    #   - 是否撤销订阅/缩短 expire_at?当前实现**不**触碰 Subscription,原因:
+    #       (a) activate_for_user 语义是"延长",没有反向"缩短"接口;
+    #       (b) 订阅与订单是一对多关系,部分退款/全额退款的订阅行为需业务侧拍板。
+    #   - 真实上线前应引入 `billing.cancel_subscription(user_id)` 或
+    #     `billing.shorten_subscription(user_id, days_to_revoke)`,再在此调用。
+    return RefundResponse(
+        order_no=order.order_no,
+        refunded_amount=round(refund_amount, 2),
+        order_status=order.status,
+        pay_trade_no=order.pay_trade_no,
+        refund_trade_no=refund_trade_no or None,
+        refunded_at=order.refunded_at.isoformat() if order.refunded_at else None,
+        subscription_touched=False,
+        note=(
+            None
+            if full_refund
+            else "partial refund: Order.status remains 'paid'; subscription not touched"
+        ),
     )
 
 

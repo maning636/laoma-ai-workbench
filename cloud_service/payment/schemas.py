@@ -51,7 +51,7 @@ class OrderResponse(BaseModel):
     """`GET /cloud/payment/order/{order_no}` 响应。"""
 
     order_no: str
-    status: str  # created | paid | closed
+    status: str  # created | paid | refunded | closed
     plan: str
     days: int
     amount: float
@@ -59,6 +59,7 @@ class OrderResponse(BaseModel):
     pay_trade_no: Optional[str] = None
     created_at: Optional[str] = None
     paid_at: Optional[str] = None
+    refunded_at: Optional[str] = None
 
     model_config = {"extra": "forbid"}
 
@@ -74,6 +75,37 @@ class CallbackResponse(BaseModel):
     model_config = {"extra": "forbid"}
 
 
+class RefundRequest(BaseModel):
+    """`POST /cloud/payment/refund` 请求体(管理员)。"""
+
+    order_no: str = Field(..., min_length=1, description="商户订单号")
+    amount: Optional[float] = Field(
+        None,
+        ge=0.01,
+        description="退款金额(元);不传则全额退款(= Order.amount)。",
+    )
+    reason: Optional[str] = Field(
+        None, max_length=200, description="退款原因(仅供后台记录)。"
+    )
+
+    model_config = {"extra": "forbid"}
+
+
+class RefundResponse(BaseModel):
+    """`POST /cloud/payment/refund` 响应。"""
+
+    order_no: str
+    refunded_amount: float
+    order_status: str  # refunded | paid (部分退款语义可保留 paid)
+    pay_trade_no: Optional[str] = None
+    refund_trade_no: Optional[str] = None
+    refunded_at: Optional[str] = None
+    subscription_touched: bool = False  # 预留:退款是否撤销订阅(当前迭代不撤销)
+    note: Optional[str] = None
+
+    model_config = {"extra": "forbid"}
+
+
 class ErrorResponse(BaseModel):
     detail: str
 
@@ -85,5 +117,7 @@ __all__ = [
     "CreateOrderResponse",
     "OrderResponse",
     "CallbackResponse",
+    "RefundRequest",
+    "RefundResponse",
     "ErrorResponse",
 ]

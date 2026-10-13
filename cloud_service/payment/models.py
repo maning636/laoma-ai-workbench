@@ -7,10 +7,11 @@
 本迭代扩展:
   - `plan` / `days` : 记录支付对应的订阅配置(回调时用于激活)
   - `pay_trade_no` : 第三方支付平台交易号(支付宝 trade_no / 微信 transaction_id)
-  - `status` 状态机: `created` → `paid` / `closed`
-    * `created`: 已生成订单号,等待用户付款
-    * `paid`   : 渠道回调验签通过,订阅已激活(或幂等 no-op)
-    * `closed` : 超时 / 取消(本迭代未实现定时关闭)
+  - `status` 状态机: `created` → `paid` / `refunded` / `closed`
+    * `created`  : 已生成订单号,等待用户付款
+    * `paid`     : 渠道回调验签通过,订阅已激活(或幂等 no-op)
+    * `refunded` : 已发起退款(全额 / 部分;部分退款仍保持 paid 语义,由业务决定)
+    * `closed`   : 超时未支付(由 `close_expired_orders` 定时任务置位)
 
 约定:
   - `out_trade_no` 全局唯一(order_no),商户侧幂等键。
@@ -33,6 +34,7 @@ from ..db import Base
 STATUS_CREATED = "created"
 STATUS_PAID = "paid"
 STATUS_CLOSED = "closed"
+STATUS_REFUNDED = "refunded"
 
 # 支持渠道
 CHANNEL_ALIPAY = "alipay"
@@ -89,6 +91,10 @@ class Order(Base):
     paid_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # 退款完成时间(仅当 status=refunded 时非空)
+    refunded_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     def to_dict(self) -> dict:
         return {
@@ -102,6 +108,7 @@ class Order(Base):
             "pay_trade_no": self.pay_trade_no,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "paid_at": self.paid_at.isoformat() if self.paid_at else None,
+            "refunded_at": self.refunded_at.isoformat() if self.refunded_at else None,
         }
 
 
@@ -110,6 +117,7 @@ __all__ = [
     "STATUS_CREATED",
     "STATUS_PAID",
     "STATUS_CLOSED",
+    "STATUS_REFUNDED",
     "CHANNEL_ALIPAY",
     "CHANNEL_WECHAT",
     "SUPPORTED_CHANNELS",
