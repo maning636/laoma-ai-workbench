@@ -224,6 +224,59 @@ jobs:
           python -m pytest fastapi_app/tests/ -x --tb=short -q
 
   # ============================================================
+  # cloud-service-tests: cloud_service/ 下 5 个自运行脚本的 pytest 包装(硬门)
+  #
+  # 背景:cloud_service/{test_payment,test_payment_leftover,test_billing,test_llm,test_e2e}.py
+  #       是**自运行脚本**(末尾 `if __name__ == "__main__": run()`),不是 pytest 用例。
+  #       `cloud_service/conftest.py` 用 pytest_collect_file 钩子把每个脚本包装成
+  #       一个 pytest 用例,直接调用其 run() 断言返回 0。
+  #
+  # 依赖:fastapi + pydantic + sqlalchemy + PyJWT + bcrypt + loguru + openai + httpx + pytest。
+  #       全部走 pip;不需要 chrome / redis / 真实云凭据(脚本内部用内存 SQLite + mock LLM)。
+  #
+  # 独立运行能力:仍保留 `python cloud_service/test_xxx.py` 打印 ALL TESTS PASSED,本 job 只是
+  #       在其外层加一层 pytest 断言。
+  # ============================================================
+  cloud-service-tests:
+    name: Pytest (cloud_service)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: requirements-dev.txt
+
+      - name: 安装 cloud_service 测试所需依赖（轻量:不含 selenium/patchright/celery）
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --quiet \
+            pytest \
+            "fastapi>=0.115" \
+            "pydantic>=2.5" \
+            "pydantic-settings>=2.0" \
+            "sqlalchemy>=2.0" \
+            "PyJWT>=2.8" \
+            "bcrypt>=4.0" \
+            "loguru>=0.7" \
+            "openai>=1.30" \
+            "httpx>=0.26"
+
+      - name: pytest cloud_service（硬门:5 脚本 → 177 check → 全绿）
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest cloud_service -q --tb=short
+
+  # ============================================================
   # e2e-packaged: 打包产物在干净 Windows 环境下的端到端烟测
   #
   # 触发策略（默认 skip）：

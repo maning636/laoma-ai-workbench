@@ -10,6 +10,11 @@ pytest-asyncio
 pytest-cov
 # fastapi.testclient 的异步/HTTP 支持依赖 httpx
 httpx
+# cloud_service 的运行时依赖(未在根 requirements.txt 列出,CI 里跑其测试需要):
+#   - cloud_service.auth.security 用 PyJWT 处理 access/refresh token
+#   - cloud_service.auth.security 用 bcrypt 哈希密码
+PyJWT
+bcrypt
 
 # ---- 数据库迁移 ----
 alembic==1.18.4
