@@ -84,6 +84,27 @@ def get_settings():
             # pro 用户月度额度;-1 表示无限(默认)
             "pro_quota": _get_int("CLOUD_PRO_QUOTA", -1),
         },
+        # ── 订单超时任务(P4)───────────────────────────
+        # 只影响 `status='created'` 的订单;不影响 paid / refunded / closed。
+        # 多 worker 部署下每个 worker 都会跑一份,注意幂等性(按 id 列表关闭)。
+        "order_timeout": {
+            "enabled": _get_str("CLOUD_ORDER_TIMEOUT_ENABLED", "true").lower()
+            in {"1", "true", "yes"},
+            "interval_seconds": _get_int("CLOUD_ORDER_TIMEOUT_INTERVAL_SECONDS", 3600),
+            "hours": _get_int("CLOUD_ORDER_TIMEOUT_HOURS", 24),
+        },
+        # ── 对账调度(P6)───────────────────────────────
+        # 默认 **关闭**:因为 `reconcile_day(platform_bills=None)` 会遍历已注册
+        # adapter 调 `adapter.fetch_bill()`,一旦接入真实商户 adapter 就是外部调用。
+        # 生产上线前必须显式确认开关,并配合日志告警;真实 adapter 上线时务必
+        # 检查 fetch_bill 的限流与重试策略,避免每天全量拉账单触发商户配额。
+        "reconcile": {
+            "enabled": _get_str("CLOUD_RECONCILE_ENABLED", "false").lower()
+            in {"1", "true", "yes"},
+            "interval_seconds": _get_int("CLOUD_RECONCILE_INTERVAL_SECONDS", 86400),
+            # 起始窗口(相对本次执行时间往前多少小时):默认 24h,覆盖"昨日"日切。
+            "lookback_hours": _get_int("CLOUD_RECONCILE_LOOKBACK_HOURS", 24),
+        },
     }
 
 

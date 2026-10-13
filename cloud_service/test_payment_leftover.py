@@ -357,6 +357,190 @@ def run() -> int:
         except ValueError:
             check("close_expired_orders hours<=0 raises", True)
 
+        # ── 12. close_expired_orders_task 生命周期(异步任务)──
+        import asyncio as _aio
+        from cloud_service.payment.scheduler import close_expired_orders_task
+
+        # spy db_factory:每次被调用即记录一次,返回一个可用的 SessionLocal 会话
+        calls = []
+        def _spy_factory():
+            calls.append(1)
+            return SessionLocal()
+
+        stop = _aio.Event()
+        async def _run_close_task():
+            await close_expired_orders_task(
+                interval_seconds=0.05,
+                hours=24,
+                db_factory=_spy_factory,
+                stop_event=stop,
+            )
+
+        async def _drive_close_task():
+            task = _aio.create_task(_run_close_task())
+            # 让任务跑约 2 个周期后 set stop_event
+            await _aio.sleep(0.2)
+            stop.set()
+            await _aio.wait_for(task, timeout=1.0)
+
+        _aio.run(_drive_close_task())
+        check("close_expired_orders_task executed ≥2 times before stop",
+              len(calls) >= 2, f"calls={len(calls)}")
+        check("close_expired_orders_task returned cleanly (no exception)",
+              True)  # 若上面 _drive_close_task 抛异常,check 就不会被调用
+
+        # 负参回归: interval_seconds<=0 抛 ValueError
+        async def _bad_interval():
+            await close_expired_orders_task(interval_seconds=0, stop_event=_aio.Event())
+        try:
+            _aio.run(_bad_interval())
+            check("close_expired_orders_task interval<=0 raises", False)
+        except ValueError:
+            check("close_expired_orders_task interval<=0 raises", True)
+
+                # ── 13. 对账调度 reconcile_task:开关语义 + adapter 计数 ──
+        from cloud_service.payment.reconciliation import reconcile_task
+        from cloud_service.payment import alipay as _alipay_mod
+        from cloud_service.payment import wechat as _wechat_mod
+
+        # reconcile_day 遍历 SUPPORTED_CHANNELS(alipay / wechat),所以我们需要
+        # monkey-patch 现有 adapter 实例的 fetch_bill,而不是新增注册。
+        fetch_bill_calls = 0
+
+        def _counting_fetch_bill(self, *, start_date, end_date):
+            nonlocal fetch_bill_calls
+            fetch_bill_calls += 1
+            return []
+
+        _orig_alipay_fetch = _alipay_mod.AlipayAdapter.fetch_bill
+        _orig_wechat_fetch = _wechat_mod.WechatAdapter.fetch_bill
+        _alipay_mod.AlipayAdapter.fetch_bill = _counting_fetch_bill
+        _wechat_mod.WechatAdapter.fetch_bill = _counting_fetch_bill
+
+        try:
+            # 13a. stop_event 已 set → 立即退出,fetch_bill 0 次
+            fetch_bill_calls = 0
+            stop_immediate = _aio.Event()
+            stop_immediate.set()
+            _aio.run(reconcile_task(
+                interval_seconds=0.05,
+                lookback_hours=24,
+                stop_event=stop_immediate,
+            ))
+            check("reconcile_task stop_event preset → 0 fetch_bill calls",
+                  fetch_bill_calls == 0,
+                  f"calls={fetch_bill_calls}")
+
+            # 13b. 正常跑一次(等价于"开关打开"路径): fetch_bill ≥ 1
+            fetch_bill_calls = 0
+            stop2 = _aio.Event()
+            async def _run_reconcile():
+                await reconcile_task(
+                    interval_seconds=0.05,
+                    lookback_hours=24,
+                    stop_event=stop2,
+                )
+            async def _drive_reconcile():
+                task = _aio.create_task(_run_reconcile())
+                await _aio.sleep(0.15)
+                stop2.set()
+                await _aio.wait_for(task, timeout=2.0)
+            _aio.run(_drive_reconcile())
+            check("reconcile_task running → fetch_bill ≥ 1 call",
+                  fetch_bill_calls >= 1,
+                  f"calls={fetch_bill_calls}")
+
+            # 13c. 负参:lookback_hours<=0 抛 ValueError
+            try:
+                _aio.run(reconcile_task(lookback_hours=0, stop_event=_aio.Event()))
+                check("reconcile_task lookback_hours<=0 raises", False)
+            except ValueError:
+                check("reconcile_task lookback_hours<=0 raises", True)
+        finally:
+            _alipay_mod.AlipayAdapter.fetch_bill = _orig_alipay_fetch
+            _wechat_mod.WechatAdapter.fetch_bill = _orig_wechat_fetch
+
+    # ── 14. lifespan 挂载:默认关闭对账 + 显式打开时任务被启动 ──
+    from cloud_service.settings import reset_settings_cache
+    import cloud_service.main as _cloud_main_mod
+    import importlib
+    import asyncio as _aio
+    from cloud_service.payment import alipay as _alipay_mod
+    from cloud_service.payment import wechat as _wechat_mod
+
+    # 14a. 默认(未设置 env):reconcile.enabled = False → lifespan 不启动对账
+    os.environ.pop("CLOUD_RECONCILE_ENABLED", None)
+    os.environ.pop("CLOUD_ORDER_TIMEOUT_ENABLED", None)
+    reset_settings_cache()
+    importlib.reload(_cloud_main_mod)
+
+    settings_default = _cloud_main_mod.get_settings()
+    check("settings.reconcile.enabled default is False",
+          settings_default["reconcile"]["enabled"] is False,
+          f"cfg={settings_default['reconcile']}")
+    check("settings.order_timeout.enabled default is True",
+          settings_default["order_timeout"]["enabled"] is True,
+          f"cfg={settings_default['order_timeout']}")
+
+    fetch_bill_calls2 = 0
+    def _counting_fetch_bill2(self, *, start_date, end_date):
+        nonlocal fetch_bill_calls2
+        fetch_bill_calls2 += 1
+        return []
+    _orig_a = _alipay_mod.AlipayAdapter.fetch_bill
+    _orig_w = _wechat_mod.WechatAdapter.fetch_bill
+    _alipay_mod.AlipayAdapter.fetch_bill = _counting_fetch_bill2
+    _wechat_mod.WechatAdapter.fetch_bill = _counting_fetch_bill2
+    try:
+        with TestClient(_cloud_main_mod.app) as _c_default:
+            r = _c_default.get("/health")
+            check("lifespan default: /health 200",
+                  r.status_code == 200, f"status={r.status_code}")
+            import time as _time
+            _time.sleep(0.15)
+            _c_default.get("/health")
+        check("lifespan default: reconcile NOT started (fetch_bill == 0)",
+              fetch_bill_calls2 == 0,
+              f"calls={fetch_bill_calls2}")
+    finally:
+        _alipay_mod.AlipayAdapter.fetch_bill = _orig_a
+        _wechat_mod.WechatAdapter.fetch_bill = _orig_w
+
+    # 14b. 显式打开 reconcile → lifespan 启动 task,fetch_bill 被调用
+    os.environ["CLOUD_RECONCILE_ENABLED"] = "true"
+    os.environ["CLOUD_RECONCILE_INTERVAL_SECONDS"] = "0.05"
+    reset_settings_cache()
+    importlib.reload(_cloud_main_mod)
+    check("settings.reconcile.enabled after env=true is True",
+          _cloud_main_mod.get_settings()["reconcile"]["enabled"] is True,
+          f"cfg={_cloud_main_mod.get_settings()['reconcile']}")
+
+    fetch_bill_calls3 = 0
+    def _counting_fetch_bill3(self, *, start_date, end_date):
+        nonlocal fetch_bill_calls3
+        fetch_bill_calls3 += 1
+        return []
+    _orig_a2 = _alipay_mod.AlipayAdapter.fetch_bill
+    _orig_w2 = _wechat_mod.WechatAdapter.fetch_bill
+    _alipay_mod.AlipayAdapter.fetch_bill = _counting_fetch_bill3
+    _wechat_mod.WechatAdapter.fetch_bill = _counting_fetch_bill3
+    try:
+        with TestClient(_cloud_main_mod.app) as _c_enabled:
+            _c_enabled.get("/health")
+            import time as _time
+            _time.sleep(0.2)
+            _c_enabled.get("/health")
+        check("lifespan with CLOUD_RECONCILE_ENABLED=true: fetch_bill ≥ 1",
+              fetch_bill_calls3 >= 1,
+              f"calls={fetch_bill_calls3}")
+    finally:
+        _alipay_mod.AlipayAdapter.fetch_bill = _orig_a2
+        _wechat_mod.WechatAdapter.fetch_bill = _orig_w2
+        os.environ.pop("CLOUD_RECONCILE_ENABLED", None)
+        os.environ.pop("CLOUD_RECONCILE_INTERVAL_SECONDS", None)
+        reset_settings_cache()
+        importlib.reload(_cloud_main_mod)
+
     # 收尾
     try:
         Path(_tmp.name).unlink(missing_ok=True)

@@ -10,10 +10,19 @@
 
 注意:本模块不做隐式 init_db,由 lifespan 触发;TestClient 场景也会自动走该钩子,
 便于内存集成测试。
+
+Lifespan 内启动的后台任务(P4 / P6):
+  - `close_expired_orders_task` : 订单超时清理,默认开启,只动 `created`。
+  - `reconcile_task`            : 日终对账,**默认关闭**(env 开关),
+                                   因为 `platform_bills=None` 会触发 adapter 的
+                                   `fetch_bill()`,接入真实商户 adapter 后就是
+                                   外部调用,不能默认在生产里悄悄跑。
 """
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -22,15 +31,77 @@ from .auth.router import router as auth_router
 from .billing.router import router as billing_router
 from .db import init_db
 from .llm_proxy.router import router as llm_proxy_router
+from .payment.reconciliation import reconcile_task
 from .payment.router import router as payment_router
+from .payment.scheduler import close_expired_orders_task
 from .settings import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
-    """应用生命周期:启动时幂等建表 + seed prompt 库。"""
+    """应用生命周期:启动时幂等建表 + seed prompt 库 + 启动后台任务。"""
+    settings = get_settings()
     init_db()
-    yield
+
+    timeout_cfg = settings.get("order_timeout", {})
+    reconcile_cfg = settings.get("reconcile", {})
+
+    stop_event = asyncio.Event()
+    background_tasks: list[asyncio.Task] = []
+
+    if timeout_cfg.get("enabled", True):
+        background_tasks.append(asyncio.create_task(
+            close_expired_orders_task(
+                interval_seconds=float(timeout_cfg.get("interval_seconds", 3600)),
+                hours=int(timeout_cfg.get("hours", 24)),
+                stop_event=stop_event,
+            ),
+            name="close_expired_orders",
+        ))
+        logger.info(
+            "order_timeout task started: interval=%ds hours=%d",
+            timeout_cfg.get("interval_seconds", 3600),
+            timeout_cfg.get("hours", 24),
+        )
+    else:
+        logger.info("order_timeout task disabled by env")
+
+    if reconcile_cfg.get("enabled", False):
+        background_tasks.append(asyncio.create_task(
+            reconcile_task(
+                interval_seconds=float(reconcile_cfg.get("interval_seconds", 86400)),
+                lookback_hours=int(reconcile_cfg.get("lookback_hours", 24)),
+                stop_event=stop_event,
+            ),
+            name="reconcile_day",
+        ))
+        logger.info(
+            "reconcile task started: interval=%ds lookback_hours=%d "
+            "(注意: platform_bills=None 会触发 adapter.fetch_bill,接入真实 "
+            "adapter 后即为外部调用)",
+            reconcile_cfg.get("interval_seconds", 86400),
+            reconcile_cfg.get("lookback_hours", 24),
+        )
+    else:
+        logger.info(
+            "reconcile task DISABLED by default (set CLOUD_RECONCILE_ENABLED=true "
+            "to enable; platform_bills=None would call adapter.fetch_bill)"
+        )
+
+    try:
+        yield
+    finally:
+        stop_event.set()
+        if background_tasks:
+            # 用 wait_for 兜底,防止任务在意外场景卡住把整个 shutdown 挂住;
+            # 但优先用 gather(return_exceptions=True),不吞掉 CancelledError 的
+            # 语义 —— 各任务内部捕获普通 Exception 并记录日志,只在被外部
+            # cancel 时才抛 CancelledError(此时本进程已经在退出,忽略即可)。
+            await asyncio.gather(
+                *background_tasks, return_exceptions=True
+            )
 
 
 app = FastAPI(

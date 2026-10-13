@@ -23,13 +23,15 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..db import SessionLocal
 from .adapter import get_adapter
 from .models import STATUS_PAID, SUPPORTED_CHANNELS, Order
 
@@ -190,4 +192,72 @@ def reconcile_day(
     return report
 
 
-__all__ = ["reconcile_day"]
+async def reconcile_task(
+    *,
+    interval_seconds: float = 86400.0,
+    lookback_hours: int = 24,
+    db_factory: Any = None,
+    stop_event: asyncio.Event | None = None,
+) -> None:
+    """循环执行 `reconcile_day` 的后台任务(asyncio)。
+
+    签名与 `close_expired_orders_task` 保持一致,便于 lifespan 统一管理。
+
+    参数:
+      - `interval_seconds` : 两次执行的间隔(秒),默认 24h。
+      - `lookback_hours`   : 每次执行"从当前时间往前 lookback_hours 小时"作为
+                             起止窗口;默认 24h 覆盖"昨日"日切。
+      - `db_factory`       : 可选的 session 工厂(callable → Session);默认用
+                             `cloud_service.db.SessionLocal`。
+      - `stop_event`       : 若给定,`stop_event.set()` 时立即退出循环。
+
+    注意:
+      - 本函数**不会**自己 create_task;由调用方调度。
+      - 传入 `platform_bills=None`(默认),会遍历已注册 adapter 调 `fetch_bill`。
+        真实商户 adapter 上线后就是外部调用,所以本任务**默认由 env 开关关闭**,
+        由 lifespan 根据 `settings["reconcile"]["enabled"]` 决定是否启动。
+      - 单次失败不会终止任务,仅记录日志,等下一次间隔重试。
+      - summary 与 matched_count 会通过 INFO 日志打印(带日期区间),便于观察。
+    """
+    if interval_seconds <= 0:
+        raise ValueError(f"interval_seconds must be > 0, got {interval_seconds}")
+    if lookback_hours <= 0:
+        raise ValueError(f"lookback_hours must be > 0, got {lookback_hours}")
+
+    while True:
+        if stop_event is not None and stop_event.is_set():
+            break
+        try:
+            if db_factory is None:
+                session = SessionLocal()
+            else:
+                session = db_factory()
+            try:
+                end_dt = datetime.now(timezone.utc)
+                start_dt = end_dt - timedelta(hours=lookback_hours)
+                start_date = start_dt.strftime("%Y-%m-%d")
+                end_date = end_dt.strftime("%Y-%m-%d")
+                report = reconcile_day(
+                    session, start_date=start_date, end_date=end_date
+                )
+                logger.info(
+                    "reconcile_task: window=[%s..%s] summary=%s matched=%d",
+                    start_date, end_date, report["summary"], report["matched_count"],
+                )
+            finally:
+                session.close()
+        except Exception:
+            logger.exception("reconcile_task iteration failed")
+
+        try:
+            if stop_event is not None:
+                await asyncio.wait_for(stop_event.wait(), timeout=interval_seconds)
+            else:
+                await asyncio.sleep(interval_seconds)
+        except asyncio.TimeoutError:
+            pass  # 正常走下一轮
+        except asyncio.CancelledError:
+            raise
+
+
+__all__ = ["reconcile_day", "reconcile_task"]
