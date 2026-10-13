@@ -1,0 +1,293 @@
+"""Billing 端点(C13)。
+
+前缀:`/cloud`(在 `main.py` 中挂载)。
+端点:
+  GET  /cloud/subscription           → 当前订阅 + 用量(懒创建 free 订阅)
+  POST /cloud/usage/consume          → 消耗额度;超限返回 402
+  POST /cloud/license/verify         → 客户端心跳:订阅有效性 + 剩余额度 + is_pro
+  POST /cloud/subscription/activate  → 模拟激活 pro(供 C19 支付接入前使用)
+
+复用:
+  - `..db.get_db`(SQLAlchemy session)
+  - `..auth.router.get_current_user`(C12 的 JWT 依赖)
+  - `..settings.get_settings()["billing"]`(额度可配)
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from ..auth.models import User
+from ..auth.router import get_current_user  # C12 的 JWT 依赖(复用,不重造)
+from ..db import get_db
+from ..settings import get_settings
+from .models import Subscription, Usage
+from .schemas import (
+    ConsumeRequest,
+    ConsumeResponse,
+    LicenseVerifyResponse,
+    SubscriptionActivateRequest,
+    SubscriptionResponse,
+)
+
+router = APIRouter()
+
+
+# ──────────────────────────────────────────────────────────────
+# 内部工具
+# ──────────────────────────────────────────────────────────────
+
+def _plan_quota(plan: str) -> int:
+    billing = get_settings()["billing"]
+    return int(billing.get("pro_quota", billing["free_quota"])) if plan == "pro" else int(
+        billing["free_quota"]
+    )
+
+
+def _current_period(now: datetime | None = None) -> str:
+    return (now or datetime.now(timezone.utc)).strftime("%Y-%m")
+
+
+def _get_or_create_subscription(db: Session, user: User) -> Subscription:
+    """获取当前订阅;不存在时懒创建 free 订阅(首次调用 `GET /subscription` 或 `consume`)。"""
+    sub = db.execute(
+        select(Subscription).where(Subscription.user_id == user.id)
+    ).scalar_one_or_none()
+    if sub is None:
+        sub = Subscription(
+            user_id=user.id,
+            plan="free",
+            status="active",
+            quota=_plan_quota("free"),
+        )
+        db.add(sub)
+        db.commit()
+        db.refresh(sub)
+    return sub
+
+
+def activate_for_user(db: Session, user: User, plan: str, days: int) -> Subscription:
+    """按 plan/days 激活(或续订)指定用户的订阅。
+
+    语义与 `POST /cloud/subscription/activate` 端点一致,提取为函数以便
+    C19 支付回调路径调用(回调时无 JWT,拿不到 current_user Depends)。
+
+    行为:
+      - plan='pro' : quota=pro_quota, expire_at = now + days, status='active',
+                     本月 usage.used 清零(新额度周期)
+      - plan='free': quota=free_quota, expire_at=None, status='active'
+
+    **幂等提示**:本函数不判断"重复激活",调用方(如 C19 支付回调)
+    应通过订单表 status 自行保证"同订单不重复激活"。
+    """
+    if plan not in {"pro", "free"}:
+        raise ValueError(f"unsupported plan: {plan}")
+    if not (1 <= days <= 730):
+        raise ValueError(f"days out of range: {days}")
+
+    sub = _get_or_create_subscription(db, user)
+    sub.plan = plan
+    sub.quota = _plan_quota(plan)
+    if plan == "pro":
+        sub.expire_at = datetime.now(timezone.utc) + timedelta(days=days)
+        sub.status = "active"
+        # 激活 pro 时清空本月已用额度,给一个"新的额度周期"体验
+        period = _current_period()
+        usage = db.execute(
+            select(Usage).where(Usage.user_id == user.id, Usage.period == period)
+        ).scalar_one_or_none()
+        if usage is not None:
+            usage.used = 0
+    else:
+        sub.expire_at = None
+        sub.status = "active"
+    db.commit()
+    db.refresh(sub)
+    return sub
+
+
+def _get_usage(db: Session, user_id: int, period: str) -> int:
+    row = db.execute(
+        select(Usage.used).where(Usage.user_id == user_id, Usage.period == period)
+    ).scalar_one_or_none()
+    return int(row or 0)
+
+
+def _consume_quota(db: Session, user: User, sub: Subscription, amount: int, period: str) -> int:
+    """原子累加用量并校验上限。
+
+    超限抛 HTTPException(402);成功后返回更新后的 used。
+    用 `with_for_update` 锁住 usage 行,防止并发覆盖。
+    """
+    usage = (
+        db.query(Usage)
+        .filter(Usage.user_id == user.id, Usage.period == period)
+        .with_for_update()
+        .first()
+    )
+    if usage is None:
+        usage = Usage(user_id=user.id, period=period, used=0)
+        db.add(usage)
+        db.flush()
+        usage = (
+            db.query(Usage)
+            .filter(Usage.user_id == user.id, Usage.period == period)
+            .with_for_update()
+            .first()
+        )
+
+    new_used = int(usage.used or 0) + amount
+    if sub.quota != -1 and new_used > sub.quota:
+        db.rollback()
+        raise HTTPException(
+            status_code=402,
+            detail=f"quota exceeded: {new_used}/{sub.quota} in {period}",
+        )
+
+    usage.used = new_used
+    db.commit()
+    return new_used
+
+
+def _serialize_subscription(sub: Subscription, used: int = 0) -> dict:
+    """把 ORM Subscription 序列化为 API 载荷(与 `to_dict` 一致,但集中管理)。"""
+    expired = sub.is_expired()
+    effective_status = "expired" if expired else sub.status
+    return {
+        "plan": sub.plan,
+        "status": effective_status,
+        "expire_at": sub.expire_at.isoformat() if sub.expire_at else None,
+        "quota": sub.quota,
+        "used": used,
+        "remaining": -1 if sub.quota == -1 else max(0, sub.quota - used),
+        "is_pro": sub.plan == "pro",
+    }
+
+
+# ──────────────────────────────────────────────────────────────
+# Endpoints
+# ──────────────────────────────────────────────────────────────
+
+@router.get("/subscription", response_model=SubscriptionResponse)
+def get_subscription(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> SubscriptionResponse:
+    """返回当前用户订阅状态 + 本月已用量。"""
+    sub = _get_or_create_subscription(db, current_user)
+    period = _current_period()
+    used = _get_usage(db, current_user.id, period)
+    return SubscriptionResponse(**_serialize_subscription(sub, used=used))
+
+
+@router.post("/usage/consume", response_model=ConsumeResponse)
+def consume_usage(
+    payload: ConsumeRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ConsumeResponse:
+    """消耗额度;超限 402,订阅过期 403。
+
+    典型调用方:LLM 代理(B3)、云端 prompt 服务。
+    """
+    sub = _get_or_create_subscription(db, current_user)
+    period = payload.period or _current_period()
+
+    # 过期订阅不允许消费;free 订阅过期视为永久(实际 free 不会有 expire_at)
+    if sub.is_expired():
+        raise HTTPException(
+            status_code=403,
+            detail="subscription expired, please renew",
+        )
+
+    used = _consume_quota(db, current_user, sub, payload.amount, period)
+    remaining = -1 if sub.quota == -1 else max(0, sub.quota - used)
+    return ConsumeResponse(
+        ok=True,
+        period=period,
+        used=used,
+        remaining=remaining,
+    )
+
+
+@router.post("/license/verify", response_model=LicenseVerifyResponse)
+def verify_license(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> LicenseVerifyResponse:
+    """客户端心跳:返回订阅有效性 + 剩余额度 + 是否 pro。
+
+    行为:
+      - 无订阅记录  → 视为 free 状态(不下架)
+      - 订阅已过期 → valid=False, status='expired'
+      - 订阅有效   → valid=True, 返回 quota/used/remaining/is_pro
+    """
+    sub = db.execute(
+        select(Subscription).where(Subscription.user_id == current_user.id)
+    ).scalar_one_or_none()
+
+    if sub is None:
+        # 懒创建 free 订阅,避免每次心跳都返回 no-subscription
+        sub = Subscription(
+            user_id=current_user.id,
+            plan="free",
+            status="active",
+            quota=_plan_quota("free"),
+        )
+        db.add(sub)
+        db.commit()
+        db.refresh(sub)
+
+    period = _current_period()
+    used = _get_usage(db, current_user.id, period)
+    expired = sub.is_expired()
+    if expired:
+        valid = False
+        reason = "expired"
+    elif sub.status != "active":
+        valid = False
+        reason = sub.status  # cancelled 等
+    else:
+        valid = True
+        reason = "active" if sub.plan == "pro" else "free"
+
+    data = _serialize_subscription(sub, used=used)
+    return LicenseVerifyResponse(
+        valid=valid,
+        reason=reason,
+        plan=data["plan"],
+        status=data["status"],
+        expire_at=data["expire_at"],
+        quota=data["quota"],
+        used=data["used"],
+        remaining=data["remaining"],
+        is_pro=data["is_pro"],
+    )
+
+
+@router.post("/subscription/activate", response_model=SubscriptionResponse)
+def activate_subscription(
+    payload: SubscriptionActivateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> SubscriptionResponse:
+    """模拟激活订阅(仅供开发 / 支付集成前使用)。
+
+    - plan='pro':  quota 取 settings['billing']['pro_quota'](默认无限), expire_at = 现在 + days。
+    - plan='free': quota 取 free_quota, expire_at = None(永久)。
+    激活 pro 后重置本月用量(避免遗留超量)。
+    """
+    try:
+        sub = activate_for_user(db, current_user, plan=payload.plan, days=payload.days)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+
+    used = _get_usage(db, current_user.id, _current_period())
+    return SubscriptionResponse(**_serialize_subscription(sub, used=used))
+
+
+__all__ = ["router"]
