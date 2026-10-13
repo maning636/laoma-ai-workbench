@@ -3,7 +3,8 @@
 > 日期:2026-10-13
 > 用途:交给用户 + 下一位 agent,理解当前进度、开发事件、设计思维;辅助云端部署
 > 仓库:`D:\dim开发\Prism-Fusion`(Windows,路径含中文)
-> 状态:本地产品化(A/B 类)主体已完;C 类 SaaS 主体已完工,进入真机联调 + 部署 + 加固阶段
+> 状态:本地产品化(A/B 类)主体已完;C 类 SaaS 主体已完工,前端网关已统一、支付遗留(退款/对账/订单超时)已补齐;进入真机联调 + 部署 + 加固阶段
+> 更新:2026-10-14 —— 补记两批未提交改动:前端 `client-gateway` 统一 + 心跳配置化、支付遗留(退款/对账/订单超时);遗留项集中在 §6.6
 
 ---
 
@@ -68,13 +69,15 @@
 | C14 | LLM 代理 + prompt 下沉 | `cloud_service/llm_proxy/` — `POST /cloud/llm/chat` + `/cloud/prompts` + `llm_client.py` + **`prompts.py` 336 行**(Jinja2 风格渲染 + 内存表 `CLOUD_PROMPTS` / `BASIC_PROMPTS` + 幂等 `sync_prompts_to_db`) |
 | C14a | 双版本 prompt 分层 | 云端 `tier=cloud` 高价值 prompt + `tier=basic` 离线可复用模板;DB 表 `prompts(name, tier, template, variables_json, version, is_active)` |
 | C14b | 客户端 prompt 路由 | `prism_backend/fusion_ai/prompt_router.py`(184 行)+ `prompts_basic.py`(166 行,离线基础库) |
-| C16 | 客户端双通道 | `prism_backend/fusion_ai/cloud_gateway.py`(557 行,后端侧 gateway)+ `prism_frontend/src/lib/cloud-auth.ts`(431 行,前端 JWT/refresh) |
+| C16 | 客户端双通道 | `prism_backend/fusion_ai/cloud_gateway.py`(557 行,后端侧 gateway)+ `prism_frontend/src/lib/cloud-auth.ts`(前端 JWT/refresh)+ **`prism_frontend/src/lib/client-gateway.ts`(291 行,前端对称网关:双通道路由 / token 注入 / 错误归一化)** |
 | C18 | pyarmor 混淆试点 | `scripts/packaging/obfuscate.py`(314 行,check/backup/restore/obfuscate/inject/verify)+ `build_services.ps1` 集成(备份→混淆→注入→打包→恢复,pyarmor 缺失时降级不破坏);试点模块:`cloud_gateway.py` |
 | C17 | key 剥离(订阅态) | 订阅态订阅 → 三处本地 key 清空(`.env` / SQLite `ai_model_configs` / `hermes-home/config.yaml`) |
-| C19 | 支付 | `cloud_service/payment/` — `PaymentAdapter` 抽象 + `alipay.py`(131 行) + `wechat.py`(124 行) + `/cloud/payment/*` + 对账 |
+| C19 | 支付 | `cloud_service/payment/` — `PaymentAdapter` 抽象 + `alipay.py`(131 行) + `wechat.py`(124 行) + `/cloud/payment/*` |
+| C19+ | 支付遗留补齐 | `payment/router.py` 新增 `POST /cloud/payment/refund`(JWT + `X-Admin-Token` 双门禁)+ `Order.STATUS_REFUNDED` / `refunded_at` + `reconciliation.py`(日终对账)+ `scheduler.py`(`close_expired_orders` + 异步 task)+ `cloud_service/test_payment_leftover.py`(38 项,已实跑通过;独立复跑确认) |
+| C16+ | 前端网关收敛 + 心跳配置化 | `cloud-auth.ts` 6 端点全部改走 `gatewayRequest`(已无裸 `fetch` / `API_ENDPOINTS`),新增 `prism_frontend/src/lib/client-gateway.ts`;`useLicenseHeartbeat.ts` 心跳优先级改为 参数 > `NEXT_PUBLIC_LICENSE_HEARTBEAT_MS` > 默认 24h(支持 `30m` / `2h` / `1d`) |
 | C — UI | 前端 C 类 | `prism_frontend/src/app/login/page.tsx` + `components/settings/cloud-subscription-card.tsx`(340 行)+ `hooks/useLicenseHeartbeat.ts`(85 行,24h 心跳) |
 | C — 测试 | 云端单测 | `cloud_service/test_{billing,llm,payment,e2e}.py` 共 804 行 |
-| 工作区 | 3 commits 落地 | `09ff37d` / `bbc906e` / `8598f7c`(全部 2026-10-13) |
+| 工作区 | 6 commits 落地 | `09ff37d` / `bbc906e` / `8598f7c` / `4866d9b` / `3aeae1b` / `be839a7`(全部 2026-10-13;后 3 个为 C 类) |
 
 ### 2.2 进行中 🟡
 
@@ -83,7 +86,8 @@
 | C16a | Hermes 双通道适配 | 通道适配骨架已建(订阅态写代理 endpoint),**真机联调未跑** |
 | C20 | 云基础设施 | 资源清单已定(阿里云 ECS + RDS + Redis + 域名/HTTPS),**未开通** |
 | C21 | cloud_service 部署 | Docker / Nginx / 告警骨架未做;当前仅本地 `cloud.db`(SQLite) |
-| 部署 | 前端 build + 后端打包冒烟 | 未跑(工作区还有 14+ 未提交改动) |
+| 部署 | 前端 build + 后端打包冒烟 | 未跑(工作区本批 12 项未提交改动,见 §6.6) |
+| 本批 | 独立验收 ✅(2026-10-14) | 13 项断言逐条核实通过:refund 端点挂载 `/cloud/payment/refund` + 门禁 + 状态机、`close_expired_orders` 语义、前端 6 端点收敛、heartbeat 优先级、tsc 三文件 0 错误、前后端 6 条 path 全部命中真实路由。发现 2 处数字偏差(已修正)+ 2 处语义风险(见 §6.6 P7 / F7);另批复跑 cloud_service 全量 5 个脚本 **177 项 check 全绿,无回归** |
 
 ### 2.3 未做 ❌
 
@@ -95,11 +99,14 @@
 | D — | `openclaw@latest` pin 版本 | 待 pin |
 | D — | `paths.json` 加入 `.gitignore` | 防误追踪 |
 
-**当前工作区**(未提交)包含所有 C 类 SaaS 新文件:`cloud_service/`、`prism_backend/fusion_ai/{cloud_gateway,prompt_router,prompts_basic}.py`、`prism_frontend/src/app/login/`、`components/settings/cloud-subscription-card.tsx`、`hooks/useLicenseHeartbeat.ts`、`lib/cloud-auth.ts`,以及对 `config.py` / `hermes_config.py` / `fusion_ai/router.py` / `settings/page.tsx` / `env.ts` / `desktop-electron/*` / `build-package.bat` / `build_services.ps1` 的改动。
+**C 类 SaaS 文件已入库**(3 个 commit,见 §2.4):`cloud_service/`、`prism_backend/fusion_ai/{cloud_gateway,prompt_router,prompts_basic}.py`、`prism_frontend/src/app/login/`、`components/settings/cloud-subscription-card.tsx`、`hooks/useLicenseHeartbeat.ts`、`lib/cloud-auth.ts`,以及对 `config.py` / `hermes_config.py` / `fusion_ai/router.py` / `settings/page.tsx` / `env.ts` / `desktop-electron/*` / `build-package.bat` / `build_services.ps1` 的改动。**2026-10-14 新增未提交**:`prism_frontend/src/lib/client-gateway.ts`、`cloud-auth.ts` 收敛、`useLicenseHeartbeat.ts` 心跳配置化、`cloud_service/payment/*`(退款 / 对账 / 订单超时)。
 
 ### 2.4 工作区提交记录
 
 ```
+be839a7 | 2026-10-13 | feat(pkg): pyarmor 加固试点 + obfuscate.py + 打包集成 + C 类文档
+3aeae1b | 2026-10-13 | feat(client): C 类客户端 — 双通道 cloud_gateway + prompt 分层 + key 剥离 + 前端登录/license UI + Electron safeStorage
+4866d9b | 2026-10-13 | feat(cloud): C 类云端 cloud_service — auth/billing/llm_proxy/payment + 测试
 8598f7c | 2026-10-13 | fix(mixed): 10 个混合文件整文件提交(含背景+本主线改动)
 bbc906e | 2026-10-13 | feat(mainline): 本主线 P0-P5/B 类新文件 + vendor 归属文档 + 14 新 API 目录挂载
 09ff37d | 2026-10-13 | chore(productize): 品牌 PRISM_→LAOMA_ + Easel 复刻 + 视频流水线 + Settings 重构 + 主题 + 打包脚本/文档
@@ -108,7 +115,7 @@ e00daf6 | 2026-09-23 | docs: 修正 STARTUP.md 的 Hermes 安装链说明
 52ec305 | 2026-09-23 | chore: 提交成品组件,冻结项目用于跨机器迁移
 ```
 
-**C 类 SaaS 全部未提交**(`cloud_service/` 整目录 + 3 个 fusion_ai 新文件 + 前端登录/订阅/心跳/JWT 5 个新文件 + 若干混合修改)。
+**C 类 SaaS 主体已于 2026-10-13 入库**(`4866d9b` 云端 · `3aeae1b` 客户端 · `be839a7` 打包/文档);**本批 12 项仍未提交**(支付遗留 + 前端网关收敛,见 §6.6 X1)。
 
 ---
 
@@ -393,8 +400,10 @@ cloud_service/
 
 - **抽象**:`PaymentAdapter`(create_order / handle_callback / query_order / refund)
 - **实现**:`alipay.py`(电脑网站支付 + 当面付)+ `wechat.py`(Native + JSAPI);Stripe **未做**(§7 决策 3 明确)
-- **订单**:云端 `orders` 表(order_no / out_trade_no / status / paid_at)
-- **对账**:每日对账脚本(**骨架已建,真机联调未跑**)
+- **订单**:云端 `orders` 表(order_no / out_trade_no / status / paid_at / **refunded_at**)
+- **退款**:`POST /cloud/payment/refund` 已实现(JWT + `X-Admin-Token` 双门禁;全额退款置 `refunded`,部分退款保持 `paid`;已退款订单的迟到回调不再激活订阅);**订阅不随退款撤销**(决策未定,见 §6.6 P1)
+- **对账**:`payment/reconciliation.py::reconcile_day` 已实现(本地已付订单 vs 平台账单 → local_only / platform_only / amount_mismatch);平台账单 `fetch_bill()` **仍是空 mock**,真机联调未跑
+- **订单超时**:`payment/scheduler.py::close_expired_orders`(默认关闭 24h 前的 `created` 单)已实现;异步 `close_expired_orders_task` **未挂到 `main.py` lifespan**,上线需一行接线或外部调度
 - **外部依赖**:支付宝 + 微信商户号申请周期 2–3 周(**必须现在启动,否则阻塞上线**)
 
 ---
@@ -408,9 +417,9 @@ cloud_service/
 | **C20** | 云基础设施(ECS + 域名 + HTTPS + RDS + Redis) | 阻塞真机联调与部署 | 🔴 P0 |
 | **C21** | cloud_service 部署(Nginx 反代 + 日志 + 告警 + CI/CD) | 阻塞生产上线 | 🔴 P0 |
 | **stream 支持** | `/cloud/llm/chat` 目前**非流式**;`ai_service/llm.py` 未加 `stream=True` 分支 | 影响体验(长 prompt 等待久) | 🟡 P2 |
-| **退款** | `PaymentAdapter.refund()` 抽象已定义,**实际实现未联调** | 运营必需 | 🟡 P2 |
-| **对账** | 每日对账脚本骨架,未跑真实支付流水 | 财务对账必需 | 🟡 P2 |
-| **订单超时** | `orders` 表已建,**未实现超时取消 + 回滚订阅** 逻辑 | 支付安全 | 🟡 P2 |
+| **退款** | ✅ 已实现 `POST /cloud/payment/refund`(mock 级):JWT + `X-Admin-Token` 双门禁、状态机 `paid→refunded`、幂等 409;**真实支付宝/微信退款接口未联调**;订阅不随退款撤销(见 §6.6 P1) | 运营必需 | 🟡 P2 |
+| **对账** | ✅ `reconcile_day()` 已实现(mock 级);**真实账单来源 `fetch_bill()` 仍是空 mock**(支付宝 `account.querybill.downloadurl.query` / 微信 `POST /v3/bill/tradebill` 未接) | 财务对账必需 | 🟡 P2 |
+| **订单超时** | ✅ `close_expired_orders()` 已实现(仅关 `created`,`hours<=0` 抛 `ValueError`);**未挂 lifespan**,需一行接线或用 cron/Celery Beat | 支付安全 | 🟢 P3 |
 | **pyarmor 加固 C18** | 混淆试点已完成(`cloud_gateway.py` + `obfuscate.py` + `build_services.ps1` 集成,pyarmor 缺失降级不破坏);**范围仅 1 模块**,license/订阅校验/token 双版本判定等加固项未上 | 防逆向辅助 | 🟢 P3 |
 | **真机联调** | 云端 + 客户端全链路未跑;仅 `test_e2e.py` 走本地 `TestClient` | 阻塞发布 | 🔴 P0 |
 | **PyArmor license 未启动** | 设计提到"双版本判定 + token 校验 + 订阅心跳"要加固;实际 pyarmor 未装 | 防逆向 | 🟢 P3 |
@@ -425,8 +434,8 @@ cloud_service/
 
 ### 6.3 代码/测试风险
 
-- **C 类新代码全未提交**:14+ 未追踪/未提交文件;若工作区损坏无回退点
-- **`cloud_service` 无 CI**:目前仅本地 `TestClient` 跑通 4 个 `test_*.py`;GitHub Actions 未加 cloud_service job
+- **C 类新代码部分未提交**:主体已入库(6 commits);本批 12 项(支付遗留 + 前端网关收敛)仍在工作区 —— 若工作区损坏则无回退点(见 §6.6 X1)
+- **`cloud_service` 无 CI**:5 个 `test_*.py` 是自运行脚本(非 pytest 用例),本地全绿(177 项)但 **`pytest cloud_service` 收集 0 项**;要进 CI 需先加适配层(见 §7.4);GitHub Actions 未加 cloud_service job
 - **`ci.yml` 尚未覆盖 C 类**:仅守门 P5 subprocess 与 `.env` 死字段
 - **prompt 库双份维护成本**:云端 `prompts.py` + 本地 `prompts_basic.py`;需统一版本 tag 对齐(未自动化)
 - **PyInstaller + Python 3.13 兼容性**:评审文档列出但未验证(见 `_review_productization_v1.md` §9.2)
@@ -452,6 +461,49 @@ cloud_service/
 - health-check fast/full 分档完善
 - 跨会话计划编号口径统一(避免 P0-P7 定义混乱)
 
+### 6.6 待复核清单(2026-10-14,两批新改动遗留)
+
+> 来源:支付遗留批(退款 / 对账 / 订单超时)+ 前端网关批(client-gateway / 心跳配置化)。
+> 用户口径:这类问题**记录不阻塞**,上线前一并过;验收 agent 的复跑结论也回填在本节。
+
+**支付批**
+
+| # | 项 | 现状 | 建议动作 | 优先级 |
+|---|---|---|---|---|
+| P1 | 退款不撤销订阅 | `billing` 只有"延长"语义,无 `cancel_subscription` / `shorten_subscription`;订阅与订单可能一对多(月付+加购+赠送) | 业务侧拍板"退款→订阅"映射规则,再给 `billing` 加接口;`RefundResponse.subscription_touched` 已预留字段 | 🟡 |
+| P2 | 部分退款语义未定 | 当前 `Order.status` 保持 `paid`,只在响应里带 `refund_trade_no` | 若需独立状态,加 `STATUS_PARTIALLY_REFUNDED` 或 `refund_amount` 累计列 | 🟡 |
+| P3 | 真实账单来源未接 | `PaymentAdapter.fetch_bill()` 是空 mock | 接支付宝账单下载 / 微信 `POST /v3/bill/tradebill`;按 `trade_date` 分页、CSV/JSON 解析、按 `out_trade_no` 归一 | 🟡 |
+| P4 | 订单超时调度未挂载 | `close_expired_orders_task` 已写但未进 `main.py` lifespan | 二选一:lifespan 里 `create_task(...)`(一行改动);或 cron / Celery Beat 调 `close_expired_orders(db)` | 🟢 |
+| P5 | **老库缺列(上线硬动作)** | SQLAlchemy `create_all` 不会 ALTER 已存在的 `orders` 表 | 老库手工执行 `ALTER TABLE orders ADD COLUMN refunded_at DATETIME`;新库 / 内存测试不受影响 | 🔴 |
+| P6 | 对账无触发入口 | 只有函数 + 单测,没有定时任务 / 运维入口 | 与 P4 同批接入调度,或做成运维脚本 + 差异告警 | 🟡 |
+| P7 | 对账的隐式外部调用(验收新发现) | `reconcile_day()` 在 `platform_bills=None` 时会遍历已注册 adapter 直接调 `adapter.fetch_bill()`;当前 mock 返回 `[]` 无网络,**接入真实 adapter 后即会拉商户账单接口** | 真实 adapter 上线时给对账加显式入口(定时任务 + 超时 / 重试),别放在请求路径上触发 | 🟡 |
+
+**前端网关批**
+
+| # | 项 | 现状 | 建议动作 | 优先级 |
+|---|---|---|---|---|
+| F1 | stream / SSE 未接 | `useAgentStream.ts` 与云端 LLM streaming 仍走旧 `fetch`;`client-gateway` 只处理 JSON | 加 `gatewayStream` 扩展点(SSE / 分块),与后端 `/cloud/llm/chat` 的 stream 分支同批做 | 🟡 |
+| F2 | 前后端网关抽象不对称 | 后端是 `CloudGateway` 类 + `get_gateway()` 单例;前端是纯函数 API | 迁移客户端 `prompt_router` 时再抽 `ClientGateway` 类 | 🟢 |
+| F3 | license 缓存策略不一致 | 后端有校验结果缓存(`_LICENSE_CACHE_TTL=300s`),前端不缓存,靠心跳节奏 | 明确"离线误判"策略(网络抖动不得把有效订阅判失效),必要时前端加短期缓存 | 🟡 |
+| F4 | `probe_cloud_reachable` / `build_tier_context` 前端未封装 | 后端有,前端无 | 归入客户端 prompt_router 批次 | 🟢 |
+| F5 | 前端测试缺失 | `setTokenProvider` 与 `GatewayErrorCode`(401 / 402 / 500 / network 分支)无测试;`prism_frontend` 无测试目录 | 引入 vitest,mock `fetch` 覆盖错误码分支 | 🟡 |
+| F6 | 前端全仓 `tsc` 仍有 23 条历史错误 | 集中在 ai-agent / breakdown / calendar / skills / navbar / sidebar-new / breadcrumb,**与本次改动无关** | 独立批次清理,不与 SaaS 改动混提 | 🟢 |
+| F7 | 心跳单位换算边界(验收新发现) | `parseHeartbeatIntervalMs` 对无单位数字用"`<1000` → 秒 / `≥1000` → 毫秒"规则,即 `"999"` = 999 秒而 `"1000"` = 1 秒,存在跳变 | 配置示例统一写带单位形式(`"30m"` / `"24h"`),需要时再收紧解析规则 | 🟢 |
+| F8 | `client-gateway` 的 feature 白名单未被使用(验收新发现) | 白名单 `{auth, subscription, license, usage, llm, billing}` 当前全部被 `feature:"cloud"` 显式绕过,语义等价、无风险,但该分支没有真实调用覆盖 | 后续客户端 `prompt_router` 接入时改走 feature 路由,顺带补测试 | 🟢 |
+| F9 | 前端网关不在 C18 加固范围内 | C18 目前只加固 `cloud_gateway.py`;`client-gateway.ts` 含双版本判定 / token 注入逻辑,打包后落在 Electron asar 里(asar 可解包) | 设计上尽量把"该走线上还是离线"的判定收回后端;前端 bundle 的混淆/压缩策略单列一项评估 | 🟢 |
+
+**跨批**
+
+| # | 项 | 现状 | 建议动作 | 优先级 |
+|---|---|---|---|---|
+| X1 | 本批 12 项代码改动未提交 | 支付(5 改 + 3 增,其中 `cloud_service/test_payment_leftover.py` 在 `cloud_service/` 根)+ 前端(3 改 + 1 增);另有本文档本次更新 | 建议拆两个 commit(`cloud_service/*` 一批、`prism_frontend/*` 一批,文档可并入);显式路径提交,勿用 `git add -A` | 🟠 |
+| X2 | 早前 commit 链未 push | 14 个新 API 目录与 `api/v1/router.py` 分散在不同 commit,**必须一次性 push** | 确认远程与分支后一次 push,不要分批 | 🟠 |
+| X3 | `cloud_service` 测试进不了 CI | 5 个 `test_*.py` 是自运行脚本(非 pytest 用例),`pytest cloud_service` 收集 0 项,所以 CI 里等于没有 C 类测试 | 加 pytest 适配层(或 subprocess 包装)后再注入 CI job;同时修掉 §7.4 那条错误指引 | 🟡 |
+
+**未决决策(需用户拍板)**:Hermes 归属(§7 决策 7 仍"暂不定";C16a 只做通道适配)。
+
+**验收状态(2026-10-14 独立复跑)**:`test_payment_leftover.py` **38 项 PASS**、`test_payment.py` **42 项 PASS** —— 执行 agent 自报的 37 / 38 与实测不符,以复跑为准(功能均通过,只是计数口径偏差);前端 `tsc` 本次 3 个文件 **0 错误**(全仓 23 条历史错误都在无关模块);前后端路由对称性 6 条 path **全部命中真实路由**。cloud_service **全量 5 个脚本 177 项 check 全绿**(payment 42 / payment_leftover 38 / billing 40 / llm 39 / e2e 18),**无回归**;均为进程内 mock(SQLite + mock 支付通道),真实支付 / Redis / LLM 上游仍需预发环境集成测试。
+
 ---
 
 ## 7. 交接要点(给下一位 agent)
@@ -466,7 +518,7 @@ cloud_service/
    - 云端:`cloud_service/main.py`(挂 4 个 router 的入口)
    - Prompt:`cloud_service/llm_proxy/prompts.py`(`PromptDef` + `CLOUD_PROMPTS` / `BASIC_PROMPTS` + `sync_prompts_to_db`)
    - 双通道后端:`prism_backend/fusion_ai/cloud_gateway.py`
-   - 双通道前端:`prism_frontend/src/lib/cloud-auth.ts`
+   - 双通道前端:`prism_frontend/src/lib/client-gateway.ts`(实际请求入口)+ `prism_frontend/src/lib/cloud-auth.ts`(JWT/refresh)
    - 本地路径:`prism_backend/fastapi_app/core/paths.py`
 6. **文档**:
    - `STARTUP.md`(启动,15–20 分钟)
@@ -474,12 +526,12 @@ cloud_service/
 
 ### 7.2 当前状态一句话
 
-> 本地产品化(A/B 类)主体已完,P0-P5 主体 + review 批量 + C 盘防护 + B7 supervisor SERVICE_REGISTRY + B10 启动优化(26s→2-3s)已落地;3 个 commit 已入库。C 类 SaaS(用户体系 + 订阅 + LLM 代理 + 支付 + 双通道 + UI)主体已在本地跑通(**未提交**);C18 pyarmor 试点已上线(`cloud_gateway.py` + `obfuscate.py`,pyarmor 缺失时降级)。下一步是**云基础设施 + 真机联调 + 支付商户号 + pyarmor 加固扩展**。
+> 本地产品化(A/B 类)主体已完,P0-P5 主体 + review 批量 + C 盘防护 + B7 supervisor SERVICE_REGISTRY + B10 启动优化(26s→2-3s)已落地;6 个 commit 入库(后 3 个为 C 类)。C 类 SaaS(用户体系 + 订阅 + LLM 代理 + 支付 + 双通道 + UI)主体已在本地跑通并入库;C18 pyarmor 试点已上线(`cloud_gateway.py` + `obfuscate.py`,pyarmor 缺失时降级)。2026-10-14 又补齐**前端 client-gateway 统一 + 心跳配置化**与**支付遗留(退款 / 对账 / 订单超时)**,共 12 项**未提交**。下一步是**云基础设施 + 真机联调 + 支付商户号 + pyarmor 加固扩展**。
 
 ### 7.3 下一步(推荐顺序)
 
 **🔴 P0(阻塞上线)**
-1. **提交 C 类工作区** — `cloud_service/` + 3 个 `fusion_ai/` 新文件 + 前端 5 个新文件 + 若干混合修改;否则无回退点
+1. **提交本批 12 项工作区改动** — 支付遗留(`cloud_service/payment/*`)+ 前端网关收敛(`client-gateway.ts` / `cloud-auth.ts` / `useLicenseHeartbeat.ts` / `.env.local.example`);建议拆两个 commit,显式路径提交
 2. **C20 云基础设施** — 阿里云/腾讯云开通 ECS + RDS + Redis + 域名/HTTPS;1–1.5d
 3. **C21 cloud_service 部署** — Nginx 反代 + Docker + 日志聚合 + 告警;1–1.5d
 4. **真机联调** — 客户端 → 云端 → LLM → 支付全链路
@@ -492,7 +544,7 @@ cloud_service/
 9. **CI 加 cloud_service job** — pytest + 部署前守门
 
 **🟡 P2**
-10. **支付退款 + 订单超时 + 每日对账** — 运营必需
+10. ~~支付退款 + 订单超时 + 每日对账~~ ✅ 2026-10-14 已实现(mock 级);剩余:真实账单 `fetch_bill()` 对接、超时任务挂 lifespan、老库 `ALTER TABLE orders ADD COLUMN refunded_at`(见 §6.6 P3/P4/P5)
 11. **prompt 库双份同步自动化** — 版本 tag 对齐
 
 **🟢 P3(上线稳定后)**
@@ -505,7 +557,7 @@ cloud_service/
 - **仓库路径含中文**:`D:\dim开发\Prism-Fusion` — 命令要用 PowerShell 语法(`Set-Location` + 单引号,不是 `cd /d` + `&&`)
 - **虚拟环境**:`prismenv/Scripts/python.exe`(3.11);不要 pip install 到系统 Python
 - **C 类全未提交** — 提交前先 `git status --short` 看范围;建议按 §4.9 三层策略(背景/主线/混合)分层
-- **测试入口**:`& prismenv\Scripts\python.exe -m pytest cloud_service -q`(需要 `-o 'testpaths=cloud_service'` 或 cd 到 cloud_service 目录,当前 pytest 自动发现会跳过)
+- **测试入口(2026-10-14 更正)**:`cloud_service/test_*.py` **不是 pytest 用例**,而是自运行脚本(末尾 `if __name__ == "__main__"`),直接 `& prismenv\Scripts\python.exe cloud_service\test_xxx.py` 运行,成功会打印 `ALL TESTS PASSED`;`python -m pytest cloud_service -q` 会 **collected 0 items**(不要再用)。5 个脚本合计 **177 项 check 全绿**:`test_payment` 42 / `test_payment_leftover` 38 / `test_billing` 40 / `test_llm` 39 / `test_e2e` 18
 - **启动后端**:见 `STARTUP.md`;当前启动 ~2–3s(已优化)
 - **启动云端**:`cd cloud_service && uvicorn main:app --reload --port 8000`(本地 sqlite,生产切 RDS)
 - **不要动 Hermes 内部代码**,只改 `prism_backend/fastapi_app/agent/hermes_*.py` 对接层
@@ -525,7 +577,10 @@ cloud_service/
 | 云端入口 | `cloud_service/main.py` |
 | 云端配置 | `cloud_service/settings.py` |
 | LLM 代理 + Prompt | `cloud_service/llm_proxy/{router,prompts,llm_client}.py` |
-| 支付 | `cloud_service/payment/{adapter,alipay,wechat}.py` |
+| 支付 | `cloud_service/payment/{adapter,alipay,wechat}.py` + `{router,reconciliation,scheduler}.py` |
+| 前端双通道网关 | `prism_frontend/src/lib/client-gateway.ts` |
+| 支付对账函数 | `cloud_service/payment/reconciliation.py`(日终对账) |
+| 订单超时调度 | `cloud_service/payment/scheduler.py`(`close_expired_orders` + 异步 task) |
 | 双通道后端 | `prism_backend/fusion_ai/cloud_gateway.py` |
 | 客户端 prompt 路由 | `prism_backend/fusion_ai/{prompt_router,prompts_basic}.py` |
 | 前端 JWT/订阅 | `prism_frontend/src/lib/cloud-auth.ts` |
