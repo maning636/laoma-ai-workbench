@@ -75,6 +75,8 @@
 | C19 | 支付 | `cloud_service/payment/` — `PaymentAdapter` 抽象 + `alipay.py`(131 行) + `wechat.py`(124 行) + `/cloud/payment/*` |
 | C19+ | 支付遗留补齐 | `payment/router.py` 新增 `POST /cloud/payment/refund`(JWT + `X-Admin-Token` 双门禁)+ `Order.STATUS_REFUNDED` / `refunded_at` + `reconciliation.py`(日终对账)+ `scheduler.py`(`close_expired_orders` + 异步 task)+ `cloud_service/test_payment_leftover.py`(38 项,已实跑通过;独立复跑确认) |
 | C16+ | 前端网关收敛 + 心跳配置化 | `cloud-auth.ts` 6 端点全部改走 `gatewayRequest`(已无裸 `fetch` / `API_ENDPOINTS`),新增 `prism_frontend/src/lib/client-gateway.ts`;`useLicenseHeartbeat.ts` 心跳优先级改为 参数 > `NEXT_PUBLIC_LICENSE_HEARTBEAT_MS` > 默认 24h(支持 `30m` / `2h` / `1d`) |
+| P4+P6 | 调度挂载(2026-10-14) | `cloud_service/main.py` lifespan 起订单超时任务(默认开,3600s / 24h)+ 对账任务(**默认关**);`settings.py` 增 6 个 `CLOUD_ORDER_TIMEOUT_*` / `CLOUD_RECONCILE_*` env;新增 `reconciliation.reconcile_task`;`test_payment_leftover.py` 38 → **50 项**全绿,`test_payment.py` 42 项回归通过 |
+| F1+X3 | 流式通道 + CI 接线(2026-10-14) | 后端 `POST /cloud/llm/stream`(OpenAI 兼容 SSE)+ `llm_client.stream_cloud_llm()`;前端 `gatewayStream()` / `parseSSEStream()`;`cloud_service/conftest.py` 适配层 + `ci.yml` 新增 `cloud-service-tests` 硬门 job(`pytest cloud_service -q` → 5 passed);`test_llm.py` 39 → **68 项** |
 | C — UI | 前端 C 类 | `prism_frontend/src/app/login/page.tsx` + `components/settings/cloud-subscription-card.tsx`(340 行)+ `hooks/useLicenseHeartbeat.ts`(85 行,24h 心跳) |
 | C — 测试 | 云端单测 | `cloud_service/test_{billing,llm,payment,e2e}.py` 共 804 行 |
 | 工作区 | 6 commits 落地 | `09ff37d` / `bbc906e` / `8598f7c` / `4866d9b` / `3aeae1b` / `be839a7`(全部 2026-10-13;后 3 个为 C 类) |
@@ -84,10 +86,11 @@
 | 类 | 项 | 状态 |
 |---|---|---|
 | C16a | Hermes 双通道适配 | 通道适配骨架已建(订阅态写代理 endpoint),**真机联调未跑** |
-| C20 | 云基础设施 | 资源清单已定(阿里云 ECS + RDS + Redis + 域名/HTTPS),**未开通** |
+| C20 | 云基础设施 | 用户 2026-10-14 口述:ICP 备案 / 域名解析 / HTTPS 证书 ✅、微信商户平台已注册 🟡;**ECS 实例、RDS MySQL、云端 LLM key 未确认**;支付宝商户号未提及。**等用户 2026-10-15 给网址后启动部署** |
 | C21 | cloud_service 部署 | Docker / Nginx / 告警骨架未做;当前仅本地 `cloud.db`(SQLite) |
 | 部署 | 前端 build + 后端打包冒烟 | 未跑(工作区本批 12 项未提交改动,见 §6.6) |
-| 本批 | 独立验收 ✅(2026-10-14) | 13 项断言逐条核实通过:refund 端点挂载 `/cloud/payment/refund` + 门禁 + 状态机、`close_expired_orders` 语义、前端 6 端点收敛、heartbeat 优先级、tsc 三文件 0 错误、前后端 6 条 path 全部命中真实路由。发现 2 处数字偏差(已修正)+ 2 处语义风险(见 §6.6 P7 / F7);另批复跑 cloud_service 全量 5 个脚本 **177 项 check 全绿,无回归** |
+| 本批 | 独立验收 ✅(第一批) | 13 项断言逐条核实:refund 挂载 + 门禁 + 状态机、`close_expired_orders` 语义、前端 6 端点收敛、heartbeat 优先级、tsc 三文件 0 错误、前后端 6 条 path 全命中。发现 2 处数字偏差 + 2 处语义风险(§6.6 P7 / F7) |
+| 本批 | 全量复跑 ✅(第二批) | 三项开发完成后复跑:`pytest cloud_service -q` → **5 passed**;5 脚本 **218 项 check 全绿**(payment 42 / leftover 50 / billing 40 / llm 68 / e2e 18);前端 tsc 23 条历史错误不变、本次文件 **0 命中**;并实测证伪了「文件被写坏」的报警(实为并行写入中间态,见 §6.6 X4) |
 
 ### 2.3 未做 ❌
 
@@ -414,12 +417,13 @@ cloud_service/
 
 | # | 项 | 影响 | 优先级 |
 |---|---|---|---|
-| **C20** | 云基础设施(ECS + 域名 + HTTPS + RDS + Redis) | 阻塞真机联调与部署 | 🔴 P0 |
+| **C20** | 云基础设施(ECS + RDS + Redis) | 用户 2026-10-14 口述:**ICP 备案 ✅ / 域名解析 ✅ / HTTPS 证书 ✅ / 微信商户平台注册 🟡**;ECS 实例、RDS MySQL、云端 LLM key **未确认**;支付宝商户号未提及 | 🔴 P0 |
+| **支付真实对接** | `cloud_service/payment/` 目前是 **mock/HMAC 模拟签名**,无支付宝/微信官方 SDK 调用(2026-10-14 核实:`httpx`/官方 SDK 全目录 0 命中) | **拿到商户号也收不了真钱、退不了款、对不了账** | 🔴 P0 |
 | **C21** | cloud_service 部署(Nginx 反代 + 日志 + 告警 + CI/CD) | 阻塞生产上线 | 🔴 P0 |
-| **stream 支持** | `/cloud/llm/chat` 目前**非流式**;`ai_service/llm.py` 未加 `stream=True` 分支 | 影响体验(长 prompt 等待久) | 🟡 P2 |
+| **stream 支持** | ✅ **2026-10-14 已完成**:新增 `POST /cloud/llm/stream`(OpenAI 兼容 SSE:首帧 meta、终帧 done + usage、`data: [DONE]` 结尾;上游异常走 `event: error`)+ 前端 `gatewayStream` / `parseSSEStream`。**调用方尚未切换**(见 §6.6 F1) | 长 prompt 等待体验 | 🟢 |
 | **退款** | ✅ 已实现 `POST /cloud/payment/refund`(mock 级):JWT + `X-Admin-Token` 双门禁、状态机 `paid→refunded`、幂等 409;**真实支付宝/微信退款接口未联调**;订阅不随退款撤销(见 §6.6 P1) | 运营必需 | 🟡 P2 |
 | **对账** | ✅ `reconcile_day()` 已实现(mock 级);**真实账单来源 `fetch_bill()` 仍是空 mock**(支付宝 `account.querybill.downloadurl.query` / 微信 `POST /v3/bill/tradebill` 未接) | 财务对账必需 | 🟡 P2 |
-| **订单超时** | ✅ `close_expired_orders()` 已实现(仅关 `created`,`hours<=0` 抛 `ValueError`);**未挂 lifespan**,需一行接线或用 cron/Celery Beat | 支付安全 | 🟢 P3 |
+| **订单超时** | ✅ 已闭环:`close_expired_orders()` + `close_expired_orders_task` 已于 2026-10-14 挂进 `main.py` lifespan;间隔/阈值走 env(`CLOUD_ORDER_TIMEOUT_*`,默认开、3600s / 24h) | 支付安全 | 已完成 |
 | **pyarmor 加固 C18** | 混淆试点已完成(`cloud_gateway.py` + `obfuscate.py` + `build_services.ps1` 集成,pyarmor 缺失降级不破坏);**范围仅 1 模块**,license/订阅校验/token 双版本判定等加固项未上 | 防逆向辅助 | 🟢 P3 |
 | **真机联调** | 云端 + 客户端全链路未跑;仅 `test_e2e.py` 走本地 `TestClient` | 阻塞发布 | 🔴 P0 |
 | **PyArmor license 未启动** | 设计提到"双版本判定 + token 校验 + 订阅心跳"要加固;实际 pyarmor 未装 | 防逆向 | 🟢 P3 |
@@ -435,7 +439,7 @@ cloud_service/
 ### 6.3 代码/测试风险
 
 - **C 类新代码部分未提交**:主体已入库(6 commits);本批 12 项(支付遗留 + 前端网关收敛)仍在工作区 —— 若工作区损坏则无回退点(见 §6.6 X1)
-- **`cloud_service` 无 CI**:5 个 `test_*.py` 是自运行脚本(非 pytest 用例),本地全绿(177 项)但 **`pytest cloud_service` 收集 0 项**;要进 CI 需先加适配层(见 §7.4);GitHub Actions 未加 cloud_service job
+- **`cloud_service` CI** ✅ 2026-10-14 已接:`cloud_service/conftest.py` 适配层 + `ci.yml` 新增 `cloud-service-tests` job(硬门,`pytest cloud_service -q` → `5 passed`);本地全绿 **218 项**
 - **`ci.yml` 尚未覆盖 C 类**:仅守门 P5 subprocess 与 `.env` 死字段
 - **prompt 库双份维护成本**:云端 `prompts.py` + 本地 `prompts_basic.py`;需统一版本 tag 对齐(未自动化)
 - **PyInstaller + Python 3.13 兼容性**:评审文档列出但未验证(见 `_review_productization_v1.md` §9.2)
@@ -445,10 +449,13 @@ cloud_service/
 
 | 项 | 周期 | 阻塞点 |
 |---|---|---|
-| 支付宝商户号申请 | 2–3 周 | C19 支付上线 |
-| 微信商户号 + API 证书申请 | 2–3 周 | C19 支付上线 |
-| 域名备案(若新域名) | 2–3 周 | C20 部署 |
-| 云厂商账户合规审核 | 1 周 | C20 部署 |
+| 支付宝商户号申请 | 2–3 周 | C19 支付上线 —— **未开始(用户 2026-10-14 未提及)** |
+| 微信商户号 + API 证书申请 | 2–3 周 | C19 支付上线 —— 🟡 商户平台**已注册**;mch_id / APIv3 密钥 / API 证书 / 支付产品开通待确认 |
+| 域名备案 | 2–3 周 | C20 部署 —— ✅ 用户已完成(2026-10-14) |
+| 域名解析 + HTTPS 证书 | — | C20 部署 —— ✅ 已配 / 已备(2026-10-14) |
+| 云厂商账户合规审核 | 1 周 | C20 部署 —— ❓ 未确认 |
+
+**云侧仍未确认的**(2026-10-14):**ECS/CVM 实例、RDS MySQL、云端 LLM key(`CLOUD_LLM_API_KEY`)**。
 
 **建议**:立刻并行启动商户号 + 备案申请(不占开发工时,但阻塞上线)。
 
@@ -473,16 +480,21 @@ cloud_service/
 | P1 | 退款不撤销订阅 | `billing` 只有"延长"语义,无 `cancel_subscription` / `shorten_subscription`;订阅与订单可能一对多(月付+加购+赠送) | 业务侧拍板"退款→订阅"映射规则,再给 `billing` 加接口;`RefundResponse.subscription_touched` 已预留字段 | 🟡 |
 | P2 | 部分退款语义未定 | 当前 `Order.status` 保持 `paid`,只在响应里带 `refund_trade_no` | 若需独立状态,加 `STATUS_PARTIALLY_REFUNDED` 或 `refund_amount` 累计列 | 🟡 |
 | P3 | 真实账单来源未接 | `PaymentAdapter.fetch_bill()` 是空 mock | 接支付宝账单下载 / 微信 `POST /v3/bill/tradebill`;按 `trade_date` 分页、CSV/JSON 解析、按 `out_trade_no` 归一 | 🟡 |
-| P4 | 订单超时调度未挂载 | `close_expired_orders_task` 已写但未进 `main.py` lifespan | 二选一:lifespan 里 `create_task(...)`(一行改动);或 cron / Celery Beat 调 `close_expired_orders(db)` | 🟢 |
+| P4 | 订单超时调度挂载 | ✅ **2026-10-14 已完成**:`main.py` lifespan 启动 `close_expired_orders_task`,与对账任务共享 `stop_event`,shutdown 时 `gather(..., return_exceptions=True)`;env `CLOUD_ORDER_TIMEOUT_ENABLED` / `_INTERVAL_SECONDS` / `_HOURS`(默认 true / 3600 / 24) | 已完成。**新风险见 P8** | — |
 | P5 | **老库缺列(上线硬动作)** | SQLAlchemy `create_all` 不会 ALTER 已存在的 `orders` 表 | 老库手工执行 `ALTER TABLE orders ADD COLUMN refunded_at DATETIME`;新库 / 内存测试不受影响 | 🔴 |
-| P6 | 对账无触发入口 | 只有函数 + 单测,没有定时任务 / 运维入口 | 与 P4 同批接入调度,或做成运维脚本 + 差异告警 | 🟡 |
-| P7 | 对账的隐式外部调用(验收新发现) | `reconcile_day()` 在 `platform_bills=None` 时会遍历已注册 adapter 直接调 `adapter.fetch_bill()`;当前 mock 返回 `[]` 无网络,**接入真实 adapter 后即会拉商户账单接口** | 真实 adapter 上线时给对账加显式入口(定时任务 + 超时 / 重试),别放在请求路径上触发 | 🟡 |
+| P6 | 对账无触发入口 | ✅ **2026-10-14 已完成**:新增 `reconciliation.reconcile_task`,**默认关闭**(`CLOUD_RECONCILE_ENABLED=false`);开启后按 `CLOUD_RECONCILE_INTERVAL_SECONDS`(86400)/ `CLOUD_RECONCILE_LOOKBACK_HOURS`(24) 执行,summary 与日期窗口落日志 | 已完成。生产建议挪到独立进程(见 P9) | — |
+| P7 | 对账的隐式外部调用(验收新发现) | `reconcile_day()` 在 `platform_bills=None` 时会遍历已注册 adapter 直接调 `adapter.fetch_bill()`;当前 mock 返回 `[]` 无网络,**接入真实 adapter 后即会拉商户账单接口** | 已由 P6 的默认关闭兜住;真实 adapter 上线时保持关闭 + 沙箱观察,再决定开启 | 🟡 |
+| P8 | 多 worker 会重复跑后台任务 | uvicorn `--workers > 1` 时每个 worker 各执行一次 lifespan ⇒ 各起一份超时/对账任务;清理逻辑幂等(按 id + status 条件更新),但日志重复;**对账会真的重复调商户账单接口** | 小流量单 worker;或把任务挪到独立进程(APScheduler / K8s CronJob)并在 web 进程设 `CLOUD_ORDER_TIMEOUT_ENABLED=false`;留在 web 进程则需 Redis 分布式锁 | 🟡 |
+| P9 | 对账单次执行无超时保护 | `reconcile_task` 没有 `asyncio.wait_for`;adapter 卡住会把下一次循环整体推后 | 真实 adapter 上线前加 `wait_for(..., timeout=30)` + 指数退避 + 每日限次(商户账单接口通常有日限流) | 🟡 |
+| P10 | `cloud_service` 缺 `.env.example` | 目录下不存在 `.env.example`,本次新增 6 个 env 无处记录示例 | 补一份 `cloud_service/.env.example`,或在部署指南 §3 列全;上线前必须有单一权威 env 清单 | 🟡 |
 
 **前端网关批**
 
 | # | 项 | 现状 | 建议动作 | 优先级 |
 |---|---|---|---|---|
-| F1 | stream / SSE 未接 | `useAgentStream.ts` 与云端 LLM streaming 仍走旧 `fetch`;`client-gateway` 只处理 JSON | 加 `gatewayStream` 扩展点(SSE / 分块),与后端 `/cloud/llm/chat` 的 stream 分支同批做 | 🟡 |
+| F1 | stream / SSE 通道 | ✅ **2026-10-14 已完成**:后端 `POST /cloud/llm/stream` + `stream_cloud_llm()`;前端 `gatewayStream()` / `parseSSEStream()`(半帧跨 chunk 缓冲、`[DONE]` 保留、CRLF 归一)。**调用方未切换**:`useAgentStream` / `useHermesStream` / `cloud_gateway.py` / `fusion_ai/router.py` 仍走非流式 | 后续逐个接入调用方(单独批次) | — |
+| F10 | 客户端中断时不计费(流式新风险) | 客户端 AbortController / 断网 → Starlette 触发 `GeneratorExit`,绕过 `except HTTPException`,**内容已发但没扣额度** | 改为"预消费 + 上游失败时回滚";或接受该风险(每次调用已消耗上游流量,滥用代价低)。下一轮补 | 🟡 |
+| F11 | 流式 usage 缺失时按字符估算 | 上游不返回 `usage` 时按 `len(text)//2` 估算,**中文场景偏差可能 30%+** | 仅作展示、不作扣费依据;需要严格计费时改用上游 usage 或本地 tokenizer | 🟢 |
 | F2 | 前后端网关抽象不对称 | 后端是 `CloudGateway` 类 + `get_gateway()` 单例;前端是纯函数 API | 迁移客户端 `prompt_router` 时再抽 `ClientGateway` 类 | 🟢 |
 | F3 | license 缓存策略不一致 | 后端有校验结果缓存(`_LICENSE_CACHE_TTL=300s`),前端不缓存,靠心跳节奏 | 明确"离线误判"策略(网络抖动不得把有效订阅判失效),必要时前端加短期缓存 | 🟡 |
 | F4 | `probe_cloud_reachable` / `build_tier_context` 前端未封装 | 后端有,前端无 | 归入客户端 prompt_router 批次 | 🟢 |
@@ -498,11 +510,19 @@ cloud_service/
 |---|---|---|---|---|
 | X1 | 本批 12 项代码改动未提交 | 支付(5 改 + 3 增,其中 `cloud_service/test_payment_leftover.py` 在 `cloud_service/` 根)+ 前端(3 改 + 1 增);另有本文档本次更新 | 建议拆两个 commit(`cloud_service/*` 一批、`prism_frontend/*` 一批,文档可并入);显式路径提交,勿用 `git add -A` | 🟠 |
 | X2 | 早前 commit 链未 push | 14 个新 API 目录与 `api/v1/router.py` 分散在不同 commit,**必须一次性 push** | 确认远程与分支后一次 push,不要分批 | 🟠 |
-| X3 | `cloud_service` 测试进不了 CI | 5 个 `test_*.py` 是自运行脚本(非 pytest 用例),`pytest cloud_service` 收集 0 项,所以 CI 里等于没有 C 类测试 | 加 pytest 适配层(或 subprocess 包装)后再注入 CI job;同时修掉 §7.4 那条错误指引 | 🟡 |
+| X3 | `cloud_service` 测试进不了 CI | ✅ **2026-10-14 已完成**:`cloud_service/conftest.py` 用 `pytest_collect_file` 把 5 个脚本各包成 1 个用例(进程内调 `run()`,脚本零改动、独立运行能力保留);`.github/workflows/ci.yml` 新增 `cloud-service-tests` job(硬门,不削弱既有守门);`requirements-dev.txt` 补 `PyJWT` / `bcrypt`。验证 `pytest cloud_service -q` → 5 passed | — |
+| X4 | 并行 agent 同仓写入会互相污染验证(本次实际发生) | 三批 agent 同时改 `cloud_service/`,CI 适配层 agent 在跑全量 pytest 时读到 owner **正在替换**的 `test_payment_leftover.py` 中间态(SyntaxError),一度误判"文件被写坏";owner 完成后复测 `py_compile rc=0` + `ALL TESTS PASSED` 50 项,证实是中间态 | 调度约定:**写任务**只改自己文件;**验证任务**在写入窗口内只跑自己子集,或等所有写任务结束后再跑全量 | 🟡 |
+| X5 | 三套 Python 版本不一致 | 本地 `prismenv` 是 **3.13.14**、CI 四个 job 都是 **3.11**、部署指南目标 Ubuntu 22.04/24.04 自带 **3.10 / 3.12** | 已静态核验:`cloud_service/**/*.py` 全部通过 `ast.parse(..., feature_version=(3,11))`,**语法层**兼容 3.11;但运行时 API 差异未验证(本地 3.13 绿 ≠ CI 3.11 绿)。部署时用 venv 锁定 3.11,别用系统 python | 🟡 |
+
+**用户侧外部进度(2026-10-14 口述)**:ICP 备案 ✅ / 域名解析 ✅ / HTTPS 证书 ✅ / 微信商户平台已注册 🟡(mch_id、APIv3 密钥、API 证书、支付产品开通待确认);**未确认**:ECS 实例、RDS MySQL、云端 LLM key(`CLOUD_LLM_API_KEY`);支付宝商户号未提及。
+
+**触发条件**:用户 2026-10-15 提供正式网址后,再决定先做「支付真实对接」还是「云端部署 + 非支付链路联调」。已核实的前置事实:**支付适配器仍是 mock(官方 SDK 0 命中),云端 LLM 代理是真调用**。
 
 **未决决策(需用户拍板)**:Hermes 归属(§7 决策 7 仍"暂不定";C16a 只做通道适配)。
 
-**验收状态(2026-10-14 独立复跑)**:`test_payment_leftover.py` **38 项 PASS**、`test_payment.py` **42 项 PASS** —— 执行 agent 自报的 37 / 38 与实测不符,以复跑为准(功能均通过,只是计数口径偏差);前端 `tsc` 本次 3 个文件 **0 错误**(全仓 23 条历史错误都在无关模块);前后端路由对称性 6 条 path **全部命中真实路由**。cloud_service **全量 5 个脚本 177 项 check 全绿**(payment 42 / payment_leftover 38 / billing 40 / llm 39 / e2e 18),**无回归**;均为进程内 mock(SQLite + mock 支付通道),真实支付 / Redis / LLM 上游仍需预发环境集成测试。
+**验收状态(2026-10-14 两批复跑,权威数字)**:`pytest cloud_service -q` → **5 passed**;5 个自运行脚本合计 **218 项 check 全绿** = `test_payment` **42** / `test_payment_leftover` **50** / `test_billing` **40** / `test_llm` **68** / `test_e2e` **18**。前端 `tsc` 全仓 23 条历史错误(均在无关模块),本次改动文件 **0 命中**。
+
+**计数口径勘误(值得记)**:执行 agent 的自报数字两次与实测不符 —— 支付批报 37 / 38(实测 38 / 42),F1 报基线 41(实测 HEAD 版 `test_llm.py` 为 **39**,68 − 39 = 净新增 29)。**一律以复跑为准。** 所有测试均为进程内 mock(SQLite + mock 支付通道 + monkey-patch 上游),真实支付 / Redis / LLM 上游仍需预发环境集成测试。
 
 ---
 
@@ -557,7 +577,7 @@ cloud_service/
 - **仓库路径含中文**:`D:\dim开发\Prism-Fusion` — 命令要用 PowerShell 语法(`Set-Location` + 单引号,不是 `cd /d` + `&&`)
 - **虚拟环境**:`prismenv/Scripts/python.exe`(3.11);不要 pip install 到系统 Python
 - **C 类全未提交** — 提交前先 `git status --short` 看范围;建议按 §4.9 三层策略(背景/主线/混合)分层
-- **测试入口(2026-10-14 更正)**:`cloud_service/test_*.py` **不是 pytest 用例**,而是自运行脚本(末尾 `if __name__ == "__main__"`),直接 `& prismenv\Scripts\python.exe cloud_service\test_xxx.py` 运行,成功会打印 `ALL TESTS PASSED`;`python -m pytest cloud_service -q` 会 **collected 0 items**(不要再用)。5 个脚本合计 **177 项 check 全绿**:`test_payment` 42 / `test_payment_leftover` 38 / `test_billing` 40 / `test_llm` 39 / `test_e2e` 18
+- **测试入口(2026-10-14 两度更新)**:`cloud_service/test_*.py` 是**自运行脚本**(末尾 `if __name__ == "__main__"`,内部 `check()` 打 `[PASS]`)—— 可直接 `& prismenv\Scripts\python.exe cloud_service\test_xxx.py` 跑,成功打印 `ALL TESTS PASSED`。**pytest 现已可用**:`& prismenv\Scripts\python.exe -m pytest cloud_service -q` → `5 passed`(`cloud_service/conftest.py` 用 `pytest_collect_file` 把每个脚本包成 1 个用例,脚本零改动)。5 个脚本合计 **218 项 check 全绿**:`test_payment` 42 / `test_payment_leftover` 50 / `test_billing` 40 / `test_llm` 68 / `test_e2e` 18
 - **启动后端**:见 `STARTUP.md`;当前启动 ~2–3s(已优化)
 - **启动云端**:`cd cloud_service && uvicorn main:app --reload --port 8000`(本地 sqlite,生产切 RDS)
 - **不要动 Hermes 内部代码**,只改 `prism_backend/fastapi_app/agent/hermes_*.py` 对接层
