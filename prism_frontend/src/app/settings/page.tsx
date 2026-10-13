@@ -42,6 +42,7 @@ import { ConfirmModal } from "./components/ConfirmModal"
 import { EnvironmentInstallCard } from "./components/environment-install-card"
 import { PendingChannelCard } from "./components/pending-channel-card"
 import { TranscribeCard } from "./components/transcribe-card"
+import { CloudSubscriptionCard } from "@/components/settings/cloud-subscription-card"
 import {
   type PlatformBrowserChoice,
   type PlatformBrowserKey,
@@ -1135,8 +1136,17 @@ export default function SettingsPage() {
     </div>
   )
 
+  const renderSubscription = () => (
+    <div className="space-y-2">
+      <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">云端订阅</div>
+      <CloudSubscriptionCard />
+    </div>
+  )
+
   const renderMoreSettings = () => (
     <div className="space-y-8">
+      {renderSubscription()}
+
       <div className="space-y-2">
         <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">运行概览</div>
         {renderOverviewBlock()}

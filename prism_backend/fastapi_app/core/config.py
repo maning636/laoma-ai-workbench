@@ -179,6 +179,9 @@ class Settings(BaseSettings):
     AI_BASE_URL: str = ""
     AI_MODEL: str = ""
 
+    # C17: LLM Proxy 桥接(订阅态 Hermes 指向此本地端点,真实 key 由云端持有)
+    # 默认与 settings.PORT 保持一致;可通过 env 覆盖。
+    LAOMA_LOCAL_BASE_URL: str = ""
 
     # Optional: Douyin_TikTok_API integration
     DOUYIN_TIKTOK_API_ENABLED: bool = True
@@ -205,3 +208,38 @@ def resolved_celery_broker_url() -> str:
 
 def resolved_celery_result_backend() -> str:
     return (settings.CELERY_RESULT_BACKEND or settings.REDIS_URL).strip()
+
+
+# ── C17:订阅态判定 & LLM Proxy 桥接端点 ───────────────────────────
+# 订阅态 = 云端可达 + license 有效(通过 cloud_gateway 的 license 缓存判定)。
+# 离线态 = 未登录 / 云端不可达 / 未订阅 —— 走本地 key,不引入回归风险。
+#
+# 关键约束:
+#   1. `is_subscribed()` **绝不发起网络 I/O**,只读取 gateway 已缓存的
+#      license 结果(缓存由其它调用方 / heartbeat 触发)。这样 config 层
+#      保持"读配置"的纯净性,也不会因为订阅态检查阻塞导入。
+#   2. `llm_proxy_endpoint()` 是本进程本地桥接的完整 URL,订阅态下
+#      OpenAI 兼容客户端会调用它,由 `ai/router.py` 转发到云端 /cloud/llm/chat。
+def is_subscribed() -> bool:
+    """订阅态判定(纯读缓存,不触发网络 I/O)。
+
+    - gateway.license 未缓存 → False(离线态走本地 key)。
+    - gateway.license 有效 + 云端可达 → True(订阅态走云端)。
+    """
+    try:
+        from fusion_ai.cloud_gateway import get_gateway
+        gw = get_gateway()
+        status = gw.verify_license(force=False)
+        return bool(status.valid and status.cloud_reachable)
+    except Exception:
+        return False
+
+
+def llm_proxy_endpoint() -> str:
+    """本地 LLM Proxy 桥接的完整 base_url(供订阅态 OpenAI 客户端指向)。
+
+    返回值即传给 AsyncOpenAI(base_url=...) 的字符串。OpenAI SDK 会在其后拼
+    `/chat/completions`,与 router.py 的 `/llm-proxy/chat/completions` 端点匹配。
+    """
+    base = (settings.LAOMA_LOCAL_BASE_URL or f"http://127.0.0.1:{int(settings.PORT)}").rstrip("/")
+    return f"{base}{settings.API_V1_PREFIX}/ai/llm-proxy/chat"

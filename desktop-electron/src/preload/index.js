@@ -67,6 +67,28 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }
   },
 
+  // 凭证加密存储(云端 JWT 走 Electron safeStorage)
+  credential: {
+    isAvailable: () => invoke('credential:isAvailable'),
+    encrypt: async (plaintext) => {
+      const r = await invoke('credential:encrypt', plaintext);
+      return r && r.success ? r.ciphertext : null;
+    },
+    decrypt: async (ciphertext) => {
+      const r = await invoke('credential:decrypt', ciphertext);
+      return r && r.success ? r.plaintext : null;
+    },
+    save: async (plaintext) => {
+      const r = await invoke('credential:save', plaintext);
+      return r;
+    },
+    get: async () => {
+      const r = await invoke('credential:get');
+      return r && r.success ? (r.plaintext || null) : null;
+    },
+    delete: () => invoke('credential:delete')
+  },
+
   // 窗口管理
   window: {
     openSettings: () => invoke('window:openSettings')

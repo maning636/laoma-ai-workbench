@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, Tray, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, Tray, dialog, safeStorage } = require('electron');
 
 // 开发模式(!app.isPackaged):把 userData / sessionData 重定向到项目内 D 盘,
 // 避免往 C:\Users\...\AppData\Roaming\laoma-ai-workbench 写数据。
@@ -2789,6 +2789,131 @@ class PrismApp {
 
   setupIPC() {
     log.info('Setting up IPC handlers...');
+
+    // ========== C17 客户端 JWT 凭证加密存储(Electron safeStorage) ==========
+    //
+    // 设计:渲染进程通过 preload 的 `electronAPI.credential.*` 调用:
+    //   - encrypt / decrypt  : 供 `cloud-auth.ts` 自行组装 payload(JSON.stringify + base64)
+    //   - save / get / delete: 端到端封装,把 JWT payload 存到 userData/credentials.json
+    //
+    // safeStorage 在 Windows 走 DPAPI,macOS 走 Keychain,失败(如无可用
+    // Keychain)时返回 null,前端会回退到 localStorage。
+    //
+    // 不启动任何服务、不影响既有 IPC。
+
+    const credentialFilePath = () =>
+      path.join(app.getPath('userData'), 'cloud-credentials.json');
+
+    const readCredentialFile = () => {
+      try {
+        const fs = require('fs');
+        if (!fs.existsSync(credentialFilePath())) return null;
+        const raw = fs.readFileSync(credentialFilePath(), 'utf8');
+        return raw;
+      } catch (err) {
+        log.warn('[credential] read failed:', err?.message || err);
+        return null;
+      }
+    };
+
+    const writeCredentialFile = (payload) => {
+      try {
+        const fs = require('fs');
+        fs.writeFileSync(credentialFilePath(), payload, 'utf8');
+        try {
+          fs.chmodSync(credentialFilePath(), 0o600);
+        } catch {
+          // Windows 无 chmod 效果,忽略
+        }
+        return true;
+      } catch (err) {
+        log.error('[credential] write failed:', err);
+        return false;
+      }
+    };
+
+    const deleteCredentialFile = () => {
+      try {
+        const fs = require('fs');
+        if (fs.existsSync(credentialFilePath())) fs.unlinkSync(credentialFilePath());
+        return true;
+      } catch (err) {
+        log.warn('[credential] delete failed:', err?.message || err);
+        return false;
+      }
+    };
+
+    ipcMain.handle('credential:isAvailable', () => {
+      try {
+        return { success: true, available: safeStorage.isSafeStorageAvailable() };
+      } catch (error) {
+        log.error('safeStorage.isSafeStorageAvailable failed:', error);
+        return { success: false, available: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('credential:encrypt', (event, plaintext) => {
+      try {
+        if (typeof plaintext !== 'string') return { success: false, error: 'expected string' };
+        const buf = safeStorage.encryptString(plaintext);
+        // 以 base64 返回,便于 JSON 序列化
+        return { success: true, ciphertext: buf.toString('base64') };
+      } catch (error) {
+        log.warn('[credential] encrypt failed:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('credential:decrypt', (event, ciphertext) => {
+      try {
+        if (typeof ciphertext !== 'string' || !ciphertext) {
+          return { success: false, error: 'expected base64 ciphertext' };
+        }
+        const buf = Buffer.from(ciphertext, 'base64');
+        return { success: true, plaintext: safeStorage.decryptString(buf) };
+      } catch (error) {
+        log.warn('[credential] decrypt failed:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    // 端到端:直接保存 JSON 明文 → 加密 → 落盘。用于简单场景。
+    ipcMain.handle('credential:save', (event, plaintext) => {
+      try {
+        if (typeof plaintext !== 'string') return { success: false, error: 'expected string' };
+        if (!safeStorage.isSafeStorageAvailable()) {
+          return { success: false, error: 'safeStorage unavailable' };
+        }
+        const buf = safeStorage.encryptString(plaintext);
+        return writeCredentialFile(buf.toString('base64'))
+          ? { success: true }
+          : { success: false, error: 'write failed' };
+      } catch (error) {
+        log.error('[credential] save failed:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('credential:get', () => {
+      try {
+        const ciphertext = readCredentialFile();
+        if (!ciphertext) return { success: true, plaintext: null };
+        if (!safeStorage.isSafeStorageAvailable()) {
+          return { success: false, error: 'safeStorage unavailable' };
+        }
+        const plaintext = safeStorage.decryptString(Buffer.from(ciphertext, 'base64'));
+        return { success: true, plaintext };
+      } catch (error) {
+        log.warn('[credential] get failed:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('credential:delete', () => {
+      return deleteCredentialFile()
+        ? { success: true }
+        : { success: false, error: 'delete failed' };
+    });
 
     // 鑾峰彇 Playwright 娴忚鍣ㄨ矾寰?
     ipcMain.handle('automation:getBrowserPath', () => {

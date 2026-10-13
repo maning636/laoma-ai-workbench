@@ -22,6 +22,32 @@ export const backendBaseUrl = normalizeBackendBaseUrl(
     "http://127.0.0.1:7000"
 )
 
+/**
+ * C16:云端 SaaS 后端地址(与 `backendBaseUrl` 平行的第二个 base URL)。
+ *
+ * 只承载认证 / 订阅 / 云端 LLM / license 校验相关请求;
+ * 浏览器自动化、文件、账号同步、发布等本地功能仍走 `backendBaseUrl`。
+ *
+ * 优先级:
+ *   1. NEXT_PUBLIC_CLOUD_URL   浏览器端显式配置
+ *   2. LAOMA_CLOUD_BASE_URL    后端构建期注入(可选)
+ *   3. 默认 https://api.prism.local/cloud
+ *
+ * 若用户填写的是根域名(不带 /cloud),自动补上,便于部署时省略路径。
+ */
+function normalizeCloudBaseUrl(raw: string | undefined): string {
+  const trimmed = (raw || "").trim().replace(/\/+$/, "")
+  if (!trimmed) return "https://api.prism.local"
+  // 与 cloud_service 约定:根 URL 不含 /cloud 后缀,由下方 API_ENDPOINTS 统一加前缀。
+  // 若用户填了 `.../cloud`,去掉以避免端点重复拼出 `/cloud/cloud/...`。
+  if (/\/cloud$/i.test(trimmed)) return trimmed.replace(/\/cloud$/i, "")
+  return trimmed
+}
+
+export const cloudBaseUrl = normalizeCloudBaseUrl(
+  process.env.NEXT_PUBLIC_CLOUD_URL ?? process.env.LAOMA_CLOUD_BASE_URL
+)
+
 export const API_ENDPOINTS = {
   base: backendBaseUrl,
 
@@ -63,6 +89,18 @@ export const API_ENDPOINTS = {
 
   health: `${backendBaseUrl}/health`,
   ping: `${backendBaseUrl}/api/v1/ping`,
+
+  // ── C16 云端 SaaS 端点(全部走 cloudBaseUrl)──
+  // 认证 / 订阅 / 云端 LLM / license 校验
+  cloudAuthRegister: `${cloudBaseUrl}/auth/register`,
+  cloudAuthLogin: `${cloudBaseUrl}/auth/login`,
+  cloudAuthRefresh: `${cloudBaseUrl}/auth/refresh`,
+  cloudAuthMe: `${cloudBaseUrl}/auth/me`,
+  cloudSubscription: `${cloudBaseUrl}/subscription`,
+  cloudLicenseVerify: `${cloudBaseUrl}/license/verify`,
+  cloudLlmChat: `${cloudBaseUrl}/llm/chat`,
+  cloudLlmPrompts: `${cloudBaseUrl}/llm/prompts`,
+  cloudLlmHealth: `${cloudBaseUrl}/llm/health`,
 }
 
 export const PLATFORM_CODES = {

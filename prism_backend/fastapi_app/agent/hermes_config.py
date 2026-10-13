@@ -548,6 +548,16 @@ def _snapshot_from_hermes_runtime_config() -> Dict[str, Any]:
 
 
 def sync_agent_config_to_runtime(config: Dict[str, Any]) -> Path:
+    """把系统 LLM 配置写入 Hermes 的 config.yaml。
+
+    C17 tier 分支(订阅态 vs 离线态):
+      - **订阅态**(云端可达 + license 有效)→ 不写真实 LLM key 到 config.yaml;
+        base_url 强制改写为本地 LLM Proxy 桥接端点,api_key 用占位符
+        "prism-cloud-subscription"(Hermes/OpenAI 客户端仅要求非空,该字符串
+        永不被 Hermes 用作真凭据 —— 真实 LLM 调用由云端 proxy 完成)。
+      - **离线态**(未登录 / 云端不可达 / 未订阅)→ 保持原逻辑,把用户自配
+        的 api_key 明文写入 config.yaml。
+    """
     llm = config.get("llm") or {}
     runtime = config.get("runtime") or {}
 
@@ -565,22 +575,41 @@ def sync_agent_config_to_runtime(config: Dict[str, Any]) -> Path:
     provider = str(llm.get("provider") or "").strip().lower()
     base_url = str(llm.get("base_url") or "").strip()
 
+    # ── C17: 订阅态 tier 分支 —— 剥离真实 key,改写为代理 endpoint ────
+    subscription_tier = False
+    proxy_endpoint = ""
+    try:
+        from fastapi_app.core.config import is_subscribed, llm_proxy_endpoint
+        subscription_tier = bool(is_subscribed())
+        if subscription_tier:
+            proxy_endpoint = llm_proxy_endpoint()
+    except Exception:  # pragma: no cover - tier 判定异常时降级为离线态
+        subscription_tier = False
+        proxy_endpoint = ""
+
     model_cfg["default"] = str(llm.get("model") or "").strip()
-    if provider == "lmstudio":
+    if provider == "lmstudio" and not subscription_tier:
         model_cfg["provider"] = "lmstudio"
     else:
-        model_cfg["provider"] = "custom" if base_url else (provider or "custom")
+        # 订阅态强制走 custom(OpenAI 兼容)+ 代理 base_url;离线态保留原 provider 语义
+        model_cfg["provider"] = "custom" if (base_url or proxy_endpoint) else (provider or "custom")
 
-    if base_url:
-        model_cfg["base_url"] = base_url
-    elif "base_url" in model_cfg:
-        model_cfg.pop("base_url", None)
+    if subscription_tier and proxy_endpoint:
+        # 订阅态:base_url 强制指向本地代理端点,用户传入的 base_url 一律丢弃
+        model_cfg["base_url"] = proxy_endpoint
+        model_cfg["api_key"] = "prism-cloud-subscription"  # 占位符,Hermes 不会用它做真调用
+    else:
+        # 离线态:保持原逻辑 —— 用户配置的 base_url 优先,api_key 明文写入
+        if base_url:
+            model_cfg["base_url"] = base_url
+        elif "base_url" in model_cfg:
+            model_cfg.pop("base_url", None)
 
-    api_key = str(llm.get("api_key") or "").strip()
-    if api_key:
-        model_cfg["api_key"] = api_key
-    elif "api_key" in model_cfg:
-        model_cfg.pop("api_key", None)
+        api_key = str(llm.get("api_key") or "").strip()
+        if api_key:
+            model_cfg["api_key"] = api_key
+        elif "api_key" in model_cfg:
+            model_cfg.pop("api_key", None)
 
     agent_cfg["max_turns"] = int(runtime.get("max_turns") or 12)
     approvals_cfg["mode"] = "off"

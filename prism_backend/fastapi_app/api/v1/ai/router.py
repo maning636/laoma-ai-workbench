@@ -5,6 +5,7 @@ import asyncio
 import json
 import os
 import re
+import time
 import yaml
 from fastapi.responses import StreamingResponse
 from fastapi_app.core.config import settings
@@ -31,8 +32,35 @@ def _normalize_images_base_url(value: Optional[str]) -> Optional[str]:
 
 
 def get_ai_config(service_type: str) -> Optional[Dict[str, Any]]:
-    """从数据库读取AI配置；若未配置则从环境变量回退（仅 chat）。"""
+    """从数据库读取AI配置；若未配置则从环境变量回退（仅 chat）。
+
+    C17 tier 分支:
+      - 订阅态(云端可达 + license 有效)→ 直接返回本地 LLM Proxy 桥接端点配置,
+        **不读任何本地明文 key**。OpenAI 兼容客户端(base_url=proxy)发出的
+        请求由 `/api/v1/ai/llm-proxy/chat/chat/completions` 转发到云端 /cloud/llm/chat。
+      - 离线态(未登录 / 云端不可达 / 未订阅)→ 保持原有 DB → .env 回退链,
+        不破坏离线用户自配 key 的体验。
+    """
     import json
+
+    # ── C17: 订阅态优先短路 ─────────────────────────────────────────
+    # 只在 "chat" 路径上做 tier 分支;图片 / OCR / speech 等仍走原逻辑,
+    # 因为云端 proxy 目前只支持 chat completions(非图像)。
+    if service_type == "chat":
+        try:
+            from fastapi_app.core.config import is_subscribed, llm_proxy_endpoint
+            if is_subscribed():
+                return {
+                    "service_type": "chat",
+                    "provider": "openai_compatible",
+                    "api_key": "***",  # dummy: OpenAI SDK 仅要求非空
+                    "base_url": llm_proxy_endpoint(),  # 见 /llm-proxy/chat 桥接端
+                    "model_name": "prism-cloud",       # 云端代理模型别名
+                    "extra_config": {"tier": "cloud", "via_proxy": True},
+                    "is_active": 1,
+                }
+        except Exception as _e:  # pragma: no cover - 防御性:tier 判定异常时降级
+            print(f"[C17] subscription tier check failed, fallback to offline: {_e}")
 
     try:
         if mysql_enabled():
@@ -98,6 +126,86 @@ def get_ai_config(service_type: str) -> Optional[Dict[str, Any]]:
     except Exception as e:
         print(f"读取AI配置失败: {e}")
         return None
+
+
+@router.post("/llm-proxy/chat/chat/completions")
+async def llm_proxy_chat_completions(request: Dict[str, Any]):
+    """订阅态代理:OpenAI 兼容 POST → cloud_gateway.chat(allow_raw=True)。
+
+    请求体标准 OpenAI chat.completions 格式:
+        {model, messages, temperature, max_tokens, stream, ...}
+
+    行为:
+        - 只处理 chat 路径;stream 必须为 False(当前云端不支持流式)。
+        - 把 messages 打包成 raw_prompt 传给 gateway.chat(allow_raw=True)。
+        - 返回标准 OpenAI 响应结构(choices[0].message.content)。
+
+    挂载点:/api/v1/ai/llm-proxy/chat/completions
+      router.prefix = "/ai"  → 完整路径与 config.llm_proxy_endpoint() 拼接一致。
+    """
+    from fastapi_app.core.config import is_subscribed
+    from fusion_ai.cloud_gateway import get_gateway, GatewayError
+
+    if not is_subscribed():
+        raise HTTPException(
+            status_code=403,
+            detail="llm-proxy only available in subscription tier",
+        )
+
+    messages = request.get("messages") or []
+    if not messages:
+        raise HTTPException(status_code=422, detail="messages must not be empty")
+    if request.get("stream"):
+        raise HTTPException(status_code=400, detail="stream=true not supported via llm-proxy (cloud is non-streaming)")
+
+    def _fmt_role(role: str) -> str:
+        return {"system": "系统", "user": "用户", "assistant": "助手"}.get((role or "").strip().lower(), role or "用户")
+
+    parts = [
+        f"[{_fmt_role(str(m.get('role', '')))}]\n{str(m.get('content') or '').strip()}"
+        for m in messages
+        if str(m.get("content") or "").strip()
+    ]
+    raw_prompt = "\n\n".join(parts).strip()
+    if not raw_prompt:
+        raise HTTPException(status_code=422, detail="messages content is empty")
+
+    gw = get_gateway()
+    model = request.get("model") or "prism-cloud"
+    try:
+        result = await asyncio.to_thread(
+            gw.chat,
+            "",
+            None,
+            raw_prompt=raw_prompt,
+            allow_raw=True,
+            model=str(model) if model else None,
+            temperature=request.get("temperature"),
+            max_tokens=request.get("max_tokens"),
+        )
+    except GatewayError as e:
+        raise HTTPException(status_code=502, detail=f"cloud LLM error: {e}")
+
+    data = (result or {}).get("data") or {}
+    content = str(data.get("content") or "").strip()
+    return {
+        "id": "chatcmpl-cloud-proxy",
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": model,
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": content},
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {
+            "prompt_tokens": int(data.get("tokens_in") or 0),
+            "completion_tokens": int(data.get("tokens_out") or 0),
+            "total_tokens": int(data.get("tokens_in") or 0) + int(data.get("tokens_out") or 0),
+        },
+    }
 
 
 _PROMPTS_CACHE: Dict[str, Any] = {"mtime": None, "data": None}

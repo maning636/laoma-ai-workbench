@@ -85,13 +85,68 @@ async def fusion_health():
 
 
 # ============================================================
-# 0.1 内容拆解（商汤 SenseNova 直连）
+# 0.0 云端订阅 / License 探测(C16 双通道)
+#     GET  /api/v1/fusion/cloud-status    → 当前双通道状态 + TierContext
+#
+#     用途:前端启动时探测订阅 + 云端可达性,决定 UI 是否显示"订阅模式"入口。
+#     不发起云端 LLM 调用,只是 `CloudGateway.verify_license()` + `/cloud/llm/health`。
+# ============================================================
+from . import prompt_router as _prompt_router
+from . import cloud_gateway as _cloud_gateway
+
+
+@router.get("/cloud-status")
+async def cloud_status():
+    """返回当前双通道状态(不启动任何服务,只读 CloudGateway 缓存 + 一次健康探测)。"""
+    try:
+        gw = _cloud_gateway.get_gateway()
+        license_status = gw.verify_license(force=False)
+        cloud_reachable = gw.probe_cloud_reachable()
+        ctx = gw.build_tier_context()
+        return {
+            "status": "ok",
+            "logged_in": gw.is_logged_in,
+            "cloud_base_url": gw.cloud_base_url,
+            "local_base_url": gw.local_base_url,
+            "cloud_reachable": cloud_reachable,
+            "license": {
+                "valid": license_status.valid,
+                "reason": license_status.reason,
+                "plan": license_status.plan,
+                "remaining": license_status.remaining,
+                "is_pro": license_status.is_pro,
+            },
+            "tier_context": ctx,
+            "tier": _prompt_router.pick_tier(_prompt_router.TierContext(**ctx)),
+        }
+    except Exception as e:
+        # 降级:任何异常都返回离线状态,不 500
+        return {
+            "status": "offline",
+            "logged_in": False,
+            "cloud_reachable": False,
+            "license": {"valid": False, "reason": "gateway_error", "plan": "", "remaining": 0, "is_pro": False},
+            "tier_context": {},
+            "tier": "basic",
+            "error": str(e),
+        }
+
+
+# ============================================================
+# 0.1 内容拆解(C16 双通道接入 prompt_router.invoke)
 #     POST /api/v1/fusion/breakdown
 #     入参: {"topic": str | "text": str}（二选一）
 #     出参: {"status":"success","result":{summary,structure,hooks,beats,insights,actionItems,risks}}
 #
-#     Key 从 tools/hermes-home/config.yaml 读取（不硬编码、不落日志/响应）；
-#     走 openai SDK → https://token.sensenova.cn/v1；429 自动重试 1 次。
+#     行为:
+#       1. 优先通过 prompt_router.invoke 判定 tier:
+#            tier=="cloud"  → 调 cloud_gateway.chat("cognition.matrix_evaluate", ...) → 云端渲染 + 云端 LLM
+#            tier=="basic"  → 用本地 BASIC_PROMPTS 快照渲染,再走本地 openai SDK
+#       2. 云端不可达 / 未登录 / 未订阅 → 自动降级到 basic + 本地 LLM
+#       3. 本地 LLM 也失败才 500
+#
+#     Key 从 tools/hermes-home/config.yaml 读取(不硬编码、不落日志/响应);
+#     走 openai SDK → https://token.sensenova.cn/v1;429 自动重试 1 次。
 # ============================================================
 import os as _os
 import re as _re
@@ -181,8 +236,13 @@ def _extract_reasoning_content(msg: any) -> str:
 async def breakdown_content(request: Request):
     """把选题/文案拆成结构化 JSON（summary/structure/hooks/beats/insights/actionItems/risks）。
 
-    商汤 SenseNova 直连（openai SDK）；429 限速重试 1 次；错误以友好 JSON 返回，不 500 崩。
-    Key 只在服务端内存读取，绝不出现在日志或响应里。
+    **C16 双通道接入**:
+      1. 通过 `prompt_router.invoke(TierContext, cloud_chat=gateway.chat)` 判定 tier。
+      2. tier=="cloud" → `cloud_gateway.chat(...)` 云端渲染 + 云端 LLM,直接返回文本内容;
+         失败(网络/未登录/未订阅/配额)→ 走 basic 兜底,不阻塞用户。
+      3. tier=="basic" → 用本地 `_BD_SYSTEM_PROMPT` + 用户自配 LLM key 走本地 LLM。
+
+    Key 只在服务端内存读取,绝不出现在日志或响应里。
     """
     try:
         body = await request.json()
@@ -196,9 +256,95 @@ async def breakdown_content(request: Request):
     if len(user_input) < 4:
         raise HTTPException(status_code=400, detail="输入过短（至少 4 字），AI 拆解效果不佳")
 
+    # ── C16:双通道判定 —— 云端 vs 本地降级 ──
+    gateway = _cloud_gateway.get_gateway()
+    ctx = _prompt_router.TierContext(**gateway.build_tier_context())
+    chosen_tier = _prompt_router.pick_tier(ctx)
+
+    def _cloud_chat(prompt_name: str, variables: dict) -> dict:
+        return gateway.chat(
+            prompt_name, variables,
+            raw_prompt=_BD_SYSTEM_PROMPT + "\n\n" + user_input,
+            allow_raw=True,
+            max_tokens=2400,
+            temperature=0.4,
+        )
+
+    routed = _prompt_router.invoke(
+        "breakdown",
+        {"user_input": user_input},
+        ctx,
+        health_check=gateway.probe_cloud_reachable,
+        cloud_chat=_cloud_chat,
+    )
+
+    cloud_error: str | None = None
+    cloud_result: str | None = None
+
+    if routed.get("tier") == "cloud":
+        cloud_result = routed.get("content") or None
+        if not cloud_result and routed.get("error"):
+            cloud_error = f"cloud chat failed: {routed['error']}"
+            logger.warning(f"[Fusion][Breakdown] {cloud_error}")
+
+    if cloud_result:
+        # ── 云端成功路径:tier=="cloud" 且云端返回了文本 ──
+        return _parse_breakdown_response(
+            content=cloud_result,
+            meta_extra={"model": "cloud-proxied", "provider": "cloud_service",
+                        "elapsed_seconds": 0.0, "attempt": 1,
+                        "input_chars": len(user_input),
+                        "tier": "cloud", "chosen_tier": chosen_tier},
+            on_json_error_msg="云端 LLM 返回的不是有效 JSON，请稍后重试",
+            on_empty_msg="云端 LLM 返回空内容",
+        )
+
+    # ── 本地降级路径(tier=="basic" 或云端失败)──
+    return await _breakdown_local_llm(user_input=user_input, cloud_error=cloud_error)
+
+
+def _parse_breakdown_response(*, content: str, meta_extra: dict, on_json_error_msg: str, on_empty_msg: str) -> dict:
+    """把 LLM 返回的文本解析为结构化 JSON,失败抛 HTTPException(502)。"""
+    text = (content or "").strip()
+    if not text:
+        raise HTTPException(status_code=502, detail=on_empty_msg)
+    payload = _strip_fences(text)
+    try:
+        parsed = json.loads(payload)
+    except json.JSONDecodeError as je:
+        logger.error(f"[Fusion][Breakdown] JSON 解析失败：{je}; payload={payload[:200]}")
+        raise HTTPException(status_code=502, detail=on_json_error_msg)
+
+    return {
+        "status": "success",
+        "result": {
+            "summary": str(parsed.get("summary") or ""),
+            "structure": str(parsed.get("structure") or ""),
+            "hooks": parsed.get("hooks") if isinstance(parsed.get("hooks"), list) else [],
+            "beats": parsed.get("beats") if isinstance(parsed.get("beats"), list) else [],
+            "insights": parsed.get("insights") if isinstance(parsed.get("insights"), list) else [],
+            "actionItems": parsed.get("actionItems") if isinstance(parsed.get("actionItems"), list) else [],
+            "risks": parsed.get("risks") if isinstance(parsed.get("risks"), list) else [],
+            "_meta": meta_extra,
+        },
+    }
+
+
+async def _breakdown_local_llm(*, user_input: str, cloud_error: str | None) -> dict:
+    """本地 LLM 降级路径:读 hermes config → openai SDK 调本地模型。
+
+    - 429 重试 1 次(商汤 rpm 限速)
+    - 401/5xx → 502 友好返回
+    - JSON 格式不规范重试 1 次(纠正 markdown 列表)
+    """
     try:
         cfg = _resolve_hermes_config()
-    except HTTPException:
+    except HTTPException as exc:
+        if cloud_error:
+            raise HTTPException(
+                status_code=500,
+                detail=f"云端不可用({cloud_error[:120]}),本地 LLM 也未配置:{exc.detail}",
+            )
         raise
     except Exception as e:
         logger.error(f"[Fusion][Breakdown] 读模型配置失败: {e}")
@@ -233,7 +379,6 @@ async def breakdown_content(request: Request):
             content = (getattr(msg, "content", None) or "").strip()
             reasoning = _extract_reasoning_content(msg)
             if not content and reasoning:
-                # 有些推理模型把答案先塞进 reasoning_content（max_tokens 太小时）
                 content = reasoning.strip()
             if not content:
                 raise RuntimeError("模型未返回内容（reasoning_content 也空）")
@@ -244,17 +389,13 @@ async def breakdown_content(request: Request):
             except json.JSONDecodeError as je:
                 logger.error(f"[Fusion][Breakdown] JSON 解析失败（attempt={attempt}）：{je}; payload={payload[:200]}")
                 if attempt == 1:
-                    # 模型偶尔把 beats 写成 * 分隔的 markdown 列表而非 JSON 数组；纠正后重试一次
                     messages = messages + [
                         {"role": "assistant", "content": content},
                         {"role": "user", "content": "你刚才的输出不是合法 JSON（beats 不应使用 * 或 - 等 markdown 符号，必须是数组 [...]）。请重新输出，严格只输出一个 JSON 对象，以 { 开头、} 结尾。"},
                     ]
                     last_err = f"JSON 解析失败：{je}"
                     continue
-                raise HTTPException(
-                    status_code=502,
-                    detail="AI 返回的不是有效 JSON（已重试），请稍后重试",
-                )
+                raise HTTPException(status_code=502, detail="AI 返回的不是有效 JSON（已重试），请稍后重试")
 
             elapsed = round(_time.time() - started, 2)
             return {
@@ -273,6 +414,8 @@ async def breakdown_content(request: Request):
                         "elapsed_seconds": elapsed,
                         "attempt": attempt,
                         "input_chars": len(user_input),
+                        "tier": "basic",
+                        "degraded_from_cloud": cloud_error is not None,
                     },
                 },
             }
@@ -282,7 +425,6 @@ async def breakdown_content(request: Request):
             status = getattr(e, "status_code", None)
             last_err = f"API {status}: {str(e)[:200]}"
             if status == 429 and attempt == 1:
-                # 商汤 rpm 限速，等一会重试
                 await _asyncio_sleep(2.0)
                 continue
             logger.warning(f"[Fusion][Breakdown] API 错误: {last_err}")
@@ -302,7 +444,6 @@ async def breakdown_content(request: Request):
             logger.error(f"[Fusion][Breakdown] 未知错误: {e}")
             raise HTTPException(status_code=500, detail=f"拆解失败：{last_err[:200]}")
 
-    # 理论上不会走到（两次尝试都 return 或 raise）
     raise HTTPException(status_code=502, detail=f"拆解失败：{last_err}")
 
 
