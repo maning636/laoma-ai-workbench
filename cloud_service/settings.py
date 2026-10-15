@@ -105,7 +105,26 @@ def get_settings():
             # 起始窗口(相对本次执行时间往前多少小时):默认 24h,覆盖"昨日"日切。
             "lookback_hours": _get_int("CLOUD_RECONCILE_LOOKBACK_HOURS", 24),
         },
+        # ── CORS(浏览器直连)───────────────────────────
+        # 由 main.py 的 CORSMiddleware 使用;逗号分隔的 origin 列表。
+        # 默认覆盖本地前端开发(3000 端口);生产通过 env 覆盖为真实前端域名。
+        # 注意:**不要**把默认值写成 "*" 同时打开 allow_credentials —— 这是
+        # 安全反模式。当前 cloud_service 不依赖 cookie 跨域(前端 client-
+        # gateway 明确 credentials: "omit"),所以 allow_credentials=False。
+        "cors_origins": _parse_cors_origins(
+            _get_str(
+                "CLOUD_CORS_ORIGINS",
+                "http://127.0.0.1:3000,http://localhost:3000",
+            )
+        ),
     }
+
+
+def _parse_cors_origins(raw: str) -> list[str]:
+    """把逗号分隔的 origin 字符串解析为 list[str],忽略空段与纯空白段。"""
+    if not raw:
+        return []
+    return [item.strip() for item in raw.split(",") if item.strip()]
 
 
 def _detect_secret_source() -> str:

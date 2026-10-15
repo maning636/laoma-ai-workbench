@@ -26,6 +26,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from .auth.router import router as auth_router
 from .billing.router import router as billing_router
@@ -109,6 +110,17 @@ app = FastAPI(
     version="0.3.0",
     description="Prism-Fusion Cloud Backend (C12 auth + C13 billing + C14 llm proxy + C19 payment)",
     lifespan=_lifespan,
+)
+
+# CORS:允许前端(默认 3000)直连 cloud_service。
+# allow_credentials=False:前端 client-gateway 使用 credentials:"omit",
+# 不依赖 cookie 跨域;这样即便未来误配 "*" 也不会泄露跨站 cookie。
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=get_settings()["cors_origins"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(auth_router, prefix="/cloud/auth", tags=["cloud-auth"])
