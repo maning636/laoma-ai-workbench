@@ -114,33 +114,45 @@
 
 | 项 | 状态 | 备注 |
 |---|---|---|
-| E-E Celery 修复 | ✅ 完成 | redis<5 pin;`inspect ping` → pong |
-| E-E3 Celery 消费验证 | ⏳ 待派 | 需加无害探针任务 |
-| C-A/B/C 云端地基 | ✅ 完成 | CORS + .env.example(37 env) + 启动器 |
-| F-B 前端测试基建 | ✅ 完成 | vitest + 33 项单测 |
-| B-A supervisor 重构 | ✅ 完成 | api_server 改由 registry 派生 |
-| B-C C17 回归测试 | ✅ 完成 | 20 项 check 全绿 |
-| E-D 提交 + 服务器裸仓库 push | 🟡 进行中 | 6 个 commit 已提交;服务器装 git/pip/venv 已完成,裸仓库在建 |
-| F-A 流式接入 UI | 🟡 进行中 | 含非流式回落 |
-| C-D/C-E 调度加固 | 🟡 进行中 | Redis 锁 + 对账超时/退避/限次 |
-| E-A 部署产物 | 🟡 进行中 | nginx/systemd/deploy.sh/README |
-| F-C 清 23 条 tsc 存量 | ⏳ 待派 | 注意与 F-A 的文件冲突,需串行 |
-| F-D license 离线误判 | ⏳ 待派 | |
-| F-E 网关对称化 | ⏳ 待派 | |
-| F-F 小项合集(F7/F8/F11) | ⏳ 待派 | |
-| F-G 流式中断计费缺口 | ⏳ 待派 | |
-| B-B 启动残余 ~2s | ⏳ 待派 | |
-| E-B Python 版本收敛 | ⏳ 待派 | 本地 3.13 / CI 3.11 / 部署 3.11 |
-| E-C / E-E2 打包回归 | ⏳ 待派 | redis 版本变更后必做 |
-| E-F 服务随窗口关闭而断 | ⏳ 待派 | 已实际发生一次(7000/7001/3000 同时消失) |
-| C-F 退款↔订阅语义 | ⏳ 待派 | 需业务规则;先做**接口预留** |
-| C-G C16a Hermes 联调 | ⏳ 待派 | |
+| E-E Celery 修复 | ✅ | `redis<5` pin;`inspect ping` → pong |
+| E-E3 Celery 消费验证 | ✅ | 新增 `debug.echo` 探针;隔离 worker 投递 → SUCCESS + worker 日志确认消费 |
+| C-A/B/C 云端地基 | ✅ | CORS + `.env.example`(37 env) + 云端启动器 |
+| F-B 前端测试基建 | ✅ | vitest;前端单测 33 → **109** |
+| B-A supervisor 重构 | ✅ | api_server 改由 registry 派生(保持输出顺序) |
+| B-C C17 回归测试 | ✅ | 20 项 check |
+| F-A 流式接入 UI | ✅ | 三层回落(云端流式→云端非流式→本地);+22 单测 |
+| C-D/C-E 调度加固 | ✅ | Redis 分布式锁 + 对账超时/退避/限次;测试 50 → 81 |
+| E-A 部署产物 | ✅ | nginx 片段/systemd unit/deploy.sh/README |
+| E-D 提交 + push | ✅ | 共 **19 个 commit** 已推服务器裸仓库;`prism-cloud` 已上线 |
+| F-C 清 tsc 存量 | ✅ | **23 → 0** |
+| F-D license 离线策略 | ✅ | 10 分钟乐观窗口 + transport/business 分类 + 修掉 refresh 误判 |
+| F-E 网关对称化 | ✅ | 新增 `cloud-gateway-client.ts` |
+| F-F 小项(F7/F8/F11) | ✅ | 心跳单位统一按秒;白名单路由生效;usage 估算标注 |
+| F-G 流式中断计费 | ✅ | 后端已实施:预消费 + `GeneratorExit` 回滚(`_rollback_quota` 带行锁) |
+| B-B 启动残余 | ✅ | **4.86s → 2.77s(-43%)**;真因是 douyin/crawler 同步 import(**不是** Hermes) |
+| E-B Python 版本口径 | ✅ | 统一 `>=3.11`(CI/生产一致;本地 3.13 已注明为开发用) |
+| E-F 服务脱离窗口 | ✅ | `run_hidden.ps1` + `LAOMA_LAUNCH_MODE`;实测父 shell 被杀后仍存活 |
+| 微信支付真实对接 | ✅ 代码 | APIv3 实现 + 51 断言;真实联调待商户密钥 |
+| 支付宝对接 | ✅ 代码 | OpenAPI 实现 + 86 断言;真实联调待商户号 |
+| 支付回调 form-urlencoded | ✅ | 按 Content-Type 分派(修真实回调 bug);去掉 `inspect.signature` hack |
+| D 类长期小项 | ✅ 8/8 有结论 | 4 项已改(paths.json 忽略/openclaw 目录级备份/worker 日志统一/编号口径);4 项报告不动 |
+| 前端生产构建 | ✅ | `next build` 21s;standalone 45MB + static 3.6MB + public 0.25MB |
+| 真机联调(auth/订阅) | ✅ 内网通过 | 注册 201 / 登录 200 / 订阅 200 / `llm.health` 200 |
+| C-F 退款↔订阅语义 | ⏳ 待做 | **需业务规则(用户决策)**;接口预留未做 |
+| C-G C16a Hermes 联调 | ⏳ 待做 | |
 | C-H 加固范围扩展 | 🚫 阻塞 | **需 pyarmor 商业版 license**(用户侧) |
-| 微信支付真实对接 | ⏳ 待派 | Pay Skill 代码在本机不可读 → 改按微信官方 APIv3 文档实现 |
-| 支付宝对接 | 🚫 阻塞 | 商户号未申请(用户侧,2-3 周) |
-| D 类长期 review(9 小项) | ⏳ 待派 | |
-| 真机联调 | ⏳ 待派 | 依赖部署完成;AI 链路等 LLM key |
+| E-C/E-E2 完整重打包 | 🚫 受阻 | 见下"打包阻塞";等效证据已拿到 |
+| 真机联调(AI 链路) | ⏳ | 等 LLM key(用户侧) |
+| 真机联调(支付) | ⏳ | 等商户密钥/商户号(用户侧) |
 | P5 老库 ALTER TABLE | — | 新 MariaDB 库由 `init_db()` 建全列,**不需要** |
+
+### 8.1 ⚠️ 打包阻塞(2026-10-16)
+
+- **现象**:`build-package.bat` 在 `[0/7]` 阶段被 `prepare-release.ps1` 抛异常中断 —— 它要删整个 `logs/`,而 dev Celery worker 持有 `logs/celery_fix.log` 句柄,脚本顶部 `$ErrorActionPreference="Stop"` 对文件锁零容错。
+- **已做**:修 `prepare-release.ps1` 让 logs 清理失败降级为 warning(缺陷修复,有长期价值);把 10/13 的旧产物 `dist-out/v1.1.0` 移出(防 e2e 选错)。
+- **仍未成功**:完整打包重试 6 次未成(后续失败点在 PyInstaller 之后的阶段),根因待专项排查。**这与 redis 修复无关**(打包链路自身问题:supervisor 未构建、pyarmor 缺失降级、路径编码等)。
+- **等效证据(已拿到)**:局部重打包 `celery-worker` → 产物内为 `redis-4.6.0.dist-info`,反编译 PYZ 确认 `redis.connection` **0 处 `HELLO`**(对照 8.1.0 有 3 处);e2e 脚本已补三道 Redis 硬断言(preflight.reachable / 产物 redis-py 真实 PING / 主版本 <5)。
+- **结论**:**不能用旧的 `v1.1.0` 安装包发布**(里面 redis 是 8.1.0,Celery 连不上 broker);必须成功完成一次完整打包。
 
 **服务器侧已就绪**:SSH 密钥免密、MariaDB 10.11.18(127.0.0.1:3306,库 `prism_cloud`,凭据 `/opt/prism-fusion/.db_credentials`)、git/pip/venv、`/opt/prism-fusion/`。
 

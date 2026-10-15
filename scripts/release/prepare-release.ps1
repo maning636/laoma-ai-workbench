@@ -54,7 +54,22 @@ $targetsToReset = @(
 )
 
 foreach ($target in $targetsToReset) {
-    Remove-IfExists -Path $target.Path -RecreateDirectory:$target.Recreate
+    # dev 环境可能持有日志句柄(如 Celery worker 占用 logs/celery_fix.log),
+    # 对 logs / prism_backend\logs 的清理失败只降级为 warning,不应中断发布。
+    $relativeKey = $target.Path.Substring($resolvedRoot.Length).TrimStart('\', '/').Replace('\', '/')
+    $isLogPath = ($relativeKey -eq 'logs') -or ($relativeKey -eq 'prism_backend/logs')
+    try {
+        Remove-IfExists -Path $target.Path -RecreateDirectory:$target.Recreate
+    }
+    catch {
+        if ($isLogPath) {
+            Write-Warning "[prepare-release] 清理日志目录失败(降级为 warning,继续): $($target.Path) -> $($_.Exception.Message)"
+        }
+        else {
+            Write-Host "[prepare-release] 清理目录失败(严格): $($target.Path) -> $($_.Exception.Message)"
+            throw
+        }
+    }
 }
 
 Remove-Files -Directory (Join-Path $resolvedRoot "prism_backend\db") -Patterns @("*.db", "*.db-*", "*.sqlite", "*.sqlite-*", "frontend_accounts_snapshot.json")
