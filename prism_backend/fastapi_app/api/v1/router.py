@@ -32,7 +32,7 @@ from .concurrency.router import router as concurrency_router
 from .cookies.router import router as cookies_router
 from .creator.router import router as creator_router
 from .mediacrawler.router import router as mediacrawler_router
-from .crawler.router import router as crawler_router
+# from .crawler.router import router as crawler_router  # B-B (2026-10-16) 懒加载：由 main._mount_crawler_router 在 startup 后 include
 from .tikhub.router import router as tikhub_router
 from .persona_proxy.router import router as persona_proxy_router
 from .persona.router import router as persona_router
@@ -60,6 +60,11 @@ from .tools.router import router as tools_router
 from .ccswitch.router import router as ccswitch_router  # CC Switch 桥接（读取本机 cc-switch 库并应用到项目内）
 from .tool_catalog.router import router as tool_catalog_router  # 声明式工具注册中心（能力暴露为 tool）
 from fusion_ai.router import router as fusion_router  # LaomaAI-Fusion 能力扩展（AI 多 Provider/平台风格/生图/热点/审核/模型广场/技能/认知/NL→SQL/配置中心）
+
+# B-B (2026-10-16): crawler_router 已改为懒加载——它 import 时会连带加载
+# `crawlers.hybrid` / `crawlers.tiktok.web.models` / `crawlers.douyin.web.models`
+# 等重模块（~1.5s），并在模块顶层实例化 3 个 crawler 对象。
+# 该路由的延迟注册由 `fastapi_app.main._mount_crawler_router` 在 startup 后完成。
 
 # 新增路由：任务状态机/平台字段/登录态检查/内容版本
 from .task_state_machine.router import router as task_state_machine_router  # 幂等任务状态机（Phase 0.2）
@@ -103,7 +108,8 @@ api_router.include_router(concurrency_router)  # router 已自带 /concurrency �
 api_router.include_router(cookies_router)  # router 已自带 /cookies 前缀
 api_router.include_router(creator_router)  # router 已自带 /creator 前缀
 api_router.include_router(mediacrawler_router)  # /mediacrawler
-api_router.include_router(crawler_router, prefix="/crawler", tags=["混合爬虫"])  # /crawler
+# crawler_router (import cost ~1.5s due to crawlers.hybrid + tiktok/douyin models)
+# is registered lazily by fastapi_app.main._mount_crawler_router after startup.
 api_router.include_router(tikhub_router)  # router 已自带 /tikhub 前缀
 api_router.include_router(persona_proxy_router)  # /persona-proxy 代理网关
 api_router.include_router(persona_router)  # /persona Dashboard 托管

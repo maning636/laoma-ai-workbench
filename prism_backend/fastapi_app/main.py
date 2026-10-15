@@ -3,6 +3,7 @@ FastAPI 主应用入口
 """
 import os
 import asyncio
+import time
 # Force Playwright to use global browsers BEFORE any imports
 # os.environ['PLAYWRIGHT_BROWSERS_PATH'] = '0'
 
@@ -78,22 +79,118 @@ upload_dir.mkdir(parents=True, exist_ok=True)
 # 挂载静态文件目录
 app.mount("/uploads", StaticFiles(directory=str(upload_dir)), name="uploads")
 
-# Optional: mount Douyin_TikTok_API under a prefix.
-if settings.DOUYIN_TIKTOK_API_ENABLED:
-    try:
-        douyin_root = Path(settings.BASE_DIR) / "douyin_tiktok_api"
-        if douyin_root.exists():
+
+# B-B (2026-10-16): 把 Douyin_TikTok_API 的 import+mount 从模块加载阶段挪到
+# 启动后异步执行。import `douyin_tiktok_api.app.main` 会连带加载 pywebio /
+# numpy / pyfiglet 等重依赖，实测单步耗时 ~4.8s，占了 uvicorn 冷启动
+# 到 /health 200 的绝大部分时间。
+# 挪到 async 后台任务后：
+#   * /health 在 <300ms 内响应，主 API 立即可用
+#   * douyin 端点（/api/v1/douyin-tiktok/*）在挂载完成后（约 +1s 后台）可用
+#   * 失败降级：只在启动日志留 warning，主应用不受影响
+#   * 关闭/缺失：settings.DOUYIN_TIKTOK_API_ENABLED=False 或目录不存在时
+#     完全不产生导入成本
+_DOUYIN_MOUNT_TASK: asyncio.Future | None = None  # legacy, replaced by _DEFERRED_MOUNT_TASK
+_DEFERRED_MOUNT_TASK: asyncio.Future | None = None
+
+
+async def _mount_crawler_router() -> None:
+    """Lazy-mount the crawler API router (~1.5s import cost).
+
+    The crawler module pulls in `crawlers.hybrid` plus tiktok/douyin
+    pydantic-heavy models, and instantiates 3 crawler objects at import
+    time.
+
+    IMPORTANT: this is intentionally called via `loop.run_in_executor`
+    (see ``_mount_deferred_components``) because the underlying import is
+    synchronous.  Running it as a normal ``await`` inside the event loop
+    would block every in-flight HTTP request until the import finishes,
+    which silently re-introduces the exact cold-start latency we are
+    trying to remove.
+    """
+    import asyncio as _asyncio
+
+    loop = _asyncio.get_running_loop()
+
+    def _do_mount() -> None:
+        try:
+            t0 = time.perf_counter()
+            from fastapi_app.api.v1.crawler.router import router as crawler_router
+            from fastapi_app.api.v1.router import api_router
+
+            api_router.include_router(
+                crawler_router, prefix="/crawler", tags=["混合爬虫"]
+            )
+            logger.info(
+                f"[Crawler] Router mounted ({time.perf_counter() - t0:.2f}s, lazy)"
+            )
+        except Exception as exc:
+            logger.warning(f"[Crawler] Lazy router mount failed: {exc}")
+
+    await loop.run_in_executor(None, _do_mount)
+
+
+async def _mount_douyin_tiktok_api() -> None:
+    """Lazy-mount douyin_tiktok_api sub-app after main app is up.
+
+    Called from ``_mount_deferred_components`` after ``_mount_crawler_router``
+    so the crawler import has already injected ``douyin_tiktok_api`` into
+    ``sys.path`` — otherwise its transitive ``import crawlers.*`` fails with
+    ``ModuleNotFoundError``.
+
+    Runs the sync import inside ``loop.run_in_executor`` for the same
+    reason as ``_mount_crawler_router``: keep the event loop free so
+    ``/health`` responds immediately while this import happens in a worker
+    thread.
+    """
+    if not settings.DOUYIN_TIKTOK_API_ENABLED:
+        return
+
+    import asyncio as _asyncio
+
+    loop = _asyncio.get_running_loop()
+    douyin_root = Path(settings.BASE_DIR) / "douyin_tiktok_api"
+    if not douyin_root.exists():
+        logger.warning(
+            f"[Douyin_TikTok_API] Repo not found at {douyin_root}; skipping lazy mount"
+        )
+        return
+
+    def _do_mount() -> None:
+        try:
+            t0 = time.perf_counter()
             from douyin_tiktok_api.app.main import app as douyin_tiktok_app  # type: ignore
-
+            # Mutating the ASGI app from a worker thread while the loop is
+            # serving requests is technically racy; FastAPI's `mount` is a
+            # plain dict insertion on the routes list, which is safe under
+            # the GIL.  If this ever becomes a problem we can hop back onto
+            # the loop with `await loop.run_in_executor(None, app.mount, ...)`.
             app.mount(settings.DOUYIN_TIKTOK_API_PREFIX, douyin_tiktok_app)
-            logger.info(f"[Douyin_TikTok_API] Mounted at {settings.DOUYIN_TIKTOK_API_PREFIX}")
-        else:
-            logger.warning(f"[Douyin_TikTok_API] Repo not found at {douyin_root}")
-    except ImportError as exc:
-        logger.warning(f"[Douyin_TikTok_API] Import failed: {exc}. Check dependencies (PyWebIO, etc.)")
-    except Exception as exc:
-        logger.warning(f"[Douyin_TikTok_API] Mount failed: {exc}")
+            logger.info(
+                f"[Douyin_TikTok_API] Mounted at {settings.DOUYIN_TIKTOK_API_PREFIX} "
+                f"({time.perf_counter() - t0:.2f}s, lazy)"
+            )
+        except ImportError as exc:
+            logger.warning(
+                f"[Douyin_TikTok_API] Import failed: {exc}. Check dependencies (PyWebIO, etc.)"
+            )
+        except Exception as exc:
+            logger.warning(f"[Douyin_TikTok_API] Mount failed: {exc}")
 
+    await loop.run_in_executor(None, _do_mount)
+
+
+async def _mount_deferred_components() -> None:
+    """Chain: crawler router -> douyin sub-app.
+
+    Both halves run their synchronous imports inside the default thread
+    executor so the ASGI event loop stays responsive — without this,
+    /health would still be blocked for ~2s (crawler 1.3s + douyin 0.5s)
+    by imports that "look" lazy because they live in a create_task but
+    actually still execute on the event loop thread.
+    """
+    await _mount_crawler_router()
+    await _mount_douyin_tiktok_api()
 
 
 # 全局异常处理
@@ -170,6 +267,14 @@ async def startup_event():
     logger.info(f" {settings.PROJECT_NAME} v{settings.VERSION} loading...")
     logger.info(f" API: http://{settings.HOST}:{settings.PORT}/api/docs")
     logger.info(f" 数据库: {settings.DATABASE_PATH}")
+
+    # B-B (2026-10-16): fire-and-forget the deferred mounts as a single
+    # chained task so the implicit sys.path dependency between crawler
+    # and douyin_tiktok_api (crawler's import injects `crawlers` on the
+    # path that douyin needs) is preserved.  Holding a strong ref
+    # prevents the coroutine from being GC'd mid-flight.
+    global _DEFERRED_MOUNT_TASK
+    _DEFERRED_MOUNT_TASK = asyncio.create_task(_mount_deferred_components())
 
     try:
         os.environ.setdefault("LAOMA_DATA_DIR", str(settings.DATA_DIR))

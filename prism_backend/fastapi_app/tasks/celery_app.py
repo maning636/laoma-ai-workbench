@@ -50,7 +50,12 @@ celery_app.conf.update(
     enable_utc=False,
     broker_connection_retry_on_startup=True,
     # Ensure non-default task modules are loaded by the worker.
-    include=["fastapi_app.tasks.publish_tasks"],
+    # debug_tasks holds "no side effect" probes (e.g. debug.echo) used
+    # to verify the broker/worker pipeline without touching any platform.
+    include=[
+        "fastapi_app.tasks.publish_tasks",
+        "fastapi_app.tasks.debug_tasks",
+    ],
     # Worker pool configuration for Windows
     # Use threads to enable concurrency on Windows (solo forces serial execution).
     worker_pool="threads",
