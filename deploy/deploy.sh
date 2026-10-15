@@ -121,9 +121,9 @@ precheck() {
     fi
     PY_VERSION="$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:3])))')"
     log_ok "Python 版本:${PY_VERSION}"
-    python3 - <<'PY' || die "Python 版本过低,cloud_service 需要 >= 3.10"
+    python3 - <<'PY' || die "Python 版本过低,cloud_service 需要 >= 3.11(与 CI/生产基线一致)"
 import sys
-assert sys.version_info >= (3, 10), sys.version
+assert sys.version_info >= (3, 11), sys.version
 PY
 
     # 0.3 目标目录

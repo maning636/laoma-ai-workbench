@@ -10,11 +10,25 @@
 
 ## 1. 五步跑起来（首次）
 
+### 第 0 步：Python 版本支持矩阵
+
+三份环境口径已收敛，但**不完全相同**——本地开发可以用更高版本，CI / 生产是最低线的共同基线。
+
+| 场景 | 版本 | 说明 |
+|---|---|---|
+| **最低支持版本** | **3.11** | CI + 生产 OpenCloudOS 9.6 (3.11.6) 都用 3.11；`cloud_service/` 已在此版本真机跑通 |
+| CI (`ci.yml` / `release.yml`) | 3.11 | 全部 5 个 job 统一 `python-version: '3.11'` |
+| 生产服务器 | 3.11.6 | 已实测跑通 `cloud_service`（见 `deploy/README.md`） |
+| 本地开发 (`prismenv`) | 3.13.14 | 开发者本机用更高版本；已验证可跑通全部本地栈，**不强制重装** |
+
+> 结论：**要发新机器或跑 CI，装 3.11 就行**；本地想保留 3.13 也 OK，但不要在文档里假装它们一致。
+> `pyproject.toml` 中 `requires-python = ">=3.11"`（不设上限）就是这个意思。
+
 ### 第 1 步：确认环境
 
 需要已经装好（如果没有就装，都装最新版）：
 
-- **Python 3.11** —— 从 https://www.python.org/downloads/ 下载。安装时**必须勾选**「Add python.exe to PATH」
+- **Python 3.11**（本地开发也可以用 3.12 / 3.13，但 CI / 生产基线是 3.11）—— 从 https://www.python.org/downloads/ 下载。安装时**必须勾选**「Add python.exe to PATH」
 - **Node.js 18 或更新** —— 从 https://nodejs.org/ 下载 LTS 版
 - **Git** —— 从 https://git-scm.com/ 下载。用于 submodule 和推送代码
 - **网络** —— 首次要装依赖（~700 MB），断网装不上
@@ -122,6 +136,27 @@ start.bat
 ```
 
 1 分钟内启动完成。停止服务用 `scripts\launchers\stop_stack.bat`，别叠进程。
+
+> ⚠️ **重要：不要关闭启动 `start.bat` 时打开的任何一个 cmd 窗口！**
+>
+> 后端 / Worker / 前端都是通过 `scripts\launchers\*.bat` 里的 `start "标题" ...` 起新窗口的，
+> **进程依附宿主终端窗口**。实测：关掉父窗口 → 7000 / 7001 / 3000 会同时消失（Redis/Celery 可能仍存活），
+> 演示现场踩过一次，本地也踩过一次。
+>
+> **如何确认服务还在跑**：
+>
+> ```powershell
+> # 端口监听（应看到 6379 / 7000 / 7001 / 3000 / 8787）
+> netstat -ano | findstr LISTENING | findstr "6379 7000 7001 3000 8787"
+>
+> # 或者逐个 API 探活
+> curl -s http://127.0.0.1:7000/health
+> curl -s http://127.0.0.1:7001/health
+> curl -sI http://127.0.0.1:3000
+> ```
+>
+> 想长期后台运行、彻底摆脱窗口依赖，需要把服务注册成 Windows 服务（`nssm` / `WinSW`），
+> 目前仓库**未提供**这类脚本（需要下载第三方工具），见下方 §E-F。
 
 ---
 

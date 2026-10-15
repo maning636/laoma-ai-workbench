@@ -7,7 +7,11 @@ name = "prism-publisher"
 version = "0.1.0"
 description = "老马AI工作台：跨平台内容编排与发布"
 readme = "README.md"
-requires-python = ">=3.10,<3.13"
+# Python 版本支持矩阵（详见 STARTUP.md § "Python 版本支持矩阵"）：
+#   - 最低支持版本: 3.11（与 CI + 生产 OpenCloudOS 9.6 对齐；生产实测跑通 cloud_service）
+#   - 上限: 不限（本地开发 prismenv 用 3.13.14 已验证可用；不设 <3.13 上限以避免
+#     开发环境的 pip 严格模式拒绝安装依赖）
+requires-python = ">=3.11"
 dependencies = [
   "aiohttp>=3.10",
   "aiohttp-cors>=0.7",
