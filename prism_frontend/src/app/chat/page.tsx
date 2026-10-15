@@ -6,6 +6,7 @@ import { Loader2, Plus, Send, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { chatViaCloud } from "@/lib/cloud-chat"
 
 interface Thread {
   id: string
@@ -26,6 +27,7 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false)
   const [loadingThreads, setLoadingThreads] = useState(true)
   const [configError, setConfigError] = useState("")
+  const [lastSource, setLastSource] = useState<string | null>(null)
 
   const loadThreads = useCallback(async () => {
     setLoadingThreads(true)
@@ -94,18 +96,48 @@ export default function ChatPage() {
       const history = [...messages, { role: "user" as const, content: text }]
       setMessages(history)
 
-      const res = await fetch("/api/v1/ai/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history.map((m) => ({ role: m.role, content: m.content })), stream: false }),
+      // F-A: 优先走云端流式(gatewayStream);失败自动回落到云端非流式 /cloud/llm/chat,
+      // 再失败回落到本地非流式 /api/v1/ai/chat。三层任一成功即返回。
+      // onDelta 逐字更新 UI(云端流式路径)。
+      const placeholderIdx = history.length
+      setMessages((prev) => [...prev, { role: "assistant", content: "" }])
+
+      const res = await chatViaCloud({
+        messages: history,
+        onDelta: (delta) => {
+          setMessages((prev) => {
+            if (prev.length <= placeholderIdx) return prev
+            const next = [...prev]
+            next[placeholderIdx] = {
+              role: "assistant",
+              content: (next[placeholderIdx]?.content || "") + delta,
+            }
+            return next
+          })
+        },
       })
-      const data = await res.json()
+
+      // chatViaCloud 全部失败:清掉占位气泡,展示错误
       if (!res.ok) {
-        throw new Error(data?.detail || `HTTP ${res.status}`)
+        setMessages((prev) => {
+          const next = [...prev]
+          if (next.length > placeholderIdx && !next[placeholderIdx]?.content) {
+            next.pop()
+          }
+          next.push({ role: "assistant", content: `⚠️ ${res.detail || "AI 服务暂时不可用"}` })
+          return next
+        })
+        setConfigError(res.detail || `HTTP error: ${res.code}`)
+        return
       }
-      const reply = String(data?.content || "（空回复）")
-      const finalMessages = [...history, { role: "assistant" as const, content: reply }]
-      setMessages(finalMessages)
+
+      // 成功:替换占位气泡(云端流式已实时更新;云端 chat / 本地 chat 需要一次性填入)
+      const reply = res.text || "（空回复）"
+      setMessages((prev) => {
+        const next = [...prev]
+        next[placeholderIdx] = { role: "assistant", content: reply }
+        return next
+      })
       await fetch(`/api/v1/ai/threads/${threadId}/messages/batch`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -116,6 +148,7 @@ export default function ChatPage() {
           ],
         }),
       })
+      setLastSource(res.source)
       await loadThreads()
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
@@ -194,6 +227,13 @@ export default function ChatPage() {
               <div className="rounded-2xl bg-muted px-4 py-2.5">
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
               </div>
+            </div>
+          )}
+          {lastSource && !sending && (
+            <div className="text-right text-[10px] text-muted-foreground">
+              {lastSource === "cloud-stream" && "云端流式 · 逐字"}
+              {lastSource === "cloud-chat" && "云端非流式"}
+              {lastSource === "local-chat" && "本地对话"}
             </div>
           )}
         </div>
