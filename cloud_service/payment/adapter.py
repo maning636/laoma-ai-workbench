@@ -111,6 +111,8 @@ class PaymentAdapter(ABC):
         order_no: str,
         pay_trade_no: str,
         amount: float,
+        order_amount: float | None = None,
+        reason: str = "",
     ) -> tuple[bool, str, dict[str, Any]]:
         """发起退款。默认实现为 mock:直接成功,回显一份 refund 单据。
 
@@ -118,6 +120,16 @@ class PaymentAdapter(ABC):
           - `ok`            : 是否受理成功
           - `message`       : 简短描述(成功/失败原因)
           - `fields`        : 平台返回的补充字段(如 `refund_trade_no`)
+
+        参数说明:
+          - `amount`       : 本次退款金额(元)
+          - `order_amount` : **原订单金额(元)**,可选;真实微信支付 APIv3
+                             的 `amount.total` 需要原订单金额,部分退款时
+                             微信会校验 `total >= refund`,与本次退款金额
+                             不同时必须显式传入。缺省 `None` 时回退到
+                             `amount`(向后兼容旧的 3 参数调用),保持
+                             支付宝 adapter 与既有 mock 行为不变。
+          - `reason`       : 可选退款原因文本,子类按需使用。
 
         真实环境应在子类覆盖本方法,调用支付宝 `alipay.trade.refund`
         或微信 v3 `POST /v3/refund/domestic/refunds`。

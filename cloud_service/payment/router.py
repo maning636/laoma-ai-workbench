@@ -410,11 +410,26 @@ def refund_order(
             detail=f"unsupported channel: {order.channel}",
         )
     try:
-        ok, msg, fields = adapter.refund(
+        # 微信 APIv3 部分退款要求 `amount.total == 原订单金额`(否则微信拒);
+        # 全额退款时 total == refund,同样正确。传入 order.amount 保证兼容。
+        # 支付宝 adapter 目前签名不接受 `order_amount`,通过签名内省做
+        # 兼容降级:只在实际支持该参数的 adapter 上传入。
+        # 未来支付宝 adapter 增加 order_amount 参数后,该内省会自然兼容。
+        import inspect as _inspect
+
+        refund_kwargs = dict(
             order_no=order.order_no,
             pay_trade_no=order.pay_trade_no,
             amount=refund_amount,
         )
+        try:
+            _sig = _inspect.signature(adapter.refund)
+            if "order_amount" in _sig.parameters:
+                refund_kwargs["order_amount"] = float(order.amount)
+        except (TypeError, ValueError):
+            # 极端:adapter.refund 是 C 扩展等无法 inspect 的对象,降级到 3 参数
+            pass
+        ok, msg, fields = adapter.refund(**refund_kwargs)
     except Exception as e:
         raise HTTPException(
             status_code=502,

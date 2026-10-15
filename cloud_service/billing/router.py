@@ -153,6 +153,37 @@ def _consume_quota(db: Session, user: User, sub: Subscription, amount: int, peri
     return new_used
 
 
+def _rollback_quota(db: Session, user: User, amount: int, period: str) -> int:
+    """`_consume_quota` 的对称反向操作:扣回 amount 个额度单位。
+
+    用于流式 LLM 中断场景 —— 预消费额度后,客户端 AbortController/断网 触发
+    `GeneratorExit`,绕过 `except Exception`,导致"内容已发但未扣额度"的
+    计费漏洞。修复策略是"预消费 + 补偿回滚":在生成器进入前先 consume,
+    然后在 `finally` 里根据 `cancelled` 标记调用本函数回滚。
+
+    语义:
+      - amount > 0 时执行;amount <= 0 直接 no-op;
+      - 用 `with_for_update` 锁住 usage 行,防并发覆盖;
+      - 下限截断到 0,不允许出现负数 usage;
+      - 事务失败抛 `SQLAlchemyError`(调用方 `finally` 里应 catch 后 log)。
+    """
+    if amount <= 0:
+        return 0
+    usage = (
+        db.query(Usage)
+        .filter(Usage.user_id == user.id, Usage.period == period)
+        .with_for_update()
+        .first()
+    )
+    if usage is None:
+        # 极端边界:consume 从未落库就触发 rollback —— 无操作
+        return 0
+    new_used = max(0, int(usage.used or 0) - amount)
+    usage.used = new_used
+    db.commit()
+    return new_used
+
+
 def _serialize_subscription(sub: Subscription, used: int = 0) -> dict:
     """把 ORM Subscription 序列化为 API 载荷(与 `to_dict` 一致,但集中管理)。"""
     expired = sub.is_expired()

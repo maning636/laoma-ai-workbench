@@ -487,6 +487,153 @@ def run() -> int:
               used_after_err == used_before_err,
               f"before={used_before_err} after={used_after_err}")
 
+        # ── 18. F-G 修复:预消费 + 补偿回滚(修复 AbortController 计费缺口) ──
+        # 背景:客户端 AbortController/断网 触发 GeneratorExit,旧代码绕过
+        # `except Exception`,导致"内容已发但未扣额度"。修复策略:预消费
+        # + 各异常分支回滚。此处验证四条关键路径。
+
+        import asyncio
+
+        from cloud_service.auth.models import User as _U
+        from cloud_service.db import SessionLocal as _SL
+        from cloud_service.llm_proxy.router import llm_chat_stream as _llm_stream_ep
+        from cloud_service.llm_proxy.schemas import ChatRequest as _ChatReq
+
+        _db_q = _SL()
+        _u_dave = _db_q.query(_U).filter(_U.username == "dave").first()
+        _u_dave2 = _db_q.query(_U).filter(_U.username == "dave2").first()
+        _db_q.close()
+        assert _u_dave is not None and _u_dave2 is not None
+
+        # ── 18a. 正常完成恰好扣 1 次 ───────────────────────
+        _used_before_normal = client.get("/cloud/subscription", headers=H).json().get("used", 0)
+
+        async def _drive_normal():
+            resp = await _llm_stream_ep(
+                payload=_ChatReq(
+                    prompt_name="title.basic_generate",
+                    variables={"topic": "AI", "count": 3},
+                ),
+                current_user=_u_dave,
+                db=_SL(),
+            )
+            return "".join([chunk async for chunk in resp.body_iterator])
+
+        _body_normal = asyncio.run(_drive_normal())
+        _used_after_normal = client.get("/cloud/subscription", headers=H).json().get("used", 0)
+        check("F-G 正常完成恰好扣 1 次额度",
+              _used_after_normal == _used_before_normal + 1,
+              f"before={_used_before_normal} after={_used_after_normal}")
+
+        # ── 18b. 上游异常时回滚预消费(不净扣) ─────────────
+        _install_stream_error_mock()
+        _used_before_err2 = client.get("/cloud/subscription", headers=H).json().get("used", 0)
+
+        async def _drive_err():
+            resp = await _llm_stream_ep(
+                payload=_ChatReq(
+                    prompt_name="title.basic_generate",
+                    variables={"topic": "x", "count": 1},
+                ),
+                current_user=_u_dave,
+                db=_SL(),
+            )
+            return "".join([chunk async for chunk in resp.body_iterator])
+
+        _body_err = asyncio.run(_drive_err())
+        _used_after_err2 = client.get("/cloud/subscription", headers=H).json().get("used", 0)
+        _install_stream_mock()
+        check("F-G 上游异常时预消费被回滚(不净扣额度)",
+              _used_after_err2 == _used_before_err2,
+              f"before={_used_before_err2} after={_used_after_err2}")
+
+        # ── 18c. 中断(GeneratorExit)时回滚预消费 ──────────
+        # 用一个干净的 user 确保前置额度检查通过。
+        r = client.post(
+            "/cloud/auth/register",
+            json={"username": "dave_fg_abort", "email": "fg_abort@example.com", "password": "supers3cret"},
+        )
+        check("F-G register dave_fg_abort for abort test", r.status_code == 201,
+              f"status={r.status_code}")
+        r = client.post(
+            "/cloud/auth/login",
+            json={"username": "dave_fg_abort", "password": "supers3cret"},
+        )
+        check("F-G login dave_fg_abort", r.status_code == 200)
+        H_fg = {"Authorization": f"Bearer {r.json().get('access_token','')}"}
+        _db_q2 = _SL()
+        _u_fg = _db_q2.query(_U).filter(_U.username == "dave_fg_abort").first()
+        _db_q2.close()
+        assert _u_fg is not None
+
+        _used_before_abort = client.get("/cloud/subscription", headers=H_fg).json().get("used", 0)
+
+        # 直接调用 llm_chat_stream 拿到底层 async gen;用 athrow(GeneratorExit)
+        # 触发 except GeneratorExit 分支,等价于 Starlette 在客户端断连时
+        # 向 body_iterator 注入 GeneratorExit。
+        from cloud_service.llm_proxy import llm_client as _llm_mod
+        _orig_stream = _llm_mod.stream_cloud_llm
+
+        async def _slow_stream(*, messages, prompt_name, prompt_version, **_kw):
+            yield _llm_mod.LLMStreamEvent(delta="first ", usage={})
+            await asyncio.sleep(30.0)  # 让 athrow 有窗口打进来
+            yield _llm_mod.LLMStreamEvent(
+                delta="",
+                usage={"prompt_tokens": 5, "completion_tokens": 10},
+            )
+
+        _llm_mod.stream_cloud_llm = _slow_stream
+        try:
+            async def _drive_abort():
+                resp = await _llm_stream_ep(
+                    payload=_ChatReq(prompt_name="title.basic_generate", variables={"topic": "x", "count": 1}),
+                    current_user=_u_fg,
+                    db=_SL(),
+                )
+                gen = resp.body_iterator
+                # 先消费首帧,让 generator 停在 await sleep 处
+                try:
+                    first_chunk = await gen.__anext__()
+                except StopAsyncIteration:
+                    first_chunk = ""
+                # 再 athrow(GeneratorExit)
+                result = "unexpected"
+                try:
+                    await gen.athrow(GeneratorExit)
+                    result = "no-raise"
+                except GeneratorExit:
+                    result = "generator-exit-propagated"
+                except BaseException as e:
+                    result = f"other:{type(e).__name__}:{e}"
+                return result, first_chunk
+
+            _abort_result, _abort_first = asyncio.run(_drive_abort())
+        finally:
+            _llm_mod.stream_cloud_llm = _orig_stream
+
+        _used_after_abort = client.get("/cloud/subscription", headers=H_fg).json().get("used", 0)
+        check("F-G 中断(GeneratorExit)时预消费被回滚",
+              _used_after_abort == _used_before_abort,
+              f"before={_used_before_abort} after={_used_after_abort} result={_abort_result}")
+        check("F-G GeneratorExit 由 except 分支 re-raise(透传)",
+              _abort_result == "generator-exit-propagated",
+              f"result={_abort_result}")
+
+        # ── 18d. 额度不足 -> 402,且不进入生成器/不扣 ──────
+        # dave2 quota=3, 测试 15 已将其耗尽。再发请求应 402,used 不变。
+        _used_before_402 = client.get("/cloud/subscription", headers=H2).json().get("used", 0)
+        r_402 = client.post(
+            "/cloud/llm/stream",
+            json={"prompt_name": "title.basic_generate", "variables": {"topic": "x", "count": 1}},
+            headers=H2,
+        )
+        _used_after_402 = client.get("/cloud/subscription", headers=H2).json().get("used", 0)
+        check("F-G 额度不足 -> 402(不进入生成器)",
+              r_402.status_code == 402, f"status={r_402.status_code}")
+        check("F-G 402 时未扣额度(未进入生成器)",
+              _used_after_402 == _used_before_402,
+              f"before={_used_before_402} after={_used_after_402}")
+
     try:
         Path(_tmp.name).unlink(missing_ok=True)
     except OSError:

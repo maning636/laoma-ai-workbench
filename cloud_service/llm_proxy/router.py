@@ -375,14 +375,54 @@ async def llm_chat_stream(
     vault = _llm.get_vault()
     model = payload.model or vault["model"]
 
-    # 5. 定义 SSE 生成器 —— 关键点:generator 内部异常不影响已发送帧。
+    # 4.5 预消费额度(修复 F-G 计费缺口):
+    #   客户端 AbortController/断网 时,Starlette 会给生成器发 GeneratorExit,
+    #   绕过 `except Exception`,导致"内容已发但未扣额度"的漏洞。
+    #   新策略 = "预消费 + 补偿回滚":
+    #     - 进入生成器**前**先扣额度;402 保持既有语义,直接抛 HTTPException,
+    #       不进 StreamingResponse;
+    #     - 正常结束 → 保持已扣,不重复扣;
+    #     - 上游异常 / 客户端中断 → finally 里调 `_rollback_quota` 抵消预消费。
+    try:
+        _check_quota_and_consume(db, current_user, sub, rp.cost)
+    except HTTPException:
+        raise  # 保持前置错误语义(402/403 之类)
+
+    # 4.6 补偿回滚工具:在 finally 中调用;吞掉所有异常只记 log,保证
+    #     GeneratorExit 正常透传。
+    def _safe_rollback() -> None:
+        try:
+            _billing_router._rollback_quota(
+                db, current_user, rp.cost, _current_period()
+            )
+        except Exception as rb_exc:  # 回滚失败必须 catch 吞掉只记日志
+            try:
+                from loguru import logger
+
+                logger.warning(
+                    f"[llm-stream] rollback_quota failed user_id={current_user.id} "
+                    f"prompt={rp.prompt_name} err={rb_exc}"
+                )
+            except Exception:
+                pass
+
+    # 5. 定义 SSE 生成器。
+    #    关键点(GeneratorExit 语义,Python 3.8+):
+    #      - GeneratorExit 是 BaseException 子类,`except Exception` **不会**捕获;
+    #        必须显式 `except GeneratorExit` 才能记录"已取消"状态;
+    #      - 生成器被 aclose() 时 close() 会注入 GeneratorExit;
+    #        finally 里**只能 re-raise / 自然透传**,不允许 yield
+    #        (会 RuntimeError: async generator ignored GeneratorExit);
+    #      - 因此任何"通知客户端"的分支必须放在 except 里的 yield,
+    #        finally 只做数据库补偿与日志。
     async def _gen() -> AsyncIterator[str]:
         full_text = ""
         tokens_in = 0
         tokens_out = 0
         got_usage = False
-        consumed_quota = False
         sent_meta = False
+        # 标记是否需要回滚预消费;上游异常或客户端取消都置 True。
+        cancelled = False
 
         try:
             async for ev in _llm.stream_cloud_llm(
@@ -426,15 +466,56 @@ async def llm_chat_stream(
                         ensure_ascii=False,
                     )
                     yield _sse_frame(frame_data, event="message")
+
+            # 6. 上游跑完:补上估算 tokens(部分模型不返回 usage)
+            if not got_usage:
+                if tokens_in == 0:
+                    tokens_in = max(1, len(rp.rendered) // 2)
+                if tokens_out == 0:
+                    tokens_out = max(1, len(full_text) // 2)
+
+            # 7. 终帧:带上 tokens 统计
+            yield _sse_frame(
+                json.dumps(
+                    {
+                        "done": True,
+                        "tokens_in": tokens_in,
+                        "tokens_out": tokens_out,
+                        "usage": {"prompt_tokens": tokens_in, "completion_tokens": tokens_out},
+                    },
+                    ensure_ascii=False,
+                ),
+                event="message",
+            )
+
+            # 8. [DONE] 终止标记 —— 客户端看到就停止解析。
+            #    预消费已在生成器前完成,正常路径保持已扣,不重复扣。
+            yield _sse_frame("[DONE]")
+
         except _llm.LLMKeyNotConfiguredError:
+            # 服务端未配置 LLM key —— 语义上"没跑成",回滚预消费。
             yield _sse_frame(
                 json.dumps({"error": "cloud LLM not configured (server-side)", "code": "server"}),
                 event="error",
             )
             yield _sse_frame("[DONE]")
+            cancelled = True
+            _safe_rollback()
             return
-        except Exception as exc:  # pragma: no cover - 上游网络/模型错误
-            # 与 chat 一致:上游失败不 consume 额度,让客户端可重试。
+
+        except GeneratorExit:
+            # 客户端 AbortController / 断网:Starlette 会给生成器发 GeneratorExit。
+            # ⚠️ 硬性注意:
+            #   (a) GeneratorExit 必须**透传**(re-raise),Python 3.8+ 语义要求;
+            #   (b) 此分支里**绝不允许 yield**(客户端已断开,且 Python 会
+            #       RuntimeError: async generator ignored GeneratorExit);
+            #   (c) 回滚失败必须 catch 吞掉只记日志(见 _safe_rollback)。
+            cancelled = True
+            _safe_rollback()
+            raise
+
+        except Exception as exc:  # 上游网络/模型错误
+            # 上游失败:客户端还没拿到完整内容,不扣额度,回滚预消费。
             yield _sse_frame(
                 json.dumps(
                     {"error": f"cloud LLM upstream error: {exc.__class__.__name__}: {exc}", "code": "server"},
@@ -443,57 +524,24 @@ async def llm_chat_stream(
                 event="error",
             )
             yield _sse_frame("[DONE]")
+            cancelled = True
+            _safe_rollback()
             return
 
-        # 6. 上游跑完:补上估算 tokens(部分模型不返回 usage)
-        if not got_usage:
-            if tokens_in == 0:
-                tokens_in = max(1, len(rp.rendered) // 2)
-            if tokens_out == 0:
-                tokens_out = max(1, len(full_text) // 2)
-
-        # 7. 发送终帧:带上 tokens 统计
-        yield _sse_frame(
-            json.dumps(
-                {
-                    "done": True,
-                    "tokens_in": tokens_in,
-                    "tokens_out": tokens_out,
-                    "usage": {"prompt_tokens": tokens_in, "completion_tokens": tokens_out},
-                },
-                ensure_ascii=False,
-            ),
-            event="message",
-        )
-
-        # 8. 成功后消费额度 —— 若此时才发现超限,已经流完,记 warning 但不回滚。
-        try:
-            _check_quota_and_consume(db, current_user, sub, rp.cost)
-            consumed_quota = True
-        except HTTPException as exc:
-            # 前置检查通过后此处几乎不会 402;但并发情况下可能出现。
-            try:
-                from loguru import logger
-
-                logger.warning(
-                    f"[llm-stream] post-stream consume failed user_id={current_user.id} "
-                    f"err={exc.detail} prompt={rp.prompt_name}"
-                )
-            except Exception:  # pragma: no cover - loguru 可选
-                pass
         finally:
+            # ⚠️ finally 里**不允许 yield**(GeneratorExit 语义);
+            # 仅做日志,回滚已在各 except 分支内完成。
+            # GeneratorExit 若在 except 里 re-raise,会在 finally 之后透传。
             try:
                 from loguru import logger
 
                 logger.info(
                     f"[llm-stream] user_id={current_user.id} prompt={rp.prompt_name} "
-                    f"tier={rp.prompt_tier} tokens={tokens_in}/{tokens_out} consumed={consumed_quota}"
+                    f"tier={rp.prompt_tier} tokens={tokens_in}/{tokens_out} "
+                    f"cancelled={cancelled}"
                 )
             except Exception:  # pragma: no cover
                 pass
-
-        # 9. [DONE] 终止标记 —— 客户端看到就停止解析。
-        yield _sse_frame("[DONE]")
 
     headers = {
         # 让 SSE 流不被中间代理缓冲(nginx / CDN 常见配置)

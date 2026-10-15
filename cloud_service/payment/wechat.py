@@ -451,21 +451,32 @@ class WechatAdapter(PaymentAdapter):
         order_no: str,
         pay_trade_no: str,
         amount: float,
+        order_amount: float | None = None,
         reason: str = "",
     ) -> tuple[bool, str, dict[str, Any]]:
         """发起退款。
 
         - Mock 模式:与基类一致,直接回显。
         - 真实模式:`POST /v3/refund/domestic/refunds`,金额单位**分**,整数。
+
+        `order_amount` 说明:
+          微信 APIv3 的 `amount.total` 必须是**原订单金额(分)**,
+          部分退款时若 `total == refund` 会被微信拒(要求 total > refund)。
+          调用方(router)应从 Order 表读原订单金额并传入;
+          缺省 `None` 时回退到 `amount`(保持与旧测试 / 全额退款的兼容)。
         """
         refund_fen = int(round(float(amount) * 100))
         if refund_fen <= 0:
             return False, "refund amount must be > 0", {}
+        # order_amount 缺省回退到 amount(兼容旧的 3 参数调用)
+        total_fen = int(round(float(order_amount) * 100)) if order_amount is not None else refund_fen
         if not self.is_real:
             return super().refund(
                 order_no=order_no,
                 pay_trade_no=pay_trade_no,
                 amount=amount,
+                order_amount=order_amount,
+                reason=reason,
             )
 
         body = {
@@ -474,7 +485,7 @@ class WechatAdapter(PaymentAdapter):
             "out_refund_no": f"RF_{order_no}_{refund_fen}",
             "amount": {
                 "refund": refund_fen,
-                "total": refund_fen,
+                "total": total_fen,
                 "currency": "CNY",
             },
         }
