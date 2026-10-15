@@ -22,7 +22,11 @@ toml
 sqlalchemy==2.0.52
 
 # ---- 缓存与任务队列 ----
-redis
+# redis-py>=5 默认走 RESP3（握手时发 `HELLO 3`），与本仓库内置的
+# desktop-electron/resources/redis/redis-server.exe (Redis 5.0.14) 不兼容，
+# 会报 `unknown command 'HELLO'`。Celery broker + backend + 后端缓存都依赖它，
+# 因此固定到 4.6.x（仍兼容 Redis 5，且 kombu 5.6.x 也能正常工作）。
+redis<5
 celery<5.5.0
 
 # ---- 浏览器自动化 ----
