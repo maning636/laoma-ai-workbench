@@ -48,9 +48,16 @@ async def _lifespan(_app: FastAPI):
 
     timeout_cfg = settings.get("order_timeout", {})
     reconcile_cfg = settings.get("reconcile", {})
+    lock_cfg = settings.get("task_lock", {})
 
     stop_event = asyncio.Event()
     background_tasks: list[asyncio.Task] = []
+
+    # C-D: 是否启用跨 worker 分布式锁(Redis 不可达时会自动降级为无锁模式)
+    task_lock_enabled = bool(lock_cfg.get("enabled", True))
+    lock_ttl_seconds = int(lock_cfg.get("ttl_seconds", 0))
+    if not task_lock_enabled:
+        logger.info("task_lock DISABLED by env; each worker runs tasks independently")
 
     if timeout_cfg.get("enabled", True):
         background_tasks.append(asyncio.create_task(
@@ -58,13 +65,17 @@ async def _lifespan(_app: FastAPI):
                 interval_seconds=float(timeout_cfg.get("interval_seconds", 3600)),
                 hours=int(timeout_cfg.get("hours", 24)),
                 stop_event=stop_event,
+                lock_enabled=task_lock_enabled,
+                lock_key="cloud:lock:order_timeout",
+                lock_ttl_seconds=lock_ttl_seconds,
             ),
             name="close_expired_orders",
         ))
         logger.info(
-            "order_timeout task started: interval=%ds hours=%d",
+            "order_timeout task started: interval=%ds hours=%d lock=%s",
             timeout_cfg.get("interval_seconds", 3600),
             timeout_cfg.get("hours", 24),
+            task_lock_enabled,
         )
     else:
         logger.info("order_timeout task disabled by env")
@@ -75,15 +86,39 @@ async def _lifespan(_app: FastAPI):
                 interval_seconds=float(reconcile_cfg.get("interval_seconds", 86400)),
                 lookback_hours=int(reconcile_cfg.get("lookback_hours", 24)),
                 stop_event=stop_event,
+                # C-D: 分布式锁
+                lock_enabled=task_lock_enabled,
+                lock_key="cloud:lock:reconcile",
+                lock_ttl_seconds=lock_ttl_seconds,
+                # C-E: 超时/退避/限次
+                fetch_timeout_seconds=float(
+                    reconcile_cfg.get("fetch_timeout_seconds", 30.0),
+                ),
+                backoff_base_seconds=float(
+                    reconcile_cfg.get("backoff_base_seconds", 300.0),
+                ),
+                backoff_max_seconds=float(
+                    reconcile_cfg.get("backoff_max_seconds", 3600.0),
+                ),
+                daily_limit=int(reconcile_cfg.get("daily_limit", 10)),
+                daily_limit_base_key=reconcile_cfg.get(
+                    "daily_limit_base_key", "cloud:payment:reconcile",
+                ),
             ),
             name="reconcile_day",
         ))
         logger.info(
-            "reconcile task started: interval=%ds lookback_hours=%d "
-            "(注意: platform_bills=None 会触发 adapter.fetch_bill,接入真实 "
+            "reconcile task started: interval=%ds lookback_hours=%d lock=%s "
+            "fetch_timeout=%.1fs backoff=%.1fs-%.1fs daily_limit=%d "
+            "(platform_bills=None 会触发 adapter.fetch_bill,接入真实 "
             "adapter 后即为外部调用)",
             reconcile_cfg.get("interval_seconds", 86400),
             reconcile_cfg.get("lookback_hours", 24),
+            task_lock_enabled,
+            float(reconcile_cfg.get("fetch_timeout_seconds", 30.0)),
+            float(reconcile_cfg.get("backoff_base_seconds", 300.0)),
+            float(reconcile_cfg.get("backoff_max_seconds", 3600.0)),
+            int(reconcile_cfg.get("daily_limit", 10)),
         )
     else:
         logger.info(

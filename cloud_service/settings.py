@@ -38,6 +38,16 @@ def _get_int(name: str, default: int) -> int:
         return default
 
 
+def _get_float(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
 def _resolve_jwt_secret() -> str:
     """解析 JWT 密钥。
 
@@ -93,7 +103,7 @@ def get_settings():
             "interval_seconds": _get_int("CLOUD_ORDER_TIMEOUT_INTERVAL_SECONDS", 3600),
             "hours": _get_int("CLOUD_ORDER_TIMEOUT_HOURS", 24),
         },
-        # ── 对账调度(P6)───────────────────────────────
+        # ── 日终对账调度(P6)───────────────────────────────
         # 默认 **关闭**:因为 `reconcile_day(platform_bills=None)` 会遍历已注册
         # adapter 调 `adapter.fetch_bill()`,一旦接入真实商户 adapter 就是外部调用。
         # 生产上线前必须显式确认开关,并配合日志告警;真实 adapter 上线时务必
@@ -104,6 +114,42 @@ def get_settings():
             "interval_seconds": _get_int("CLOUD_RECONCILE_INTERVAL_SECONDS", 86400),
             # 起始窗口(相对本次执行时间往前多少小时):默认 24h,覆盖"昨日"日切。
             "lookback_hours": _get_int("CLOUD_RECONCILE_LOOKBACK_HOURS", 24),
+            # C-E: 单次 fetch_bill 的 wall-clock 超时。超时后本轮该 adapter 视为
+            # 失败,不影响其它 adapter 与下一轮。默认 30s。
+            "fetch_timeout_seconds": _get_float(
+                "CLOUD_RECONCILE_FETCH_TIMEOUT_SECONDS", 30.0,
+            ),
+            # C-E: 指数退避(base 秒)。第 n 次失败后等 base * (2 ** (n-1)),
+            # 封顶 max。默认 300s(5min),封顶 3600s(1h)。
+            "backoff_base_seconds": _get_float(
+                "CLOUD_RECONCILE_BACKOFF_BASE_SECONDS", 300.0,
+            ),
+            "backoff_max_seconds": _get_float(
+                "CLOUD_RECONCILE_BACKOFF_MAX_SECONDS", 3600.0,
+            ),
+            # C-E: 每日调用次数上限(所有 worker 累计)。0 = 关闭限流;
+            # 默认 10(约每小时 1 次);超限后本轮跳过并 warn。
+            "daily_limit": _get_int("CLOUD_RECONCILE_DAILY_LIMIT", 10),
+            # C-E: 每日限流 key 前缀(不同环境可隔离)
+            "daily_limit_base_key": _get_str(
+                "CLOUD_RECONCILE_DAILY_LIMIT_KEY",
+                "cloud:payment:reconcile",
+            ),
+        },
+        # ── 后台任务分布式锁(C-D)────────────────────────
+        # `uvicorn --workers > 1` 时每个 worker 都会跑一份 lifespan;
+        # 该开关控制是否用 Redis SET NX PX 抢锁,只有抢到锁的 worker 才执行
+        # 本轮任务,避免:1) 重复调用商户 fetch_bill;2) 日志重复。
+        #
+        # 默认 **true**:Redis 挂时自动降级为"无锁模式"(打 warning 但照常
+        # 执行),既不会因 Redis 抖动停摆,也在正常路径下避免重复外部调用。
+        # 单 worker 部署(开发)可关闭以避免一次 RTT。
+        "task_lock": {
+            "enabled": _get_str("CLOUD_TASK_LOCK_ENABLED", "true").lower()
+            in {"1", "true", "yes"},
+            # 锁 TTL 秒;0 = 按 2 * 任务间隔 自动推导。默认 0 让调用方按任务间隔
+            # 动态算 TTL,通常 > 单轮任务最长执行时间,防止死锁。
+            "ttl_seconds": _get_int("CLOUD_TASK_LOCK_TTL_SECONDS", 0),
         },
         # ── CORS(浏览器直连)───────────────────────────
         # 由 main.py 的 CORSMiddleware 使用;逗号分隔的 origin 列表。

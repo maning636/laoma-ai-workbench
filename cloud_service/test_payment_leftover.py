@@ -432,6 +432,8 @@ def run() -> int:
                   f"calls={fetch_bill_calls}")
 
             # 13b. 正常跑一次(等价于"开关打开"路径): fetch_bill ≥ 1
+            # 注意:C-E 起 daily_limit 默认 10,若跑多轮可能触发限流;这里显式
+            # daily_limit=0 关闭限流,只测"任务确实在跑"这一件事。
             fetch_bill_calls = 0
             stop2 = _aio.Event()
             async def _run_reconcile():
@@ -439,6 +441,7 @@ def run() -> int:
                     interval_seconds=0.05,
                     lookback_hours=24,
                     stop_event=stop2,
+                    daily_limit=0,
                 )
             async def _drive_reconcile():
                 task = _aio.create_task(_run_reconcile())
@@ -509,6 +512,8 @@ def run() -> int:
     # 14b. 显式打开 reconcile → lifespan 启动 task,fetch_bill 被调用
     os.environ["CLOUD_RECONCILE_ENABLED"] = "true"
     os.environ["CLOUD_RECONCILE_INTERVAL_SECONDS"] = "0.05"
+    # C-E: 老测试只关心"任务被启动",不测限流;显式关闭 daily_limit 避免累积污染
+    os.environ["CLOUD_RECONCILE_DAILY_LIMIT"] = "0"
     reset_settings_cache()
     importlib.reload(_cloud_main_mod)
     check("settings.reconcile.enabled after env=true is True",
@@ -538,8 +543,447 @@ def run() -> int:
         _wechat_mod.WechatAdapter.fetch_bill = _orig_w2
         os.environ.pop("CLOUD_RECONCILE_ENABLED", None)
         os.environ.pop("CLOUD_RECONCILE_INTERVAL_SECONDS", None)
+        os.environ.pop("CLOUD_RECONCILE_DAILY_LIMIT", None)
         reset_settings_cache()
         importlib.reload(_cloud_main_mod)
+
+        # __CD_CE_SENTINEL__
+        # ── 15. C-D: 分布式锁 —— 抢到 / 抢不到 / Redis 不可达降级 ──────
+        from cloud_service.payment.task_guard import (
+            acquire_task_lock,
+            release_task_lock,
+            task_lock,
+            check_daily_limit,
+            daily_key,
+            reset_redis_client,
+            reset_daily_limit,
+        )
+
+        class FakeRedis:
+            """最小 redis 桩:支持 SET NX PX / EVAL (Lua 释放) / INCR / EXPIRE / DEL / PING。"""
+
+            def __init__(self):
+                self.store: dict = {}
+
+            def ping(self) -> bool:
+                return True
+
+            def set(self, key, value, nx=False, px=None):
+                if nx and key in self.store:
+                    return None
+                self.store[key] = value
+                return True
+
+            def get(self, key):
+                return self.store.get(key)
+
+            def delete(self, key):
+                if key in self.store:
+                    del self.store[key]
+                    return 1
+                return 0
+
+            def incr(self, key):
+                self.store[key] = int(self.store.get(key, 0)) + 1
+                return self.store[key]
+
+            def decr(self, key):
+                self.store[key] = int(self.store.get(key, 0)) - 1
+                return self.store[key]
+
+            def expire(self, key, seconds):
+                return key in self.store
+
+            def eval(self, script, numkeys, *keys_and_args):
+                key = keys_and_args[0]
+                arg = keys_and_args[1]
+                if self.store.get(key) == arg:
+                    del self.store[key]
+                    return 1
+                return 0
+
+        # 15a. acquire → OK,release 匹配 owner
+        fake = FakeRedis()
+        owner1 = acquire_task_lock(
+            key="cloud:lock:test", owner="w1", ttl_ms=60000, redis_client=fake,
+        )
+        check("C-D: acquire_task_lock returns owner when free",
+              owner1 == "w1", f"owner1={owner1}")
+
+        # 15b. 再次抢 → None
+        owner2 = acquire_task_lock(
+            key="cloud:lock:test", owner="w2", ttl_ms=60000, redis_client=fake,
+        )
+        check("C-D: acquire_task_lock returns None when held",
+              owner2 is None, f"owner2={owner2}")
+
+        # 15c. 释放 owner 不匹配 → 不删除
+        released_mismatch = release_task_lock(
+            key="cloud:lock:test", owner="WRONG", redis_client=fake,
+        )
+        check("C-D: release_task_lock with wrong owner → False",
+              released_mismatch is False, f"ret={released_mismatch}")
+        check("C-D: lock still held after mismatch release",
+              "cloud:lock:test" in fake.store)
+
+        # 15d. 释放 owner 匹配 → True 且删除
+        released_ok = release_task_lock(
+            key="cloud:lock:test", owner="w1", redis_client=fake,
+        )
+        check("C-D: release_task_lock with matching owner → True",
+              released_ok is True, f"ret={released_ok}")
+        check("C-D: lock deleted after matching release",
+              "cloud:lock:test" not in fake.store)
+
+        # 15e. task_lock context: Redis 不可达 → yield "unlocked"
+        _saved_env = os.environ.get("CLOUD_REDIS_URL")
+        os.environ["CLOUD_REDIS_URL"] = "redis://127.0.0.1:1/0"
+        reset_redis_client()
+        async def _drive_task_lock_unlocked():
+            async with task_lock(
+                key="cloud:lock:probe", ttl_seconds=60,
+                redis_client=None, log_label="probe",
+            ) as mode:
+                return mode
+        try:
+            mode = _aio.run(_drive_task_lock_unlocked())
+            check("C-D: task_lock yields 'unlocked' when redis unreachable",
+                  mode == "unlocked", f"mode={mode}")
+        finally:
+            if _saved_env is not None:
+                os.environ["CLOUD_REDIS_URL"] = _saved_env
+            else:
+                os.environ.pop("CLOUD_REDIS_URL", None)
+            reset_redis_client()
+
+        # 15f. task_lock context: 抢到锁 → "locked",退出时释放
+        fake2 = FakeRedis()
+        async def _drive_task_lock_locked():
+            async with task_lock(
+                key="cloud:lock:lockable", ttl_seconds=60,
+                redis_client=fake2, log_label="probe",
+            ) as mode:
+                inside_key = "cloud:lock:lockable" in fake2.store
+                return mode, inside_key
+        result = _aio.run(_drive_task_lock_locked())
+        check("C-D: task_lock yields 'locked' when redis up",
+              result[0] == "locked", f"mode={result[0]}")
+        check("C-D: task_lock held the key inside the context",
+              result[1] is True, f"inside={result[1]}")
+        check("C-D: task_lock released the key on exit",
+              "cloud:lock:lockable" not in fake2.store)
+
+        # 15g. task_lock context: 已持有 → "skipped"
+        fake3 = FakeRedis()
+        fake3.set("cloud:lock:busy", "other-w", nx=False)
+        async def _drive_task_lock_skipped():
+            async with task_lock(
+                key="cloud:lock:busy", ttl_seconds=60,
+                redis_client=fake3, log_label="probe",
+            ) as mode:
+                return mode
+        mode = _aio.run(_drive_task_lock_skipped())
+        check("C-D: task_lock yields 'skipped' when held by another",
+              mode == "skipped", f"mode={mode}")
+        check("C-D: 'skipped' does not delete the other's lock",
+              fake3.store.get("cloud:lock:busy") == "other-w")
+
+        # ── 16. C-E: fetch_all_bills_with_timeout 单 adapter 超时 ──
+        import time as _time
+        from cloud_service.payment.reconciliation import (
+            fetch_all_bills_with_timeout,
+            _compute_backoff,
+            reconcile_task as _recon_task,
+        )
+
+        _orig_a3 = _alipay_mod.AlipayAdapter.fetch_bill
+        _orig_w3 = _wechat_mod.WechatAdapter.fetch_bill
+
+        def _sleep_alipay(self, *, start_date, end_date):
+            _time.sleep(0.3)  # 阻塞线程,超过 timeout
+            return []
+
+        def _fast_wechat(self, *, start_date, end_date):
+            return [
+                {"out_trade_no": "FAST_W", "pay_trade_no": "TX_W",
+                 "amount": 1.0, "channel": "wechat",
+                 "trade_time": start_date, "trade_type": "payment"},
+            ]
+
+        _alipay_mod.AlipayAdapter.fetch_bill = _sleep_alipay
+        _wechat_mod.WechatAdapter.fetch_bill = _fast_wechat
+
+        try:
+            async def _measure_fetch():
+                t_start = _time.monotonic()
+                rows = await fetch_all_bills_with_timeout(
+                    start_date="2026-10-16",
+                    end_date="2026-10-16",
+                    timeout_seconds=0.05,
+                )
+                t_elapsed = _time.monotonic() - t_start
+                return rows, t_elapsed
+            rows, elapsed = _aio.run(_measure_fetch())
+            errors = [r for r in rows if isinstance(r, dict) and r.get("_error")]
+            norms = [r for r in rows if isinstance(r, dict) and not r.get("_error")]
+            check("C-E: fetch_all_bills_with_timeout times out on slow adapter",
+                  len(errors) == 1 and "timed out" in errors[0]["_error"],
+                  f"errors={errors}")
+            check("C-E: fetch_all_bills_with_timeout still returns fast adapter rows",
+                  len(norms) == 1 and norms[0]["out_trade_no"] == "FAST_W",
+                  f"norms={norms}")
+            # 关键:业务层不阻塞 —— wait_for 应在 ~timeout 秒内返回,而不是等
+            # to_thread 的线程 sleep 0.3s 完成。executor shutdown 发生在
+            # _aio.run() 结束时,所以测"从 await 进入到返回"的耗时。
+            check("C-E: wait_for actually cut off slow adapter (< 0.15s elapsed)",
+                  elapsed < 0.15, f"elapsed={elapsed:.3f}s")
+        finally:
+            _alipay_mod.AlipayAdapter.fetch_bill = _orig_a3
+            _wechat_mod.WechatAdapter.fetch_bill = _orig_w3
+
+        # ── 17. C-E: 退避公式 & 每日限次 ──
+        check("C-E: backoff attempt=1 = base",
+              _compute_backoff(1, base=300.0, cap=3600.0) == 300.0)
+        check("C-E: backoff attempt=2 = 2*base",
+              _compute_backoff(2, base=300.0, cap=3600.0) == 600.0)
+        check("C-E: backoff attempt=3 = 4*base",
+              _compute_backoff(3, base=300.0, cap=3600.0) == 1200.0)
+        check("C-E: backoff capped at cap",
+              _compute_backoff(20, base=300.0, cap=3600.0) == 3600.0)
+        check("C-E: backoff attempt<=0 returns base",
+              _compute_backoff(0, base=300.0, cap=3600.0) == 300.0)
+
+        # 17b. 每日限次:达到上限后拒绝
+        fake4 = FakeRedis()
+        reset_daily_limit(key="cloud:payment:reconcile", redis_client=fake4)
+        used_history = []
+        allowed_history = []
+        for _i in range(5):
+            allowed, used = check_daily_limit(
+                key="cloud:payment:reconcile",
+                limit=3,
+                redis_client=fake4,
+                day_utc="2026-10-16",
+            )
+            allowed_history.append(allowed)
+            used_history.append(used)
+        check("C-E: daily_limit allows first 3 calls",
+              allowed_history[:3] == [True, True, True],
+              f"allowed={allowed_history}")
+        check("C-E: daily_limit denies calls 4 and 5",
+              allowed_history[3:] == [False, False],
+              f"allowed={allowed_history}")
+        check("C-E: daily_limit used counter stable at 3 after denial",
+              used_history[3] == 3 and used_history[4] == 3,
+              f"used={used_history}")
+
+        # 17c. daily_limit=0 关闭限流
+        check("C-E: daily_limit=0 always allows",
+              check_daily_limit(
+                  key="cloud:payment:reconcile", limit=0,
+                  redis_client=fake4, day_utc="2026-10-16",
+              )[0] is True)
+
+        # 17d. Redis 不可达 → fail-open
+        _saved_env2 = os.environ.get("CLOUD_REDIS_URL")
+        os.environ["CLOUD_REDIS_URL"] = "redis://127.0.0.1:1/0"
+        reset_redis_client()
+        try:
+            allowed = check_daily_limit(
+                key="cloud:payment:reconcile", limit=1,
+                redis_client=None, day_utc="2026-10-16",
+            )[0]
+            check("C-E: daily_limit fail-open when redis unreachable",
+                  allowed is True, f"allowed={allowed}")
+        finally:
+            if _saved_env2 is not None:
+                os.environ["CLOUD_REDIS_URL"] = _saved_env2
+            else:
+                os.environ.pop("CLOUD_REDIS_URL", None)
+            reset_redis_client()
+
+        # 17e. daily_key 按 UTC 日切
+        dk = daily_key("cloud:payment:reconcile", day_utc="2026-10-16")
+        check("C-E: daily_key contains date suffix",
+              dk == "cloud:payment:reconcile:daily:2026-10-16",
+              f"dk={dk}")
+
+        # ── 18. C-E 集成:reconcile_task 每日限次生效 ──
+        fake5 = FakeRedis()
+        reset_daily_limit(key="cloud:payment:reconcile:test18", redis_client=fake5)
+        _orig_a4 = _alipay_mod.AlipayAdapter.fetch_bill
+        _orig_w4 = _wechat_mod.WechatAdapter.fetch_bill
+        _calls_18 = 0
+        def _counting_18(self, *, start_date, end_date):
+            nonlocal _calls_18
+            _calls_18 += 1
+            return []
+        _alipay_mod.AlipayAdapter.fetch_bill = _counting_18
+        _wechat_mod.WechatAdapter.fetch_bill = _counting_18
+
+        stop18 = _aio.Event()
+        async def _run_18():
+            await _recon_task(
+                interval_seconds=0.05,
+                lookback_hours=24,
+                stop_event=stop18,
+                lock_enabled=True,
+                lock_key="cloud:lock:test18",
+                lock_ttl_seconds=60,
+                redis_client=fake5,
+                fetch_timeout_seconds=0.1,
+                backoff_base_seconds=0.05,
+                backoff_max_seconds=0.1,
+                daily_limit=1,
+                daily_limit_base_key="cloud:payment:reconcile:test18",
+            )
+        async def _drive_18():
+            t = _aio.create_task(_run_18())
+            await _aio.sleep(0.25)
+            stop18.set()
+            await _aio.wait_for(t, timeout=2.0)
+        try:
+            _aio.run(_drive_18())
+            # 单次对账 = alipay + wechat 两个 channel 各 fetch_bill 一次;
+            # daily_limit=1 时只允许第一轮的 2 次,后续轮次应全部拒绝。
+            check("C-E: reconcile_task respects daily_limit (2 fetch_bill calls = 1 round)",
+                  _calls_18 == 2, f"calls={_calls_18}")
+        finally:
+            _alipay_mod.AlipayAdapter.fetch_bill = _orig_a4
+            _wechat_mod.WechatAdapter.fetch_bill = _orig_w4
+
+        # ── 19. C-D 集成:抢不到锁 → 完全跳过 ──
+        fake6 = FakeRedis()
+        fake6.set("cloud:lock:test19", "other-worker", nx=False)
+        _calls_19 = 0
+        def _counting_19(self, *, start_date, end_date):
+            nonlocal _calls_19
+            _calls_19 += 1
+            return []
+        _orig_a5 = _alipay_mod.AlipayAdapter.fetch_bill
+        _orig_w5 = _wechat_mod.WechatAdapter.fetch_bill
+        _alipay_mod.AlipayAdapter.fetch_bill = _counting_19
+        _wechat_mod.WechatAdapter.fetch_bill = _counting_19
+
+        stop19 = _aio.Event()
+        async def _run_19():
+            await _recon_task(
+                interval_seconds=0.05,
+                lookback_hours=24,
+                stop_event=stop19,
+                lock_enabled=True,
+                lock_key="cloud:lock:test19",
+                lock_ttl_seconds=60,
+                redis_client=fake6,
+                fetch_timeout_seconds=0.1,
+                backoff_base_seconds=0.05,
+                backoff_max_seconds=0.1,
+                daily_limit=0,
+                daily_limit_base_key="cloud:payment:reconcile:test19",
+            )
+        async def _drive_19():
+            t = _aio.create_task(_run_19())
+            await _aio.sleep(0.2)
+            stop19.set()
+            await _aio.wait_for(t, timeout=2.0)
+        try:
+            _aio.run(_drive_19())
+            check("C-D: reconcile_task skips when lock held by another worker",
+                  _calls_19 == 0, f"calls={_calls_19}")
+        finally:
+            _alipay_mod.AlipayAdapter.fetch_bill = _orig_a5
+            _wechat_mod.WechatAdapter.fetch_bill = _orig_w5
+
+        # ── 20. C-D 集成:close_expired_orders_task 抢不到锁 → 跳过 ──
+        fake7 = FakeRedis()
+        fake7.set("cloud:lock:test20", "other-worker", nx=False)
+        close_calls = []
+        def _spy_factory_20():
+            close_calls.append(1)
+            return SessionLocal()
+        stop20 = _aio.Event()
+        async def _run_20():
+            await close_expired_orders_task(
+                interval_seconds=0.05,
+                hours=24,
+                db_factory=_spy_factory_20,
+                stop_event=stop20,
+                lock_enabled=True,
+                lock_key="cloud:lock:test20",
+                lock_ttl_seconds=60,
+                redis_client=fake7,
+            )
+        async def _drive_20():
+            t = _aio.create_task(_run_20())
+            await _aio.sleep(0.2)
+            stop20.set()
+            await _aio.wait_for(t, timeout=2.0)
+        _aio.run(_drive_20())
+        check("C-D: close_expired_orders_task skips when lock busy",
+              len(close_calls) == 0, f"calls={len(close_calls)}")
+
+        # 20b. close_expired_orders_task 抢到锁 → 正常执行
+        fake8 = FakeRedis()
+        close_calls2 = []
+        def _spy_factory_20b():
+            close_calls2.append(1)
+            return SessionLocal()
+        stop20b = _aio.Event()
+        async def _run_20b():
+            await close_expired_orders_task(
+                interval_seconds=0.05,
+                hours=24,
+                db_factory=_spy_factory_20b,
+                stop_event=stop20b,
+                lock_enabled=True,
+                lock_key="cloud:lock:test20b",
+                lock_ttl_seconds=60,
+                redis_client=fake8,
+            )
+        async def _drive_20b():
+            t = _aio.create_task(_run_20b())
+            await _aio.sleep(0.15)
+            stop20b.set()
+            await _aio.wait_for(t, timeout=2.0)
+        _aio.run(_drive_20b())
+        check("C-D: close_expired_orders_task runs when lock free (>=1 call)",
+              len(close_calls2) >= 1, f"calls={len(close_calls2)}")
+
+        # 20c. close_expired_orders_task Redis 不可达 → 降级继续执行
+        _saved_env3 = os.environ.get("CLOUD_REDIS_URL")
+        os.environ["CLOUD_REDIS_URL"] = "redis://127.0.0.1:1/0"
+        reset_redis_client()
+        close_calls3 = []
+        def _spy_factory_20c():
+            close_calls3.append(1)
+            return SessionLocal()
+        stop20c = _aio.Event()
+        async def _run_20c():
+            await close_expired_orders_task(
+                interval_seconds=0.05,
+                hours=24,
+                db_factory=_spy_factory_20c,
+                stop_event=stop20c,
+                lock_enabled=True,
+                lock_key="cloud:lock:test20c",
+                lock_ttl_seconds=60,
+                redis_client=None,
+            )
+        async def _drive_20c():
+            t = _aio.create_task(_run_20c())
+            await _aio.sleep(0.2)
+            stop20c.set()
+            await _aio.wait_for(t, timeout=2.0)
+        try:
+            _aio.run(_drive_20c())
+            check("C-D: close_expired_orders_task falls back when redis unreachable",
+                  len(close_calls3) >= 1, f"calls={len(close_calls3)}")
+        finally:
+            if _saved_env3 is not None:
+                os.environ["CLOUD_REDIS_URL"] = _saved_env3
+            else:
+                os.environ.pop("CLOUD_REDIS_URL", None)
+            reset_redis_client()
 
     # 收尾
     try:

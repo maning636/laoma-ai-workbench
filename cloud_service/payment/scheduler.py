@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session
 
 from ..db import SessionLocal
 from .models import STATUS_CLOSED, STATUS_CREATED, Order
+from .task_guard import task_lock
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +89,11 @@ async def close_expired_orders_task(
     hours: int = 24,
     db_factory: Any = None,
     stop_event: asyncio.Event | None = None,
+    # C-D: 多 worker 去重(分布式锁)
+    lock_enabled: bool = True,
+    lock_key: str = "cloud:lock:order_timeout",
+    lock_ttl_seconds: int = 0,          # 0 = max(60, 2 * interval_seconds)
+    redis_client: Any = None,
 ) -> None:
     """循环执行 `close_expired_orders` 的后台任务(asyncio)。
 
@@ -97,6 +103,13 @@ async def close_expired_orders_task(
       - `db_factory`       : 可选的 session 工厂(callable → Session);默认用
                              `cloud_service.db.SessionLocal`。
       - `stop_event`       : 若给定,`stop_event.set()` 时立即退出循环。
+      - `lock_enabled`     : C-D,是否走 Redis 分布式锁。`uvicorn --workers > 1`
+                             时打开,只有抢到锁的 worker 才执行本轮;默认 True
+                             但 Redis 不可达会自动降级为"无锁模式"。
+      - `lock_key`         : C-D,锁 key。
+      - `lock_ttl_seconds` : C-D,锁 TTL 秒;0 = 自动取 max(60, 2*interval)。
+      - `redis_client`     : C-D,注入的 Redis 客户端;None = 由 task_guard 惰性
+                             构造(便于测试 monkeypatch)。
 
     调用方示例(挂在 FastAPI lifespan 里):
         stop = asyncio.Event()
@@ -110,26 +123,44 @@ async def close_expired_orders_task(
     注意:
       - 本函数**不会**自己 create_task;由调用方调度。
       - 单次失败不会终止任务,仅记录日志,等下一次间隔重试。
+      - 抢不到锁 / Redis 不可达都会打日志后进入下一轮 sleep,不会崩溃。
     """
     if interval_seconds <= 0:
         raise ValueError(f"interval_seconds must be > 0, got {interval_seconds}")
+    if lock_ttl_seconds <= 0:
+        lock_ttl_seconds = max(60, int(interval_seconds * 2))
 
     while True:
         if stop_event is not None and stop_event.is_set():
             break
-        try:
-            if db_factory is None:
-                session = SessionLocal()
-            else:
-                session = db_factory()
-            try:
-                closed = close_expired_orders(session, hours=hours)
-                if closed:
-                    logger.info("closed %d expired order(s)", closed)
-            finally:
-                session.close()
-        except Exception:
-            logger.exception("close_expired_orders_task iteration failed")
+
+        if lock_enabled:
+            async with task_lock(
+                key=lock_key,
+                ttl_seconds=lock_ttl_seconds,
+                redis_client=redis_client,
+                log_label="order_timeout",
+            ) as lock_mode:
+                if lock_mode == "skipped":
+                    logger.debug(
+                        "close_expired_orders_task: lock busy, skip this round"
+                    )
+                    try:
+                        if stop_event is not None:
+                            await asyncio.wait_for(
+                                stop_event.wait(), timeout=interval_seconds,
+                            )
+                        else:
+                            await asyncio.sleep(interval_seconds)
+                    except asyncio.TimeoutError:
+                        pass
+                    continue
+                # lock_mode in {"locked", "unlocked"} → 正常执行
+                await _run_one_round(
+                    hours=hours, db_factory=db_factory,
+                )
+        else:
+            await _run_one_round(hours=hours, db_factory=db_factory)
 
         try:
             if stop_event is not None:
@@ -140,6 +171,23 @@ async def close_expired_orders_task(
             pass  # 正常走下一轮
         except asyncio.CancelledError:
             raise
+
+
+async def _run_one_round(*, hours: int, db_factory: Any = None) -> None:
+    """执行一次 close_expired_orders;失败只记日志,不抛异常。"""
+    try:
+        if db_factory is None:
+            session = SessionLocal()
+        else:
+            session = db_factory()
+        try:
+            closed = close_expired_orders(session, hours=hours)
+            if closed:
+                logger.info("closed %d expired order(s)", closed)
+        finally:
+            session.close()
+    except Exception:
+        logger.exception("close_expired_orders_task iteration failed")
 
 
 __all__ = ["close_expired_orders", "close_expired_orders_task"]
