@@ -293,3 +293,5 @@ prism_backend/check_syntax.py
 /_caches/
 /_appdata_laoma_bid/
 /_electron_userdata/
+_deploy_inputs/
+_backup_demo_*/
