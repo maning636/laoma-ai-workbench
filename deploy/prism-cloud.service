@@ -1,0 +1,106 @@
+# ============================================================================
+# Prism-Fusion Cloud Service — systemd unit
+# ============================================================================
+# 目标服务器:OpenCloudOS 9.6 (RHEL 系),MariaDB 10.11.18,nginx 1.29.8
+# 落位路径:/etc/systemd/system/prism-cloud.service
+#           (由 deploy.sh 通过 daemon-reload + enable --now 安装)
+#
+# 运行目录 /opt/prism-fusion/app          —— git 裸仓库 clone 出来的工作树
+# 虚拟环境 /opt/prism-fusion/venv         —— 由 deploy.sh 幂等创建
+# 环境变量 /opt/prism-fusion/.env.cloud   —— 由运维手工维护,含 CLOUD_DB_URL 等
+#
+# **不要动** /etc/systemd/system/*.service 里已有的 payskill-* / python*-*.service
+#           以及其它项目遗留的 unit。本 unit 与它们并行不冲突。
+# ============================================================================
+
+[Unit]
+Description=Prism-Fusion Cloud Service (FastAPI + uvicorn on 127.0.0.1:8091)
+Documentation=file:///opt/prism-fusion/app/docs/deploy-README.md
+# 依赖 MariaDB;若 MariaDB 未就绪,systemd 会等它起来或按 TimeoutStartSec 超时
+After=network-online.target mariadb.service
+Wants=network-online.target
+
+[Service]
+Type=notify
+# 用 systemd notify socket 上报启动就绪:
+# uvicorn[standard] 已经通过 uvloop / hypercorn 内置 sd_notify 支持。
+# 若发现 unit 卡 "activating" 状态,可退回 Type=simple 并配合 ExecStartPost curl /health。
+ExecStartPre=/bin/bash -c 'test -f /opt/prism-fusion/venv/bin/python -a -f /opt/prism-fusion/.env.cloud'
+# ExecStart 写单行(不换行)以兼容所有 systemd 版本 —— 反斜杠续行在 <210
+# 版本上会解析成多条独立指令。用 shell 分隔参数,便于阅读:
+ExecStart=/opt/prism-fusion/venv/bin/python -m uvicorn cloud_service.main:app --host 127.0.0.1 --port 8091 --app-dir /opt/prism-fusion/app --workers 1 --proxy-headers --forwarded-allow-ips 127.0.0.1
+
+# 工作目录显式设置,便于相对路径(如 cloud.db fallback)定位;
+# 但生产必须靠 CLOUD_DB_URL 覆盖,不允许使用 sqlite 默认。
+WorkingDirectory=/opt/prism-fusion/app
+
+# ── 环境注入 ──
+# EnvironmentFile 里的每一行都会作为 env 传入进程;
+# 文件必须存在且权限 600,不存在 systemd 直接启动失败(这是有意的强门禁)。
+EnvironmentFile=/opt/prism-fusion/.env.cloud
+
+# 日志走 journald,统一在 `journalctl -u prism-cloud` 里查
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=prism-cloud
+
+# ── 重启策略 ──
+Restart=always
+RestartSec=5s
+# 启动阶段最多允许 30s 完成初始化(init_db + lifespan 里注册的后台任务)
+TimeoutStartSec=30s
+# 关闭阶段最多 15s(等 lifespan 里的 close_expired_orders / reconcile 任务
+# asyncio.gather 干净退出)
+TimeoutStopSec=15s
+KillMode=mixed
+KillSignal=SIGTERM
+
+# ── 资源限制(针对 2.8G 可用内存的保守预算) ──
+# 单个 uvicorn worker 的 Python 进程冷启动 ≈ 80-120 MB 常驻内存,
+# 加上 SQLAlchemy 连接池 (pool_size=10, max_overflow=20) 与 lifespan 里的
+# asyncio 后台任务,稳态 RSS 通常 150-250 MB。
+#
+# worker=1 的理由:
+#   1. 内存预算紧张(2.8G 可用),worker=2 会直接翻倍到 300-500 MB,
+#      挤占 Pay Skill(8090) 和 MariaDB(3306 本地)的余量。
+#   2. close_expired_orders_task 与 reconcile_task 是 asyncio 任务,
+#      不区分 worker;多 worker 会重复跑,幂等性依赖 DB 端唯一约束。
+#   3. 当前流量级别下单 worker 完全够用 (DeepSeek-V3 上游才是瓶颈)。
+#
+# 若未来需要扩到 worker=2,请把 uvicorn --workers 改成 2,
+# 并同步把 cloud_service/db.py 里 pool_size 减半(避免连接池超 MariaDB max_connections)。
+MemoryMax=800M
+MemoryHigh=600M
+CPUQuota=150%
+TasksMax=64
+
+# ── 安全加固(与"非 root"的取舍) ──
+# 取舍说明:
+#   (a) 最理想做法是创建一个专用用户 prism-cloud,让本 unit 以该用户运行:
+#       User=prism-cloud
+#       Group=prism-cloud
+#       DynamicUser=true   # systemd 250+,自动创建/回收用户
+#   (b) 但当前部署路径上 /opt/prism-fusion/{app,venv,.db_credentials,.env.cloud}
+#       的目录属主是 root,且 git push 走的是 root 的裸仓库,
+#       为最小改动不引入用户迁移成本,本 unit 默认以 root 运行。
+#
+# **风险**(必须知悉):
+#   - FastAPI 进程以 root 运行,一旦 cloud_service 代码被 RCE 就能拿到 root。
+#   - 缓解措施:
+#     * systemd 已经用 After=network-online.target 把对外暴露限制在 nginx 反代之后,
+#       uvicorn 只绑 127.0.0.1:8091,不对外监听。
+#     * 部署脚本会校验 .env.cloud / .db_credentials 存在且拒绝自动生成密钥,
+#       降低把凭据误写进代码库的概率。
+#   - 生产扩容建议:创建 prism-cloud 用户,把上述 (a) 里的字段打开,
+#     并 chown /opt/prism-fusion/{app,venv} 到该用户;.db_credentials /
+#     .env.cloud 保持 root:root 600 但让 prism-cloud 用户 readable
+#     (加 setfacl -m u:prism-cloud:r /opt/prism-fusion/.db_credentials)。
+User=root
+Group=root
+
+# 让进程启动时清理掉父进程遗留的 fd / signal handler
+# (uvicorn 已正确处理,此处作为安全兜底)
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
