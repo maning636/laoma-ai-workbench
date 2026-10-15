@@ -9,7 +9,10 @@
     "start": "next start",
     "export": "next export,",
     "lint": "node ./scripts/lint-changed.mjs",
-    "lint:all": "eslint"
+    "lint:all": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
@@ -96,7 +99,8 @@
     "msw": "^2.12.2",
     "postcss": "^8.4.38",
     "shadcn": "^4.19.0",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vitest": "^3.2.7"
   },
   "msw": {
     "workerDirectory": [
