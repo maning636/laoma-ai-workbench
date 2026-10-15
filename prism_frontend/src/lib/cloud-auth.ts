@@ -52,6 +52,22 @@ export const LICENSE_HEARTBEAT_INTERVAL_MS = 24 * 60 * 60 * 1000
 /** 登录后立即校验一次(避免长时间空闲) */
 export const LICENSE_INITIAL_TIMEOUT_MS = 0
 
+/**
+ * F-D: 云端不可达时的"乐观窗口"(默认 10 分钟)。
+ *
+ * 语义:
+ *   - 网络类失败(`network` / 5xx)→ 在窗口内继续信任上一次已知的 `valid` 状态;
+ *     窗口外才降级为 `cloud_unreachable` 失效。
+ *   - 明确的业务性拒绝(401 / 403 / 402 / `expired` / `cancelled`)→ 立即降级,
+ *     不受窗口保护。
+ *
+ * 目的:网络抖动(切 WiFi、地铁、临时掉线)不应把用户从"已付费订阅"降到
+ * "订阅失效",避免误伤正常付费用户 —— 尤其是 24h 长间隔下的一次心跳失败。
+ *
+ * 想改窗口:改下面这个常量(毫秒),或通过 `verifyLicense({ graceMs })` 覆盖。
+ */
+export const LICENSE_OFFLINE_GRACE_MS = 10 * 60 * 1000
+
 const ACCESS_TOKEN_KEY = "prism_cloud_access_token"
 const REFRESH_TOKEN_KEY = "prism_cloud_refresh_token"
 const OBTAINED_AT_KEY = "prism_cloud_obtained_at"
@@ -199,6 +215,51 @@ function remainingSeconds(pair: Pick<TokenPair, "obtained_at" | "expires_in">): 
 /** 触发 refresh 前的宽裕度(秒) */
 const REFRESH_LEEWAY_SECONDS = 60
 
+// ──────────────────────────────────────────────────────────────
+// F-D: 订阅校验结果分类 & 乐观缓存
+// ──────────────────────────────────────────────────────────────
+
+/**
+ * 把 verifyLicense 的"HTTP 结果"分类成三种语义。
+ *
+ *   - `"transport"`:  网络/DNS/CORS/5xx 等**传输/服务级**失败,
+ *       不反映"订阅本身是否有效"。→ 走乐观窗口。
+ *   - `"business"`:   401 / 403 / 402 等**业务级拒绝**,
+ *       明确说明订阅/账号状态有问题。→ 立即降级。
+ *   - `"ok"`:         HTTP 2xx。
+ */
+export type VerifyVerdict = "ok" | "transport" | "business"
+
+/**
+ * 分类规则:
+ *   - HTTP 401 / 402 / 403 → business(token 失效 / 订阅拒绝)
+ *   - HTTP 5xx             → transport(服务器异常,不代表订阅本身)
+ *   - `code === "network"` 或 status=0 → transport(fetch 层失败)
+ *   - 其他 4xx(如 400/404/422)→ transport(这些不匹配业务拒绝语义;
+ *       保守处理 —— 与 gateway 层 "client" 归一化对齐)
+ *   - HTTP 2xx             → ok
+ */
+export function classifyVerifyResult(r: {
+  ok: boolean
+  status: number
+  code?: string
+}): VerifyVerdict {
+  if (r.ok) return "ok"
+  if (r.status === 0 || r.code === "network") return "transport"
+  if (r.status === 401 || r.status === 402 || r.status === 403) return "business"
+  if (r.status >= 500) return "transport"
+  // 其他 4xx(400/404/422):不视为业务拒绝,归到 transport 以保守不降级
+  return "transport"
+}
+
+/** 会话内缓存:上一次成功的订阅快照 + 时间戳。仅内存,不进 localStorage。 */
+interface CachedSubscription {
+  status: SubscriptionStatus
+  at: number
+}
+
+let _lastValidSub: CachedSubscription | null = null
+
 /**
  * 请求封装:走 client-gateway,不再直接 fetch / 拼端点。
  *
@@ -254,6 +315,8 @@ export class CloudAuthError extends Error {
 /** 内部使用:清理所有存储(供 `me()` 401 时调用) */
 async function logout(): Promise<void> {
   await clearAllStorage()
+  // F-D: 登出后主动作废本地乐观缓存,避免下次登录时命中过期状态
+  _lastValidSub = null
 }
 
 type LoginBody = { username: string; password: string }
@@ -411,10 +474,27 @@ export const cloudAuth = {
   /**
    * 调用 `POST /cloud/license/verify`。
    * 与 gateway 的 `_LICENSE_CACHE_TTL=300s` 不同,这里是**心跳**,返回当前状态。
+   *
+   * F-D: **乐观降级策略** —— 网络/5xx 类失败在 `LICENSE_OFFLINE_GRACE_MS`
+   *      (默认 10 分钟) 窗口内保留上一次已知的有效订阅状态;只有明确的
+   *      业务性拒绝(401/403/402 或 `expired` / `cancelled` body)才降级。
+   *
+   * 为什么用 `getCurrentTokenPair` 而不是 `getAccessToken`:
+   *   后者会走 `ensureAccessToken` 触发 refresh;若 refresh 因网络失败而返回
+   *   空串,就会把"云端不可达"错判成"未登录"。改用 pair 直接从存储取
+   *   access token(哪怕已过期),这样真正的网络失败发生在下方 HTTP 调用上,
+   *   能被分类成 transport 走乐观窗口。
+   *
+   * `opts.now` / `opts.graceMs` 仅供测试,生产调用不传。
    */
-  async verifyLicense(): Promise<SubscriptionStatus> {
-    const token = await this.getAccessToken()
-    if (!token) {
+  async verifyLicense(
+    opts?: { graceMs?: number; now?: number },
+  ): Promise<SubscriptionStatus> {
+    const graceMs = opts?.graceMs ?? LICENSE_OFFLINE_GRACE_MS
+    const now = opts?.now ?? Date.now()
+
+    const pair = await this.getCurrentTokenPair()
+    if (!pair || !pair.access_token) {
       return {
         valid: false,
         reason: "unauthenticated",
@@ -425,20 +505,23 @@ export const cloudAuth = {
         used: 0,
         remaining: 0,
         is_pro: false,
-        checked_at: Date.now(),
+        checked_at: now,
       }
     }
     const r = await requestJson<SubscriptionStatus>(
       "POST",
       "license/verify",
-      { token, body: {} },
+      { token: pair.access_token, body: {} },
     )
-    if (r.status === 401) {
-      // token 失效 → 清本地
-      await this.logout()
+
+    // ── 1) 明确业务拒绝 → 立即失效,作废乐观缓存 ──
+    if (r.status === 401 || r.status === 403 || r.status === 402) {
+      // 401 → token 失效,清本地存储(既有逻辑)
+      if (r.status === 401) await this.logout()
+      _lastValidSub = null
       return {
         valid: false,
-        reason: "unauthenticated",
+        reason: r.status === 401 ? "unauthenticated" : (r.detail || "subscription_denied"),
         plan: "",
         status: "",
         expire_at: null,
@@ -446,13 +529,48 @@ export const cloudAuth = {
         used: 0,
         remaining: 0,
         is_pro: false,
-        checked_at: Date.now(),
+        checked_at: now,
       }
     }
-    if (!r.ok) {
+
+    // ── 2) HTTP 2xx ──
+    if (r.ok) {
+      const next: SubscriptionStatus = { ...r.data, checked_at: now }
+      // 只有"云端明确说有效"才刷新乐观缓存;
+      // 云端明确说失效(如 status=cancelled / expired)也要作废缓存 —— 但
+      // 这种情况云端通常直接 4xx,不会返回 200+valid=false。为稳妥起见,
+      // 无论 next.valid 真假都写缓存:valid=true 会进入乐观窗口,
+      // valid=false 会被下一次调用直接识别为业务拒绝。
+      _lastValidSub = { status: next, at: now }
+      return next
+    }
+
+    // ── 3) 传输类失败(network / 5xx / 其他非 4xx 业务拒绝)──
+    // 只有缓存里的状态"曾经是有效"且仍在 grace 窗口内,才保留有效;
+    // 否则按 cloud_unreachable 失效。
+    const verdict = classifyVerifyResult(r)
+    const cached = _lastValidSub
+    const withinGrace =
+      cached !== null &&
+      cached.status.valid === true &&
+      (now - cached.at) < graceMs
+
+    if (verdict === "transport" && withinGrace) {
+      // 窗口内保留上一次的成功状态,并标出"这是乐观延续"
+      return {
+        ...cached.status,
+        checked_at: now,
+        reason: cached.status.reason || "offline_grace",
+        // 覆盖 checked_at 是本次心跳时间,不改 status 字段
+      }
+    }
+
+    // 传输失败统一 reason 为 "cloud_unreachable",让上层判断稳定
+    // (gateway 层 detail 可能是 "cloud unreachable" 空格形式,这里归一化)
+    if (verdict === "transport") {
       return {
         valid: false,
-        reason: r.status >= 500 ? "cloud_unreachable" : (r.detail || "license_check_failed"),
+        reason: "cloud_unreachable",
         plan: "",
         status: "",
         expire_at: null,
@@ -460,10 +578,23 @@ export const cloudAuth = {
         used: 0,
         remaining: 0,
         is_pro: false,
-        checked_at: Date.now(),
+        checked_at: now,
       }
     }
-    return { ...r.data, checked_at: Date.now() }
+
+    // 兜底:理论上不会跑到这里(classify 已覆盖 ok / business / transport)
+    return {
+      valid: false,
+      reason: r.detail || "license_check_failed",
+      plan: "",
+      status: "",
+      expire_at: null,
+      quota: 0,
+      used: 0,
+      remaining: 0,
+      is_pro: false,
+      checked_at: now,
+    }
   },
 }
 

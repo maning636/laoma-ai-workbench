@@ -21,12 +21,19 @@ export interface LicenseHeartbeatResult {
  * `NEXT_PUBLIC_LICENSE_HEARTBEAT_MS` 由构建期注入(浏览器可见,
  * 不需要 NEXT_PUBLIC 前缀的私有变量在浏览器里不可用)。
  * 允许:
- *   - 数字字符串(毫秒)
- *   - 秒字符串 `"3600"` → 视为秒,自动 ×1000
- *   - 分钟字符串 `"30m"` / 小时 `"2h"` / 天 `"1d"`
+ *   - 数字(运行时传入的 number):一律视为毫秒
+ *   - 数字字符串(无单位):**一律按秒解释**(见下方"无单位数字"注释)
+ *   - 带单位字符串:`"30m"` / `"2h"` / `"1d"` / `"60s"`
  * 解析失败或缺失 → 回落 `fallback`。
+ *
+ * 为什么"无单位字符串一律按秒":
+ *   旧规则是 `n<1000 → 秒` / `n≥1000 → 毫秒`,导致 `"999"` = 999s 而
+ *   `"1000"` = 1s,1000ms 的临界跳变。收紧后:
+ *   - 无单位字符串只承担"秒"这一种语义,与 shell 里 `sleep 30` 直觉一致;
+ *   - 精确到毫秒时用数字(native number)或显式小数 + 单位。
+ * 带单位字符串不受此影响,`"30m"` / `"2h"` / `"1d"` / `"60s"` 保持不变。
  */
-function parseHeartbeatIntervalMs(raw: unknown, fallback: number): number {
+export function parseHeartbeatIntervalMs(raw: unknown, fallback: number): number {
   if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
     return Math.floor(raw)
   }
@@ -34,22 +41,25 @@ function parseHeartbeatIntervalMs(raw: unknown, fallback: number): number {
   const s = raw.trim()
   if (!s) return fallback
 
-  // 单位后缀
-  const m = s.match(/^(\d+(?:\.\d+)?)\s*([smhd])?$/i)
-  if (!m) {
-    // 无单位:数字 < 1000 视为秒,否则毫秒(与常见约定兼容)
-    const n = Number(s)
-    if (!Number.isFinite(n) || n <= 0) return fallback
-    return Math.floor(n < 1000 ? n * 1000 : n)
+  // 带单位后缀
+  const m = s.match(/^(\d+(?:\.\d+)?)\s*([smhd])$/i)
+  if (m) {
+    const num = parseFloat(m[1])
+    if (!Number.isFinite(num) || num <= 0) return fallback
+    const unit = m[2].toLowerCase()
+    if (unit === "s") return Math.floor(num * 1000)
+    if (unit === "m") return Math.floor(num * 60 * 1000)
+    if (unit === "h") return Math.floor(num * 60 * 60 * 1000)
+    if (unit === "d") return Math.floor(num * 24 * 60 * 60 * 1000)
+    return fallback
   }
-  const num = parseFloat(m[1])
-  if (!Number.isFinite(num) || num <= 0) return fallback
-  const unit = m[2].toLowerCase()
-  if (unit === "s") return Math.floor(num * 1000)
-  if (unit === "m") return Math.floor(num * 60 * 1000)
-  if (unit === "h") return Math.floor(num * 60 * 60 * 1000)
-  if (unit === "d") return Math.floor(num * 24 * 60 * 60 * 1000)
-  return fallback
+
+  // 无单位数字字符串:一律按秒
+  const plain = s.match(/^\d+(?:\.\d+)?$/)
+  if (!plain) return fallback
+  const n = Number(s)
+  if (!Number.isFinite(n) || n <= 0) return fallback
+  return Math.floor(n * 1000)
 }
 
 /** 读 env,仅浏览器/服务端安全(用 `process.env` 兼容 Next.js)。 */
@@ -70,10 +80,11 @@ function envHeartbeatIntervalMs(fallback: number): number {
  *   - 手动 refresh 接口供 settings 页触发
  *
  * intervalMs 优先级:
- *   1. 参数(运行时传入)
+ *   1. 参数(运行时传入,单位毫秒)
  *   2. env `NEXT_PUBLIC_LICENSE_HEARTBEAT_MS`
- *      - 支持数字(毫秒,或数字 < 1000 视为秒)
- *      - 支持 `"30m"` / `"2h"` / `"1d"` 单位后缀
+ *      - 数字字符串(无单位) → 秒
+ *      - `"30m"` / `"2h"` / `"1d"` / `"60s"` → 按单位换算
+ *      - 详见 `parseHeartbeatIntervalMs` 里的注释(无单位临界跳变修正)
  *   3. `cloud-auth.LICENSE_HEARTBEAT_INTERVAL_MS`(默认 24h)
  *
  * 结果:
