@@ -10,10 +10,44 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import logging
 import os
+import sys
 import threading
 import time
 
+# B-A: 服务清单统一从 supervisor.SERVICE_REGISTRY 派生,避免 api_server.py 与 supervisor.py
+# 各自维护一份硬编码列表。同目录导入,与 supervisor.py 打包时总是并存。
+_SUPERVISOR_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SUPERVISOR_DIR not in sys.path:
+    sys.path.insert(0, _SUPERVISOR_DIR)
+
+from supervisor import SERVICE_REGISTRY  # noqa: E402
+
 logger = logging.getLogger(__name__)
+
+# /api/status 与 /api/restart 对外暴露的"用户可见"服务。
+#
+# 注意:
+# - 顺序**不能**改成 registry 的 start_order 顺序 —— 那样会破坏历史 /api/status 返回
+#   字典的字段顺序契约(旧实现固定为 backend / automation-worker / celery-worker /
+#   hermes-gateway / hermes-dashboard / hermes-webui)。
+# - redis 在 registry 中存在但历史 API 从未返回它,这里同样排除,保持外部行为不变。
+#
+# 这里只做"成员校验",不做"顺序推导":显式列出 6 个服务名,启动时若 registry 中缺失
+# 立刻 raise,保证 registry 与 api_server.py 契约同步演进,而不是静默分叉。
+_LEGACY_API_SERVICES: tuple = (
+    "backend",
+    "automation-worker",
+    "celery-worker",
+    "hermes-gateway",
+    "hermes-dashboard",
+    "hermes-webui",
+)
+_missing = [n for n in _LEGACY_API_SERVICES if n not in SERVICE_REGISTRY]
+if _missing:
+    raise RuntimeError(
+        f"api_server.py: SERVICE_REGISTRY 缺失 legacy API 服务条目: {_missing}"
+    )
+STATUS_SERVICES: tuple = _LEGACY_API_SERVICES
 
 
 class SupervisorAPIHandler(BaseHTTPRequestHandler):
@@ -34,14 +68,7 @@ class SupervisorAPIHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/api/status":
             status = {}
-            for name in [
-                "backend",
-                "automation-worker",
-                "celery-worker",
-                "hermes-gateway",
-                "hermes-dashboard",
-                "hermes-webui",
-            ]:
+            for name in STATUS_SERVICES:
                 service_status = self.supervisor.get_service_status(name)
                 failure = self.supervisor.failures.get(name)
                 if failure:
@@ -117,15 +144,8 @@ class SupervisorAPIHandler(BaseHTTPRequestHandler):
 
         if self.path.startswith("/api/restart/"):
             service = self.path.split("/")[-1]
-            valid_services = [
-                "backend",
-                "automation-worker",
-                "celery-worker",
-                "hermes-gateway",
-                "hermes-dashboard",
-                "hermes-webui",
-            ]
-            if service not in valid_services:
+            if service not in STATUS_SERVICES:
+                valid_services = list(STATUS_SERVICES)
                 self._send_json(
                     {
                         "status": "error",
