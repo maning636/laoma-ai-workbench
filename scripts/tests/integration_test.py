@@ -26,6 +26,11 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+from urllib.parse import urlparse
 
 import httpx
 import pytest
@@ -105,6 +110,178 @@ def test_preflight():
     for k in EXPECTED_PREFLIGHT_KEYS:
         v = payload[k]
         assert v is not None, f"preflight.{k} is null"
+
+
+# ---------------------------------------------------------------------------
+# 新增：Redis 硬连通性 & redis-py 版本硬约束（消灭假阳性）
+# ---------------------------------------------------------------------------
+# 背景：preflight 的 `_check_redis` 只做 socket.connect_ex（TCP），不经过 redis-py。
+# 结果：即使打包产物里装了 redis-py 8.x（pin 应是 <5），preflight 也会返回
+# reachable=True，烟测通过；但 Celery 一旦连 broker 就会因 RESP3 HELLO 不兼容炸掉。
+# 下面这三个测试把这些"看不见"的失败模式全部变成硬失败。
+
+
+def _extract_redis_url(payload: dict) -> str:
+    """从 preflight payload 里抽出 redis 组件的 url；拿不到时返回默认值。"""
+    try:
+        v = payload.get("redis")
+        if isinstance(v, dict):
+            u = (v.get("url") or "").strip()
+            if u:
+                return u
+    except Exception:
+        pass
+    return os.environ.get("LAOMA_REDIS_URL") or "redis://localhost:6379/0"
+
+
+def test_preflight_redis_reachable_hard():
+    """硬断言：preflight.redis.reachable 必须为 True。
+
+    只收紧 redis 组件 —— 其他组件（如 persona_api / hermes）允许 False，
+    因为打包机可能没装/没启动它们；但 redis 是打包必备（内置一份）。
+    """
+    status, payload = _get_json_async("/api/v1/system/preflight")
+    assert status == 200, f"preflight HTTP {status}"
+    assert isinstance(payload, dict), f"preflight payload not dict: {type(payload)}"
+
+    redis_comp = payload.get("redis")
+    assert isinstance(redis_comp, dict), (
+        f"preflight.redis must be dict; got {type(redis_comp).__name__}: {redis_comp!r}"
+    )
+    reachable = redis_comp.get("reachable")
+    url = redis_comp.get("url") or "(unset)"
+    reason = redis_comp.get("reason") or ""
+    assert reachable is True, (
+        "HARD FAIL: preflight.redis.reachable != True. "
+        f"url={url!r} reachable={reachable!r} reason={reason!r}. "
+        "打包产物必须内置一份可达的 Redis。"
+    )
+
+    # 顺手对 celery broker 也做一次同一断言（同一个 broker，问题同源）
+    celery_comp = payload.get("celery")
+    if isinstance(celery_comp, dict) and celery_comp.get("broker"):
+        assert celery_comp.get("reachable") is True, (
+            "HARD FAIL: preflight.celery.reachable != True. "
+            f"broker={celery_comp.get('broker')!r} "
+            f"reason={celery_comp.get('reason')!r}"
+        )
+
+
+def _redis_py_version_from_env(env_python: str) -> str:
+    """用给定的 python.exe 读取它自带的 redis 包版本号。"""
+    env = dict(os.environ)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    code = "import redis, sys; sys.stdout.write(redis.__version__); sys.stdout.flush()"
+    cp = subprocess.run(
+        [env_python, "-c", code],
+        capture_output=True, text=True, timeout=15, env=env,
+    )
+    if cp.returncode != 0:
+        pytest.fail(
+            f"can't read redis.__version__ via {env_python}: "
+            f"rc={cp.returncode}\nstderr={cp.stderr.strip()}"
+        )
+    return cp.stdout.strip()
+
+
+def _pick_package_python() -> Path | None:
+    """定位打包产物内 python.exe；找不到时返回 None。"""
+    pkg = os.environ.get("LAOMA_PACKAGE_PATH", "").strip()
+    if pkg:
+        cand = Path(pkg) / "prismenv" / "Scripts" / "python.exe"
+        if cand.exists():
+            return cand
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        cand = parent / "prismenv" / "Scripts" / "python.exe"
+        if cand.exists():
+            return cand
+    return None
+
+
+def test_packaged_redis_py_version_pinned():
+    """硬断言：打包产物内 redis-py 主版本号必须 < 5。
+
+    打包机若装了 8.x，会与内置 Redis 5 在 RESP3/HELLO 上冲突，
+    表现是 Celery 永远连不上 broker —— 但 preflight TCP ping 是抓不到的。
+    """
+    py_exe = _pick_package_python()
+    if py_exe is None:
+        pytest.skip(
+            "no packaged python.exe found (set LAOMA_PACKAGE_PATH to the "
+            "win-unpacked root to enforce this check)"
+        )
+
+    ver_str = _redis_py_version_from_env(str(py_exe))
+    try:
+        major = int(re.match(r"\d+", ver_str or "?").group())
+    except Exception:
+        major = -1
+    assert major < 5, (
+        f"HARD FAIL: packaged redis-py major={major} (>=5, likely RESP3). "
+        "It will send 'HELLO' to the bundled Redis 5, causing "
+        "'unknown command HELLO' and Celery will never connect to the broker. "
+        f"python={py_exe} redis.__version__={ver_str!r}"
+    )
+
+
+def test_redis_e2e_ping_via_packaged_redis_py():
+    """端到端：用产物自带的 redis-py 对产物使用的那台 Redis 发一次 PING → True。
+
+    这是**根因级**检查：直接验证"产物里的 redis-py 能不能连上"，
+    与 preflight 的 TCP-only 探测完全不同。任何 RESP 层/HELLO 不兼容
+    都会在这里以 ConnectionError 形式硬失败。
+    """
+    status, payload = _get_json_async("/api/v1/system/preflight")
+    assert status == 200, f"preflight HTTP {status}"
+    assert isinstance(payload, dict), f"preflight payload not dict"
+    redis_url = _extract_redis_url(payload)
+
+    py_exe = _pick_package_python()
+    if py_exe is None:
+        pytest.skip(
+            "no packaged python.exe found (set LAOMA_PACKAGE_PATH to run "
+            "the end-to-end ping test)"
+        )
+
+    ping_url = os.environ.get("LAOMA_REDIS_PING_URL") or redis_url
+    env = dict(os.environ)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    env["LAOMA_REDIS_PING_URL"] = ping_url
+
+    code = (
+        "import os, sys, redis as r; "
+        "from urllib.parse import urlparse; "
+        "u = os.environ.get('LAOMA_REDIS_PING_URL') or 'redis://localhost:6379/0'; "
+        "p = urlparse(u); "
+        "c = r.Redis(host=p.hostname or 'localhost', "
+        "port=p.port or 6379, db=(p.path or '/0').lstrip('/') or '0', "
+        "socket_connect_timeout=3, socket_timeout=3); "
+        "try: "
+        "    ok = bool(c.ping()); "
+        "    v = (c.info('server').get('redis_version') or '?'); "
+        "    print('PING_OK redis_version=' + str(v)); "
+        "except Exception as e: "
+        "    sys.stdout.write('PING_FAIL ' + type(e).__name__ + ': ' + str(e)); "
+        "    sys.exit(2)"
+    )
+    cp = subprocess.run(
+        [str(py_exe), "-c", code],
+        capture_output=True, text=True, timeout=15, env=env,
+    )
+    out = (cp.stdout or "").strip()
+    err = (cp.stderr or "").strip()
+    assert cp.returncode == 0, (
+        f"HARD FAIL: redis-py PING failed against {ping_url!r} using "
+        f"python={py_exe}\n"
+        f"stdout={out!r}\nstderr={err!r}\n"
+        f"diag: 若 stdout/stderr 里出现 'unknown command HELLO' 或 'unknown command 'HELLO''，"
+        f"即 redis-py >= 5 与内置 Redis 5 的 RESP3 握手不兼容 → Celery 无法连 broker。"
+        f"修复：把 requirements.txt 里的 redis 版本 pin 到 <5（例如 redis==4.6.0）后重打包。"
+    )
+    assert out.startswith("PING_OK"), (
+        f"unexpected PING output: {out!r}"
+    )
 
 
 def test_easel_status():

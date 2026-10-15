@@ -14,7 +14,10 @@
 #   3. 启动 supervisor.exe（首选）或 LaomaAI.exe，从 state file 里读出 backend 端口；
 #   4. 轮询 /health 直到就绪（默认 60s）；
 #   5. 校验 /api/v1/system/preflight 与 /api/v1/agent/easel/status 的关键字段；
-#   6. 无论成败都杀进程 + 清理临时目录。
+#   6. 【Redis 硬断言】preflight.redis.reachable 必须为 True；用产物自带的
+#      prismenv\Scripts\python.exe + redis-py 对内置 Redis 真实 PING 一次，
+#      任何 RESP3/HELLO 不兼容都会在这里硬失败；再校验产物里 redis-py 主版本 < 5；
+#   7. 无论成败都杀进程 + 清理临时目录。
 #
 # 输出：最后一行 "RESULT: PASS" 或 "RESULT: FAIL <reason>"，exit code 0/1。
 # ============================================================
@@ -367,6 +370,149 @@ if (-not $hc) {
     $failList += 'health-check: status missing'
 } else {
     Write-Ok 'health-check: 200 + preflight'
+}
+
+# 8.5 preflight.redis.reachable 硬断言 ----------------------------------
+# 只收紧 redis 组件（persona_api/hermes 等允许 False；但 redis 是打包必备）。
+# 注意：preflight 的 _check_redis 只做 socket.connect_ex（TCP），不经过
+# redis-py。因此"TCP 通但 redis-py 与 Redis 版本不兼容"的假阳性必须由
+# 8.6 的 end-to-end PING 兜住。
+if ($pf -and $pf.PSObject.Properties.Name -contains 'redis') {
+    $rc = $pf.redis
+    if (-not ($rc -is [System.Collections.IDictionary])) {
+        $failList += "preflight.redis must be a dict; got $($rc.GetType().Name)"
+    } else {
+        $reachable = $null; $urlStr = ''; $reason = ''
+        if ($rc.Contains('reachable')) { $reachable = $rc['reachable'] }
+        if ($rc.Contains('url'))       { $urlStr    = "$($rc['url'])" }
+        if ($rc.Contains('reason'))    { $reason    = "$($rc['reason'])" }
+        if ($reachable -ne $true) {
+            $failList += ("preflight.redis.reachable != True (url={0} reason={1})" -f $urlStr, $reason)
+        } else {
+            Write-Ok ("preflight.redis.reachable=True (url={0})" -f $urlStr)
+        }
+        $cc = $null
+        if ($pf.PSObject.Properties.Name -contains 'celery' -and $pf.celery -is [System.Collections.IDictionary]) {
+            $cc = $pf.celery
+        }
+        if ($cc -and $cc.Contains('broker') -and "$($cc['broker'])".Trim() -ne '') {
+            $celReachable = $null
+            if ($cc.Contains('reachable')) { $celReachable = $cc['reachable'] }
+            if ($celReachable -ne $true) {
+                $failList += ("preflight.celery.reachable != True (broker={0} reason={1})" -f $cc['broker'], $cc['reason'])
+            }
+        }
+    }
+}
+
+# 8.6 用产物自带 prismenv\Scripts\python.exe + redis-py 做一次真实 PING ---
+# 根因级断言：验证"产物里的 redis-py 能不能连上 broker"。
+# 若 redis-py >= 5 与内置 Redis 5 的 RESP3/HELLO 不兼容，此断言会
+# 报 'unknown command HELLO' 并硬失败，不再假阳性通过。
+$pkgPython = Join-Path $installDir 'prismenv\Scripts\python.exe'
+if (-not (Test-Path $pkgPython)) {
+    $failList += "packaged python missing: $pkgPython"
+} else {
+    $redisUrl = 'redis://localhost:6379/0'
+    if ($pf -and $pf.PSObject.Properties.Name -contains 'redis' -and $pf.redis -is [System.Collections.IDictionary] -and "$($pf.redis['url'])".Trim() -ne '') {
+        $redisUrl = "$($pf.redis['url'])"
+    }
+
+    $pingCode = @"
+import os, sys, redis as r
+from urllib.parse import urlparse
+u = os.environ.get('LAOMA_REDIS_PING_URL') or 'redis://localhost:6379/0'
+p = urlparse(u)
+c = r.Redis(host=(p.hostname or 'localhost'), port=(p.port or 6379), db=((p.path or '/0').lstrip('/') or '0'), socket_connect_timeout=3, socket_timeout=3)
+try:
+    ok = bool(c.ping())
+    v = (c.info('server').get('redis_version') or '?')
+    print('PING_OK redis_version=' + str(v))
+except Exception as e:
+    sys.stdout.write('PING_FAIL ' + type(e).__name__ + ': ' + str(e))
+    sys.exit(2)
+"@
+    $pingEnv = New-Object System.Collections.Generic.Dictionary[string, string]
+    foreach ($kv in (Get-ChildItem Env:)) { $pingEnv[$kv.Name] = $kv.Value }
+    $pingEnv['LAOMA_REDIS_PING_URL']    = $redisUrl
+    $pingEnv['PYTHONDONTWRITEBYTECODE'] = '1'
+
+    $pingProc = New-Object System.Diagnostics.Process
+    $pingPsi  = New-Object System.Diagnostics.ProcessStartInfo
+    $pingPsi.FileName                = $pkgPython
+    $pingPsi.Arguments               = "-c `"$pingCode`""
+    $pingPsi.WorkingDirectory        = $installDir
+    $pingPsi.UseShellExecute         = $false
+    $pingPsi.CreateNoWindow          = $true
+    $pingPsi.RedirectStandardOutput  = $true
+    $pingPsi.RedirectStandardError   = $true
+    $pingPsi.StandardOutputEncoding  = [System.Text.Encoding]::UTF8
+    $pingPsi.StandardErrorEncoding   = [System.Text.Encoding]::UTF8
+    $pingPsi.EnvironmentVariables    = $pingEnv
+    $pingProc.StartInfo = $pingPsi
+    $pingOut = ''; $pingErr = ''; $pingRc = -1
+    try {
+        $pingProc.Start() | Out-Null
+        $pingOut = $pingProc.StandardOutput.ReadToEnd()
+        $pingErr = $pingProc.StandardError.ReadToEnd()
+        $pingProc.WaitForExit(15000)
+        $pingRc  = $pingProc.ExitCode
+    } catch {
+        $pingErr = $_.Exception.Message
+    }
+    if ($pingRc -ne 0) {
+        $failList += ("redis-py PING failed rc={0} url={1} stdout={2} stderr={3}" -f $pingRc, $redisUrl, $pingOut.Trim(), $pingErr.Trim())
+        Write-Bad 'HARD FAIL: packaged redis-py 无法对内置 Redis PING。'
+        Write-Bad ('  python : ' + $pkgPython)
+        Write-Bad ('  url    : ' + $redisUrl)
+        Write-Bad ('  stdout : ' + $pingOut.Trim())
+        Write-Bad ('  stderr : ' + $pingErr.Trim())
+        Write-Bad '  diag   : 若上面出现 unknown command HELLO，'
+        Write-Bad '           即产物里 redis-py >= 5 与内置 Redis 5 的 RESP3 握手不兼容，'
+        Write-Bad '           Celery 永远连不上 broker。'
+        Write-Bad '           修复：requirements.txt 把 redis 版本 pin 到 <5（例如 redis==4.6.0）后重打包。'
+    } else {
+        Write-Ok ('packaged redis-py PING ok: ' + $pingOut.Trim())
+    }
+}
+
+# 8.7 校验产物里 redis-py 主版本 < 5（防御打错依赖，直接给出明确失败信息）----
+if (Test-Path $pkgPython) {
+    $verProc = New-Object System.Diagnostics.Process
+    $verPsi  = New-Object System.Diagnostics.ProcessStartInfo
+    $verPsi.FileName                = $pkgPython
+    $verPsi.Arguments               = '-c "import redis,sys;sys.stdout.write(redis.__version__)"'
+    $verPsi.WorkingDirectory        = $installDir
+    $verPsi.UseShellExecute         = $false
+    $verPsi.CreateNoWindow          = $true
+    $verPsi.RedirectStandardOutput  = $true
+    $verPsi.RedirectStandardError   = $true
+    $verPsi.StandardOutputEncoding  = [System.Text.Encoding]::UTF8
+    $verPsi.StandardErrorEncoding   = [System.Text.Encoding]::UTF8
+    $verProc.StartInfo = $verPsi
+    $redisPyVer = ''
+    try {
+        $verProc.Start() | Out-Null
+        $redisPyVer = ($verProc.StandardOutput.ReadToEnd()).Trim()
+        $verProc.StandardError.ReadToEnd() | Out-Null
+        $verProc.WaitForExit(15000) | Out-Null
+    } catch {
+        $redisPyVer = ''
+    }
+    if ($redisPyVer -match '^(\d+)') {
+        $major = [int]$Matches[1]
+        if ($major -ge 5) {
+            $failList += ("packaged redis-py major=$major (>=5). Will break against bundled Redis 5 via RESP3 HELLO")
+            Write-Bad ('HARD FAIL: packaged redis-py major=' + $major + ' (redis.__version__=' + $redisPyVer + ').')
+            Write-Bad '           It will send HELLO to the bundled Redis 5, causing unknown command HELLO'
+            Write-Bad '           and Celery will never connect to the broker.'
+            Write-Bad '           Fix: pin redis<5 in requirements.txt and rebuild.'
+        } else {
+            Write-Ok ('packaged redis-py version=' + $redisPyVer + ' (major=' + $major + ' <5)')
+        }
+    } else {
+        Write-Warn ('can''t read packaged redis-py version: ' + $redisPyVer)
+    }
 }
 
 # 9. (可选) 前端设置页 Easel 卡片验证 --------------------------------------

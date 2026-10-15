@@ -67,6 +67,10 @@ LOG_PREFIX="[prism-cloud]"
 #   - httpx                  部分 payment adapter / openai 传递依赖(显式列出防 pip 解析偏差)
 #   - loguru                 llm_proxy/router.py 里的可选日志
 #   - pydantic               schemas.py 直接 import(FastAPI 会传递依赖,但显式更稳)
+#   - redis                  cloud_service/payment/task_guard.py 分布式锁(SET NX + TTL)
+#                            必须 <5:仓库本地 venv 已 pin `redis<5`(保持环境一致),且
+#                            redis-py>=5 默认走 RESP3(握手发 `HELLO 3`),对老版本 Redis /
+#                            兼容代理不友好;pin <5 走 RESP2,兼容性最佳。
 PIP_PACKAGES=(
     "fastapi>=0.110,<1"
     "uvicorn[standard]>=0.30,<1"
@@ -81,6 +85,7 @@ PIP_PACKAGES=(
     "pydantic>=2.0,<3"
     "python-multipart"            # FastAPI File/Form 解析(隐式依赖)
     "python-dotenv"               # 若后续要用 dotenv 加载 .env.cloud
+    "redis<5"                     # 分布式锁(task_guard.py);必须 <5,见上方注释
 )
 
 # ── 日志辅助 ──────────────────────────────────────────────────────────────

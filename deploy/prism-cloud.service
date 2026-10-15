@@ -21,14 +21,28 @@ After=network-online.target mariadb.service
 Wants=network-online.target
 
 [Service]
-Type=notify
-# 用 systemd notify socket 上报启动就绪:
-# uvicorn[standard] 已经通过 uvloop / hypercorn 内置 sd_notify 支持。
-# 若发现 unit 卡 "activating" 状态,可退回 Type=simple 并配合 ExecStartPost curl /health。
+# ── Type 选择:必须用 simple,不能用 notify ──────────────────────────────────
+# 曾经的写法是 Type=notify,理由是把"启动就绪"的判定交给进程自身(sd_notify)。
+# 但实测 uvicorn 0.41 在没有显式配置 --lifespan/--sd-notify 时,不会向
+# $NOTIFY_SOCKET 发送 "READY=1";于是 systemd 会一直等,直到 TimeoutStartSec
+# (默认 30s)超时,把 uvicorn 杀掉,再叠加 Restart=always,结果就是服务在
+# "activating → failed → restarting" 里无限重启,health 端点却短暂是 200。
+#
+# 结论:uvicorn 0.41 不做 sd_notify,Type=notify 语义上就不成立。这里显式
+# 用 Type=simple,把"就绪"检查下沉到 ExecStartPost —— 用 curl 轮询 /health,
+# 探针失败 systemd 视同启动失败,行为与原意图等价,但没有 30s 空等。
+Type=simple
+# 启动前置校验:虚拟环境和 .env 必须存在,否则直接失败(不启动子进程)。
 ExecStartPre=/bin/bash -c 'test -f /opt/prism-fusion/venv/bin/python -a -f /opt/prism-fusion/.env.cloud'
 # ExecStart 写单行(不换行)以兼容所有 systemd 版本 —— 反斜杠续行在 <210
 # 版本上会解析成多条独立指令。用 shell 分隔参数,便于阅读:
 ExecStart=/opt/prism-fusion/venv/bin/python -m uvicorn cloud_service.main:app --host 127.0.0.1 --port 8091 --app-dir /opt/prism-fusion/app --workers 1 --proxy-headers --forwarded-allow-ips 127.0.0.1
+# 就绪探针:uvicorn 起完 listener 后 /health 应立刻返回 200。
+# 最多等 15s(15 次 × 1s)覆盖 init_db + lifespan 里的后台任务;
+# 期间 2s 超时的 curl -fsS 只查 HTTP 层,不做业务判断。
+# systemd 不会给 ExecStartPost 加 shell 解释,循环/if/sleep 必须由
+# /bin/bash -c 显式包裹,并且整个命令写在**一行**里。
+ExecStartPost=/bin/bash -c 'for i in $(seq 1 15); do if curl -fsS --max-time 2 http://127.0.0.1:8091/health >/dev/null 2>&1; then exit 0; fi; sleep 1; done; echo "prism-cloud: /health not OK after 15s" >&2; exit 1'
 
 # 工作目录显式设置,便于相对路径(如 cloud.db fallback)定位;
 # 但生产必须靠 CLOUD_DB_URL 覆盖,不允许使用 sqlite 默认。

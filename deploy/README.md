@@ -78,6 +78,11 @@ sudo chmod 600 /opt/prism-fusion/.db_credentials/.env
 **CORS**
 - `CLOUD_CORS_ORIGINS` — 例:`https://fusion.maning789link.top,https://<frontend-domain>`
 
+**分布式锁 / 调度后台**
+- `CLOUD_REDIS_URL` — 默认 `redis://localhost:6379/0`(`cloud_service/payment/task_guard.py` 读取,
+  用于订单超时扫描、对账等后台任务的分布式锁;Redis 不可达时会 fail-open 降级为 lock-free,
+  生产建议按第 1 节装 Redis 并收敛到 `127.0.0.1`)
+
 **调度开关**
 - `CLOUD_ORDER_TIMEOUT_ENABLED` — 默认 `true`(默认开启,每小时跑一次)
 - `CLOUD_ORDER_TIMEOUT_INTERVAL_SECONDS` — 默认 `3600`
