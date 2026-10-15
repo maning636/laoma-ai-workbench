@@ -20,10 +20,12 @@
 from __future__ import annotations
 
 import hmac
+import json as _json
 import os
 import secrets
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import parse_qsl
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy import select
@@ -118,6 +120,96 @@ def _get_str(name: str, default: str = "") -> str:
     return (os.getenv(name) or default).strip()
 
 
+async def _read_callback_body(request: Request) -> dict[str, Any]:
+    """按 Content-Type 分派回调 body 解析。
+
+    微信支付 APIv3 用 `application/json`,支付宝异步通知用
+    `application/x-www-form-urlencoded`(官方规范),这里必须**按 Content-Type
+    分派**,否则真实支付宝回调会解析失败。
+
+    分派策略:
+      - `application/json`               → JSON 解析
+      - `application/x-www-form-urlencoded` → form-urlencoded 解析,转成 dict
+      - 其它 / 缺失(含 `text/plain` 等)   → 先试 JSON,失败回退 form
+        (保持与旧行为 / mock 兼容)
+
+    实现细节:一次性 `await request.body()` 拿原始字节,再基于字节分别解析,
+    避免 Starlette 的 `request.json()` / `request.form()` 会各自消费 stream
+    导致兜底路径失败的问题。
+
+    返回统一为 `dict[str, Any]`:
+      - JSON body 字段可能是数字 / 字符串,adapter 内部会做 `float(...)`;
+      - form body 值统一是字符串(form-urlencoded 天然是字符串);
+      - 统一 dict 让 adapter 不必处理 form.MultiDict。
+
+    解析失败(空 body / JSONDecodeError 等)统一包装为 400,与既有测试断言一致。
+    """
+    ct_raw = (request.headers.get("content-type") or "").lower()
+    ct = ct_raw.split(";", 1)[0].strip()
+
+    try:
+        raw = await request.body()
+    except Exception as e:
+        raise HTTPException(
+            status_code=400, detail=f"unreadable callback body: {e}",
+        ) from e
+
+    def _parse_json(raw: bytes) -> dict[str, Any]:
+        if not raw:
+            raise ValueError("empty body")
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError as e:
+            raise ValueError(f"body is not valid UTF-8: {e}") from e
+        obj = _json.loads(text)
+        if not isinstance(obj, dict):
+            raise ValueError("JSON body must be an object")
+        return obj
+
+    def _parse_form(raw: bytes) -> dict[str, str]:
+        if not raw:
+            raise ValueError("empty body")
+        # parse_qsl 处理 URL 编码;keep_blank_values=True 保留空值(与 form.MultiDict 一致)
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError as e:
+            raise ValueError(f"body is not valid UTF-8: {e}") from e
+        pairs = parse_qsl(text, keep_blank_values=True)
+        # 同名多值只保留最后一个(与 request.form().get() 一致;实际回调字段都是唯一键)
+        return dict(pairs)
+
+    if ct == "application/json":
+        try:
+            return _parse_json(raw)
+        except Exception as e:
+            raise HTTPException(
+                status_code=400, detail=f"invalid JSON body: {e}",
+            ) from e
+
+    if ct == "application/x-www-form-urlencoded":
+        try:
+            return _parse_form(raw)
+        except Exception as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"invalid form body: {e}",
+            ) from e
+
+    # 兜底:未知 / 缺失 Content-Type。先试 JSON(与旧实现保持兼容),
+    # 失败再试 form-urlencoded(兼容测试 / curl 直接 POST 表单)。
+    try:
+        return _parse_json(raw)
+    except Exception:
+        try:
+            return _parse_form(raw)
+        except Exception as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"invalid callback body: expected JSON or "
+                       f"x-www-form-urlencoded (got content-type={ct!r}): {e}",
+            ) from e
+
+
 # ──────────────────────────────────────────────────────────────
 # Endpoints
 # ──────────────────────────────────────────────────────────────
@@ -209,10 +301,7 @@ async def payment_callback(
     adapter = get_adapter(channel)
     assert adapter is not None  # SUPPORTED_CHANNELS 已保证
 
-    try:
-        body: dict[str, Any] = await request.json()
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"invalid JSON body: {e}") from e
+    body = await _read_callback_body(request)
 
     ok, fields = adapter.verify_callback(body)
     if not ok:
@@ -409,26 +498,13 @@ def refund_order(
             status_code=400,
             detail=f"unsupported channel: {order.channel}",
         )
+    refund_kwargs = dict(
+        order_no=order.order_no,
+        pay_trade_no=order.pay_trade_no,
+        amount=refund_amount,
+        order_amount=float(order.amount),
+    )
     try:
-        # 微信 APIv3 部分退款要求 `amount.total == 原订单金额`(否则微信拒);
-        # 全额退款时 total == refund,同样正确。传入 order.amount 保证兼容。
-        # 支付宝 adapter 目前签名不接受 `order_amount`,通过签名内省做
-        # 兼容降级:只在实际支持该参数的 adapter 上传入。
-        # 未来支付宝 adapter 增加 order_amount 参数后,该内省会自然兼容。
-        import inspect as _inspect
-
-        refund_kwargs = dict(
-            order_no=order.order_no,
-            pay_trade_no=order.pay_trade_no,
-            amount=refund_amount,
-        )
-        try:
-            _sig = _inspect.signature(adapter.refund)
-            if "order_amount" in _sig.parameters:
-                refund_kwargs["order_amount"] = float(order.amount)
-        except (TypeError, ValueError):
-            # 极端:adapter.refund 是 C 扩展等无法 inspect 的对象,降级到 3 参数
-            pass
         ok, msg, fields = adapter.refund(**refund_kwargs)
     except Exception as e:
         raise HTTPException(

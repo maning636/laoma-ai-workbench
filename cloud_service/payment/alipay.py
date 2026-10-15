@@ -494,7 +494,7 @@ class AlipayAdapter(PaymentAdapter):
         amount: float,
         reason: str = "",
         out_request_no: str = "",
-        order_amount: float | None = None,   # 兼容基类/router 的可选参数(支付宝不需要用)
+        order_amount: float | None = None,   # 原订单金额;用于校验 amount <= order_amount(不参与支付宝请求体)
     ) -> tuple[bool, str, dict[str, Any]]:
         """发起退款。
 
@@ -502,12 +502,24 @@ class AlipayAdapter(PaymentAdapter):
         - 真实模式:`POST alipay.trade.refund`,金额单位**元**(两位小数),
           `out_request_no` 保证**幂等**——同一 order_no + amount 每次生成同样的值。
 
-        `order_amount` 参数仅为向后兼容(微信需要原订单金额,支付宝 OpenAPI
-        不需要);此处直接忽略,但**不**从签名参数里读取。
+        `order_amount` 参数:
+          - 支付宝 OpenAPI 的 `alipay.trade.refund` 只需要 `refund_amount`
+            (元),不接收原订单金额字段;因此**不参与请求体构造**;
+          - 但为与微信 / 基类签名保持一致,并做一层防御性校验:
+            若调用方传入了 `order_amount` 且 `amount > order_amount`
+            → 拒绝(返回 `ok=False`),避免把超额退款发出去;
+          - 缺省 `None` 时不校验,与基类 / 旧 3 参数调用兼容。
         """
         refund_yuan = round(float(amount), 2)
         if refund_yuan <= 0:
             return False, "refund amount must be > 0", {}
+        # 防御性校验:退款金额不得超过原订单金额
+        if order_amount is not None and refund_yuan > float(order_amount) + 1e-6:
+            return (
+                False,
+                f"refund amount {refund_yuan} exceeds order amount {float(order_amount):.2f}",
+                {},
+            )
         if not self.is_real:
             return super().refund(
                 order_no=order_no,
