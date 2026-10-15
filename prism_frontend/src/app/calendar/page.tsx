@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState, type ElementType } from "react"
+import { useCallback, useEffect, useMemo, useState, type ComponentType, type SVGProps } from "react"
 import {
   CalendarDays,
   CheckCircle2,
@@ -37,7 +37,7 @@ interface ScheduleItem {
   source?: string
 }
 
-const STATUS_META: Record<string, { label: string; icon: ElementType; variant: "secondary" | "outline" | "accent" | "destructive" }> = {
+const STATUS_META: Record<string, { label: string; icon: ComponentType<SVGProps<SVGSVGElement>>; variant: "secondary" | "outline" | "accent" | "destructive" | "default" }> = {
   idea: { label: "选题", icon: Clock, variant: "outline" },
   draft: { label: "起草中", icon: Film, variant: "secondary" },
   scheduled: { label: "已排期", icon: CalendarDays, variant: "accent" },

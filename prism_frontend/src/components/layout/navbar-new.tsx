@@ -1,6 +1,6 @@
 "use client"
 
-import type { ElementType, HTMLAttributes } from "react"
+import type { ComponentType, ElementType, HTMLAttributes, SVGProps } from "react"
 import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react"
 import {
   BarChart3,
@@ -39,7 +39,9 @@ interface SearchRoute {
   category: string
   description: string
   href: string
-  icon: ElementType
+  // 允许传 lucide SVG 图标,或 HermesLogoIcon 这类仅接收 HTMLAttributes<HTMLSpanElement> 的自定义图标。
+  // 声明为最小公共 props({className?: string}),避免 ElementType 泛型在 JSX 展开时把 props 推断成 never。
+  icon: ComponentType<{ className?: string }>
   keywords: string[]
   label: string
 }
@@ -181,12 +183,14 @@ const ROUTE_CATALOG: SearchRoute[] = [
     icon: Settings,
     keywords: ["settings", "system", "config", "设置", "系统"],
   },
-  ...externalModules.map((module) => ({
+  ...externalModules.map((module): SearchRoute => ({
     category: module.category,
     label: module.label,
     description: module.description,
     href: module.href,
-    icon: module.icon,
+    // external-modules.ts 里 icon 声明为 ElementType,SearchRoute 更严格。
+    // 运行时都是标准图标组件,做结构断言而不是引入 any。
+    icon: module.icon as ComponentType<{ className?: string }>,
     keywords: module.keywords,
   })),
 ]
@@ -234,7 +238,7 @@ export function NavbarNew({ className, onMenuClick }: NavbarProps) {
     }
   }, [syncSearchParam])
 
-  const slashResults = useMemo(() => {
+  const slashResults = useMemo<SearchRoute[]>(() => {
     if (!searchValue.startsWith("/")) {
       return []
     }

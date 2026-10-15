@@ -89,7 +89,9 @@ const YoutubeIcon = ({ className }: { className?: string }) => (
 interface NavItem {
   label: string
   href?: string
-  icon: React.ElementType
+  // 允许传 lucide 图标(SVG props)或自定义图标组件(仅需 className),
+  // 显式声明可接受的最小 props 集合避免 ElementType 泛型推断出错。
+  icon: React.ComponentType<{ className?: string; suppressHydrationWarning?: boolean }>
   disabled?: boolean
   external?: boolean
   children?: NavItem[]
@@ -102,7 +104,7 @@ interface NavSection {
 
 const externalNavSection: NavSection = {
   label: "扩展",
-  items: externalModules.map((module) => ({
+  items: externalModules.map((module): NavItem => ({
     label: module.label,
     href: module.href,
     icon: module.icon,

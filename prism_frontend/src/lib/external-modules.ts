@@ -1,4 +1,4 @@
-import type { ElementType } from "react";
+import type { ComponentType } from "react";
 import { Sparkles } from "lucide-react";
 
 export interface ExternalModule {
@@ -6,7 +6,8 @@ export interface ExternalModule {
   label: string;
   description: string;
   href: string;
-  icon: ElementType;
+  // 图标统一为可接收 className 的组件,兼容 lucide SVG 图标。
+  icon: ComponentType<{ className?: string }>;
   category: string;
   keywords: string[];
 }

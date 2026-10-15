@@ -49,13 +49,33 @@ interface RenderItem {
   ts: number
 }
 
+/**
+ * HermesEvent 有一个 catch-all 分支 `{ type: string; [k: string]: unknown }`,
+ * TS 无法把 `ev.message`/`ev.error` 等收窄成 string,因此这里统一走一个
+ * "只接受 string,否则返回 fallback"的 helper,避免误把非字符串当字符串渲染。
+ */
+function stringOr(v: unknown, fallback: string): string {
+  return typeof v === "string" && v.length > 0 ? v : fallback
+}
+
+/**
+ * meta 期望是 Record<string, unknown>;SSE payload 是 JSON.parse 出来的
+ * 非数组对象。这里做运行时收窄,避免把 undefined/数组当对象塞进 meta。
+ */
+function objectMeta(v: unknown): Record<string, unknown> | undefined {
+  if (v && typeof v === "object" && !Array.isArray(v)) {
+    return v as Record<string, unknown>
+  }
+  return undefined
+}
+
 function eventToItem(ev: HermesEvent): RenderItem | null {
   const ts = Date.now()
   switch (ev.type) {
     case "init":
-      return { kind: "system", content: ev.message || "Hermes Agent 正在准备运行环境…", meta: { session_id: ev.session_id, turn_id: ev.turn_id }, ts }
+      return { kind: "system", content: stringOr(ev.message, "Hermes Agent 正在准备运行环境…"), meta: { session_id: ev.session_id, turn_id: ev.turn_id }, ts }
     case "thinking":
-      return { kind: "thinking", content: ev.content || "", ts }
+      return { kind: "thinking", content: stringOr(ev.content, ""), ts }
     case "tool_call": {
       const args = ev.arguments
       const argsStr = typeof args === "string" ? args : JSON.stringify(args, null, 2) || "{}"
@@ -67,7 +87,7 @@ function eventToItem(ev: HermesEvent): RenderItem | null {
       return { kind: "step_complete", content: rStr, meta: { tool_name: ev.tool_name, step: ev.step }, ts }
     }
     case "confirmation_required":
-      return { kind: "confirmation", content: ev.message || "需要确认", meta: ev.task_summary, ts }
+      return { kind: "confirmation", content: stringOr(ev.message, "需要确认"), meta: objectMeta(ev.task_summary), ts }
     case "confirmation_received":
       return { kind: "system", content: ev.approved ? "用户已同意执行。" : "用户已拒绝执行。", ts }
     case "final_result": {
@@ -76,7 +96,7 @@ function eventToItem(ev: HermesEvent): RenderItem | null {
       return { kind: "final", content: rStr, ts }
     }
     case "error":
-      return { kind: "error", content: ev.error || "未知错误", ts }
+      return { kind: "error", content: stringOr(ev.error, "未知错误"), ts }
     case "done":
       return null
     default:

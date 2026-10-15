@@ -478,7 +478,9 @@ export function AIAgentChat() {
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
             onKeyDown={(e) => {
-              if (e.isComposing) return
+              // React.KeyboardEvent 类型里未显式暴露 IME 输入中的 isComposing,
+              // 但底层 DOM KeyboardEvent 支持。用可选链安全收窄。
+              if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault()
                 sendMessage()

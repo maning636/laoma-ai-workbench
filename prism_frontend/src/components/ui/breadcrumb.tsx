@@ -43,7 +43,13 @@ const BreadcrumbLink = React.forwardRef<
     asChild?: boolean
   }
 >(({ className, asChild, ...props }, ref) => {
-  const Comp = asChild ? React.Fragment : "a"
+  // asChild 场景下把 props 透传给子元素(通常是 Button),需要 ref;
+  // 默认场景渲染原生 <a>。
+  // React 19 下 React.Fragment 的 ref 参数类型不接受 ForwardedRef<HTMLAnchorElement>,
+  // 联合推断会报 TS2322。这里把 Comp 显式标注为 React.ElementType(React 官方为
+  // "组件或标签字符串"提供的联合类型),绕开 Fragment 与 <a> 之间的 ref 类型冲突;
+  // asChild 时仍传 undefined,保持旧版运行时行为。
+  const Comp: React.ElementType = asChild ? React.Fragment : "a"
 
   return (
     <Comp

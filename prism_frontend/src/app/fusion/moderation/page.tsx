@@ -165,7 +165,7 @@ export default function ModerationPage() {
                   ) : (
                     <div className="flex flex-wrap gap-1">
                       {result.layer1.matches.map((m, i) => (
-                        <Badge key={i} variant="outline" className={result.layer1.has_block ? "border-red-300 text-red-600" : "border-orange-300 text-orange-600"}>
+                        <Badge key={i} variant="outline" className={result.layer1?.has_block ? "border-red-300 text-red-600" : "border-orange-300 text-orange-600"}>
                           {m.word} <span className="text-muted-foreground">· {m.category}</span>
                         </Badge>
                       ))}

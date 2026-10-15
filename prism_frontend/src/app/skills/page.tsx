@@ -47,7 +47,7 @@ const LAYER_TABS: Array<{ id: string; label: string }> = [
   { id: "general", label: "通用" },
 ]
 
-const LAYER_COLORS: Record<string, string> = {
+const LAYER_COLORS: Record<string, "default" | "secondary" | "outline" | "destructive" | "accent"> = {
   produce: "default",
   plan: "secondary",
   discover: "outline",

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ElementType } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type SVGProps } from "react"
 import {
   AlertTriangle,
   BookOpenText,
@@ -153,7 +153,7 @@ function saveHistory(list: Breakdown[]) {
   }
 }
 
-const SECTIONS: { key: keyof Breakdown; label: string; icon: ElementType }[] = [
+const SECTIONS: { key: keyof Breakdown; label: string; icon: ComponentType<SVGProps<SVGSVGElement>> }[] = [
   { key: "summary", label: "一句话概括", icon: Sparkles },
   { key: "structure", label: "内容骨架", icon: Workflow },
   { key: "hooks", label: "开头钩子", icon: GitFork },
@@ -221,7 +221,7 @@ export default function BreakdownPage() {
         const msg = e instanceof Error ? e.message : String(e)
         setError(msg)
         const fallback = heuristicBreakdown(t)
-        fallback.risks = [...heuristicRisks(t), ...fallback.risks].slice(0, 5)
+        fallback.risks = [...heuristicRisks(t), ...(fallback.risks ?? [])].slice(0, 5)
         setResult(fallback)
         toast({ variant: "destructive", title: "AI 拆解失败，已用本地规则给出示意拆解", description: msg })
       } finally {

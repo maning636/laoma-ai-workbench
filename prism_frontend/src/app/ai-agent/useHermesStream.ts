@@ -72,7 +72,10 @@ export function useHermesStream() {
           const r = event.result
           turn.final_result = typeof r === "string" ? r : JSON.stringify(r, null, 2)
         } else if (event.type === "error") {
-          turn.error = event.error
+          // HermesEvent 含 catch-all 分支 { type: string; [k:string]: unknown },
+          // TS 无法把 event.error 收窄为 string;运行时 SSE 一定给 string,这里安全收窄。
+          const rawErr = (event as { error?: unknown }).error
+          turn.error = typeof rawErr === "string" ? rawErr : "未知错误"
         }
         turns[idx] = turn
       }
