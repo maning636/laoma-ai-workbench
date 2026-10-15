@@ -255,22 +255,46 @@ def _pip_freeze_cmd() -> List[str]:
 # ---------------------------------------------------------------------------
 
 def _backup_data_dir() -> Path:
-    """Create EASEL_DIR/backups/<ts>/ and copy .env + openclaw.json if present."""
+    """Create EASEL_DIR/backups/<ts>/ and snapshot:
+      - EASEL_DIR/.env (single file, if present)
+      - OPENCLAW_USER_DIR/** (whole directory, if present)
+
+    目录级备份原因（D 类 review 修订）：
+      openclaw.json 只是 ~/.openclaw-easel/ 的顶层索引文件。
+      同一目录下还有 agents/*/sessions/*.jsonl（会话历史）、sessions.json、
+      skills/*（用户装过的 skills）、profiles/*、credentials/ 等 —— 只做单文件
+      备份会导致 openclaw 升级后丢失会话历史与本地 skill 配置，回滚时无法完整
+      恢复。故整体目录复制（shutil.copytree,dirs_exist_ok=False 首次安全）。
+    """
     ts = _ts_slug()
     dest = _backups_root() / ts
     dest.mkdir(parents=True, exist_ok=True)
     (dest / "manifest.json").write_text(
-        json.dumps({"created_at": _now(), "timestamp": ts}, ensure_ascii=False, indent=2),
+        json.dumps({"created_at": _now(), "timestamp": ts, "schema_version": 2},
+                   ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
+    # .env 仍是单文件
     env_src = EASEL_DIR / ".env"
     if env_src.is_file():
         shutil.copy2(str(env_src), str(dest / ".env"))
 
-    if OPENCLAW_CONFIG.is_file():
-        shutil.copy2(str(OPENCLAW_CONFIG), str(dest / "openclaw.json"))
-        logger.info("Backed up openclaw config: %s -> %s", OPENCLAW_CONFIG, dest)
+    # openclaw 用户目录整体复制 —— 目录级备份
+    if OPENCLAW_USER_DIR.is_dir():
+        # 记录目标路径，便于 _restore_data_dir 恢复原路径
+        openclaw_dest = dest / "openclaw"
+        # dirs_exist_ok=False 但 dest 目录是新建的，不会冲突
+        shutil.copytree(
+            str(OPENCLAW_USER_DIR),
+            str(openclaw_dest),
+            symlinks=True,
+            # dirs_exist_ok=False (default); dest 是全新目录
+        )
+        logger.info(
+            "Backed up openclaw user dir (directory): %s -> %s",
+            OPENCLAW_USER_DIR, openclaw_dest,
+        )
 
     return dest
 
@@ -283,13 +307,37 @@ def _restore_data_dir(backup_dir: Path) -> Dict[str, Any]:
         result[".env"] = True
     else:
         result[".env"] = False
-    cfg_copy = backup_dir / "openclaw.json"
-    if cfg_copy.is_file():
-        OPENCLAW_USER_DIR.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(str(cfg_copy), str(OPENCLAW_CONFIG))
-        result["openclaw.json"] = True
+
+    # 目录级恢复：优先从 backup/openclaw/ 恢复整个目录，保留 openclaw.json 语义
+    openclaw_backup_dir = backup_dir / "openclaw"
+    if openclaw_backup_dir.is_dir():
+        try:
+            # 备份路径可能与当前 OPENCLAW_USER_DIR 不同（用户改了 env / 换机器），
+            # 这里以当前 env 指向为准；目录内文件覆盖式合并，避免误删用户新加文件。
+            OPENCLAW_USER_DIR.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(
+                str(openclaw_backup_dir),
+                str(OPENCLAW_USER_DIR),
+                dirs_exist_ok=True,  # 合并而非替换；已存在同名单文件则覆盖
+                symlinks=True,
+            )
+            result["openclaw_dir"] = True
+            # 兼容旧调用方读取 openclaw.json 字段（顶层索引文件是否恢复）
+            result["openclaw.json"] = (OPENCLAW_USER_DIR / "openclaw.json").is_file()
+        except Exception as exc:
+            result["openclaw_dir"] = False
+            result["openclaw_dir_error"] = str(exc)[:500]
     else:
-        result["openclaw.json"] = False
+        # 旧备份格式兜底：单文件
+        cfg_copy = backup_dir / "openclaw.json"
+        if cfg_copy.is_file():
+            OPENCLAW_USER_DIR.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(str(cfg_copy), str(OPENCLAW_CONFIG))
+            result["openclaw.json"] = True
+            result["openclaw_dir"] = False
+        else:
+            result["openclaw.json"] = False
+            result["openclaw_dir"] = False
     return result
 
 

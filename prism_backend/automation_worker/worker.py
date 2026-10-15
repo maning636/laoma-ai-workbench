@@ -73,12 +73,27 @@ def _resolve_app_root() -> Path:
 _APP_ROOT = _resolve_app_root()
 
 
-# logs 目录锚定：优先 LAOMA_DATA_DIR env（与 fastapi_app.core.paths 的 get_data_dir 保持一致），
-# 否则回落到 cwd 相对的 "logs"（保持现状，避免 regression）。
-# automation_worker 设计上与 fastapi_app 解耦（见顶部 docstring），不 import fastapi_app.core.paths；
-# 这里通过 os.getenv("LAOMA_DATA_DIR") 做 best-effort 锚定，若部署未设置该 env，则保持相对 cwd。
-_LAOMA_DATA_DIR = (os.getenv("LAOMA_DATA_DIR") or "").strip()
-_LOGS_DIR = Path(_LAOMA_DATA_DIR).expanduser() / "logs" if _LAOMA_DATA_DIR else Path("logs")
+# logs 目录锚定（D 类 review 修订：统一到 DATA_DIR/logs）
+#
+# 之前实现：env LAOMA_DATA_DIR/logs 或 cwd/logs —— 若部署未设 env，会散落写到
+# `prism_backend/logs/`（因 worker 从 prism_backend 目录启动，cwd 相对）。
+#
+# 现在实现：走 core.paths.get_data_dir() —— 与 backend/dashboard 保持同源。
+#   get_data_dir fallback 链：
+#     env LAOMA_DATA_DIR > 源码树内(repo/data) > LAOMA_ENV=dev(repo_root) > APPDATA > LOCALAPPDATA > repo_root
+#   生产打包后 sys.frozen=True → APPDATA/LOCALAPPDATA；源码树内一律 repo_root/data。
+#   任何一层失败都不影响 worker 启动（异常静默降级到 repo_root/data）。
+#
+# 目的：截图/诊断日志/screenshot 与 backend 主日志（fastapi_app.log）落在同一 data/logs 下，
+# 便于 supervisor / 打包产物 / 备份脚本一次拉走，避免再出现 prism_backend/logs/*.log 空文件散落。
+try:
+    # 延迟 import：确保 prism_backend 包已经在 sys.path。
+    # fastapi_app.core.paths 自身不做任何副作用（仅 env/文件系统探测），不会拉起事件循环或连接 DB。
+    from fastapi_app.core.paths import get_data_dir as _get_data_dir
+    _LOGS_DIR = Path(_get_data_dir()) / "logs"
+except Exception as _e:  # pragma: no cover - 极端环境下兜底
+    _LOGS_DIR = Path(os.getenv("LAOMA_DATA_DIR") or ".") / "logs"
+_LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _resolve_executable_path_legacy_unused() -> str | None:
@@ -403,10 +418,12 @@ async def _classify_kuaishou_login_state(page) -> tuple[str, str]:
 
 def _append_sec_uid_log(message: str) -> None:
     try:
-        log_root = Path(__file__).resolve().parents[1] / "logs"
-        log_root.mkdir(parents=True, exist_ok=True)
+        # 统一到 _LOGS_DIR（DATA_DIR/logs），与截图/worker 主日志同源
+        # （review 修订：原先写死 parents[1]/logs，会把 sec_uid_worker.log
+        #  落进 prism_backend/logs 而非 data/logs）
+        _LOGS_DIR.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now(timezone.utc).isoformat()
-        with (log_root / "sec_uid_worker.log").open("a", encoding="utf-8") as fh:
+        with (_LOGS_DIR / "sec_uid_worker.log").open("a", encoding="utf-8") as fh:
             fh.write(f"[{stamp}] {message}\n")
     except Exception:
         pass

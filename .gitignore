@@ -283,15 +283,21 @@ prism_backend/_final_check.py
 prism_backend/_import_check.py
 prism_backend/check_syntax.py
 
-# ÓÃ»§Êý¾Ý/¼Æ»®±¸·Ý(2026-10-12 Æð½ûÓÃ C ÅÌ´æ´¢)
+# ï¿½Ã»ï¿½ï¿½ï¿½ï¿½ï¿½/ï¿½Æ»ï¿½ï¿½ï¿½ï¿½ï¿½(2026-10-12 ï¿½ï¿½ï¿½ï¿½ï¿½ C ï¿½Ì´æ´¢)
 /_plan_drafts_backup/
 /_plan_productization_saas.md
 
 /_appdata_electron/
-/_appdata_ÀÏÂíAI¹¤×÷Ì¨_backup/
+/_appdata_ï¿½ï¿½ï¿½ï¿½AIï¿½ï¿½ï¿½ï¿½Ì¨_backup/
 
 /_caches/
 /_appdata_laoma_bid/
 /_electron_userdata/
 _deploy_inputs/
 _backup_demo_*/
+
+# paths.json is machine-local runtime data (per-user paths / API keys / skills_dir).
+# Written by fastapi_app.core.paths.save_paths_config(); never commit.
+/data/paths.json
+/paths.json
+*.paths.json.tmp
