@@ -108,6 +108,44 @@
 
 ---
 
+## 8. 执行进度看板(2026-10-16 更新)
+
+> 口径:用户已授权"除 LLM key 外全部由 agent 完成";LLM key 由用户提供(不阻塞其他项)。
+
+| 项 | 状态 | 备注 |
+|---|---|---|
+| E-E Celery 修复 | ✅ 完成 | redis<5 pin;`inspect ping` → pong |
+| E-E3 Celery 消费验证 | ⏳ 待派 | 需加无害探针任务 |
+| C-A/B/C 云端地基 | ✅ 完成 | CORS + .env.example(37 env) + 启动器 |
+| F-B 前端测试基建 | ✅ 完成 | vitest + 33 项单测 |
+| B-A supervisor 重构 | ✅ 完成 | api_server 改由 registry 派生 |
+| B-C C17 回归测试 | ✅ 完成 | 20 项 check 全绿 |
+| E-D 提交 + 服务器裸仓库 push | 🟡 进行中 | 6 个 commit 已提交;服务器装 git/pip/venv 已完成,裸仓库在建 |
+| F-A 流式接入 UI | 🟡 进行中 | 含非流式回落 |
+| C-D/C-E 调度加固 | 🟡 进行中 | Redis 锁 + 对账超时/退避/限次 |
+| E-A 部署产物 | 🟡 进行中 | nginx/systemd/deploy.sh/README |
+| F-C 清 23 条 tsc 存量 | ⏳ 待派 | 注意与 F-A 的文件冲突,需串行 |
+| F-D license 离线误判 | ⏳ 待派 | |
+| F-E 网关对称化 | ⏳ 待派 | |
+| F-F 小项合集(F7/F8/F11) | ⏳ 待派 | |
+| F-G 流式中断计费缺口 | ⏳ 待派 | |
+| B-B 启动残余 ~2s | ⏳ 待派 | |
+| E-B Python 版本收敛 | ⏳ 待派 | 本地 3.13 / CI 3.11 / 部署 3.11 |
+| E-C / E-E2 打包回归 | ⏳ 待派 | redis 版本变更后必做 |
+| E-F 服务随窗口关闭而断 | ⏳ 待派 | 已实际发生一次(7000/7001/3000 同时消失) |
+| C-F 退款↔订阅语义 | ⏳ 待派 | 需业务规则;先做**接口预留** |
+| C-G C16a Hermes 联调 | ⏳ 待派 | |
+| C-H 加固范围扩展 | 🚫 阻塞 | **需 pyarmor 商业版 license**(用户侧) |
+| 微信支付真实对接 | ⏳ 待派 | Pay Skill 代码在本机不可读 → 改按微信官方 APIv3 文档实现 |
+| 支付宝对接 | 🚫 阻塞 | 商户号未申请(用户侧,2-3 周) |
+| D 类长期 review(9 小项) | ⏳ 待派 | |
+| 真机联调 | ⏳ 待派 | 依赖部署完成;AI 链路等 LLM key |
+| P5 老库 ALTER TABLE | — | 新 MariaDB 库由 `init_db()` 建全列,**不需要** |
+
+**服务器侧已就绪**:SSH 密钥免密、MariaDB 10.11.18(127.0.0.1:3306,库 `prism_cloud`,凭据 `/opt/prism-fusion/.db_credentials`)、git/pip/venv、`/opt/prism-fusion/`。
+
+---
+
 ## 附:本轮环境复核记录(2026-10-15)
 
 | 服务 | 端口 | 状态 | 备注 |
