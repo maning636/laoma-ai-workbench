@@ -226,34 +226,64 @@ try {
 Write-Ok "copy done"
 
 # 4. 选择启动入口 -----------------------------------------------------------
-# 首选 supervisor.exe，其次 LaomaAI.exe。若两者都没有，说明打包产物不完整。
+# 【关键】优先用 LaomaAI.exe（Electron 主程序），不是 supervisor.exe。
+# 原因：Electron 的 userData 只有两条路能覆盖：
+#   (a) 命令行参数 --user-data-dir=...（Chromium 原生）
+#   (b) 主进程代码里 app.setPath('userData', ...)（打包产物走 !app.isPackaged 分支，见
+#       desktop-electron/src/main/index.js:9-14；打包模式默认走 %APPDATA%）
+# supervisor.exe 是 PyInstaller 打包的独立进程，不消费 --user-data-dir，也不会替我们
+# 传给 Electron。因此必须启动 LaomaAI.exe 才能把 --user-data-dir 传进去。
+# Electron 主进程随后会 spawn supervisor.exe 拉起 backend/frontend，env 与参数一路下传。
 $supervisorExe = Join-Path $installDir 'resources\supervisor\supervisor.exe'
 $mainExe       = Join-Path $installDir 'LaomaAI.exe'
 
-$launcher = $null
-if (Test-Path $supervisorExe) {
-    $launcher = $supervisorExe
-    Write-Ok "launching supervisor.exe"
-} elseif (Test-Path $mainExe) {
-    $launcher = $mainExe
-    Write-Ok "launching LaomaAI.exe (supervisor.exe 缺失，回退到主程序)"
+$launcher     = $null
+$launcherKind = $null
+if (Test-Path $mainExe) {
+    $launcher     = $mainExe
+    $launcherKind = 'electron'
+    Write-Ok "launching LaomaAI.exe (Electron main; will spawn supervisor.exe)"
+} elseif (Test-Path $supervisorExe) {
+    $launcher     = $supervisorExe
+    $launcherKind = 'supervisor'
+    Write-Warn "LaomaAI.exe 缺失，回退到 supervisor.exe（Electron 未参与，--user-data-dir 无效）"
 } else {
     Write-Bad "既无 supervisor.exe 也无 LaomaAI.exe"
     Clean-Exit 1
 }
 
 # 5. 启动 -------------------------------------------------------------------
+# 【硬约束】产物所有数据必须落 D 盘临时目录，绝不写 %APPDATA% (C 盘)。
+# 三条路径：
+#   LAOMA_DATA_DIR              → backend/frontend 自身工作数据（desktop-electron/src/main/index.js:1744-1755）
+#   LAOMA_SUPERVISOR_STATE_PATH → supervisor state file（desktop-electron/src/main/index.js:1361）
+#   --user-data-dir=<path>      → Electron userData / sessionData / Cache / Network / blob_storage / Preferences（Chromium 原生）
+$dataDir      = Join-Path $installDir 'appdata\data'
+$euserdataDir = Join-Path $installDir 'appdata\electron-userdata'
+$statePath    = Join-Path $installDir 'appdata\supervisor-state.json'
+New-Item -ItemType Directory -Path $dataDir      -Force | Out-Null
+New-Item -ItemType Directory -Path $euserdataDir -Force | Out-Null
+
 $psi = New-Object System.Diagnostics.ProcessStartInfo
 $psi.FileName            = $launcher
 $psi.WorkingDirectory    = $installDir
 $psi.UseShellExecute     = $false
 $psi.CreateNoWindow      = $false
+if ($launcherKind -eq 'electron') {
+    # Electron 命令行参数：--user-data-dir 覆盖 userData/sessionData/Cache/Network 等
+    $psi.Arguments = '--user-data-dir="' + $euserdataDir + '"'
+}
+$psi.EnvironmentVariables['LAOMA_DATA_DIR']              = $dataDir
+$psi.EnvironmentVariables['LAOMA_SUPERVISOR_STATE_PATH'] = $statePath
 # 关键：显式传入 backend 端口，避免与本机其它占用冲突；supervisor 也尊重 LAOMA_BACKEND_PORT
 $psi.EnvironmentVariables['LAOMA_BACKEND_PORT'] = '7000'
 $psi.EnvironmentVariables['LAOMA_BACKEND_HOST'] = '127.0.0.1'
 $psi.EnvironmentVariables['LAOMA_START_SERVICES'] = '1'
 $psi.EnvironmentVariables['LAOMA_START_FRONTEND'] = '1'
 $psi.EnvironmentVariables['LAOMA_AUTO_YES'] = '1'
+Write-Ok ("data dir    : $dataDir")
+Write-Ok ("userdata dir: $euserdataDir")
+Write-Ok ("state path  : $statePath")
 $proc = New-Object System.Diagnostics.Process
 $proc.StartInfo = $psi
 $proc.EnableRaisingEvents = $true
@@ -262,8 +292,11 @@ $Script:StartedProc += $proc
 Write-Ok ("started pid={0}" -f $proc.Id)
 
 # 6. 等 supervisor state file 出现，从里面读端口 ----------------------------
-# supervisor 会写 state file 到 %LOCALAPPDATA%\老马AI工作台\supervisor-state.json
+# 我们把 LAOMA_SUPERVISOR_STATE_PATH 指到 $statePath，Electron 主进程会把此值
+# 透传给 supervisor，因此 state file 会写到我们指定的 D 盘位置。
 $stateCandidates = @(
+    $statePath,
+    (Join-Path $installDir       'appdata\supervisor-state.json'),
     (Join-Path $env:LOCALAPPDATA '老马AI工作台\supervisor-state.json'),
     (Join-Path $env:APPDATA      '老马AI工作台\supervisor-state.json'),
     (Join-Path $installDir       'supervisor-state.json')
@@ -379,27 +412,29 @@ if (-not $hc) {
 # 8.6 的 end-to-end PING 兜住。
 if ($pf -and $pf.PSObject.Properties.Name -contains 'redis') {
     $rc = $pf.redis
-    if (-not ($rc -is [System.Collections.IDictionary])) {
-        $failList += "preflight.redis must be a dict; got $($rc.GetType().Name)"
+    # PS 5.1 ConvertFrom-Json 返回 PSCustomObject；PS 7+ 亦可能返回 IDictionary。
+    # 两者都通过 PSObject.Properties 访问成员。用 Has-Prop / Get-Val 统一封装。
+    if (-not $rc -or -not $rc.PSObject.Properties) {
+        $failList += "preflight.redis must be an object with properties; got $($rc.GetType().Name)"
     } else {
-        $reachable = $null; $urlStr = ''; $reason = ''
-        if ($rc.Contains('reachable')) { $reachable = $rc['reachable'] }
-        if ($rc.Contains('url'))       { $urlStr    = "$($rc['url'])" }
-        if ($rc.Contains('reason'))    { $reason    = "$($rc['reason'])" }
+        $HasProp = { param($o,$n) $o.PSObject.Properties.Name -contains $n }
+        $GetVal  = { param($o,$n) if (& $HasProp $o $n) { $o.$n } else { $null } }
+        $reachable = & $GetVal $rc 'reachable'
+        $urlStr    = "$(& $GetVal $rc 'url')"
+        $reason    = "$(& $GetVal $rc 'reason')"
         if ($reachable -ne $true) {
             $failList += ("preflight.redis.reachable != True (url={0} reason={1})" -f $urlStr, $reason)
         } else {
             Write-Ok ("preflight.redis.reachable=True (url={0})" -f $urlStr)
         }
         $cc = $null
-        if ($pf.PSObject.Properties.Name -contains 'celery' -and $pf.celery -is [System.Collections.IDictionary]) {
+        if ($pf.PSObject.Properties.Name -contains 'celery' -and $pf.celery -and $pf.celery.PSObject.Properties) {
             $cc = $pf.celery
         }
-        if ($cc -and $cc.Contains('broker') -and "$($cc['broker'])".Trim() -ne '') {
-            $celReachable = $null
-            if ($cc.Contains('reachable')) { $celReachable = $cc['reachable'] }
+        if ($cc -and (& $HasProp $cc 'broker') -and "$(& $GetVal $cc 'broker')".Trim() -ne '') {
+            $celReachable = & $GetVal $cc 'reachable'
             if ($celReachable -ne $true) {
-                $failList += ("preflight.celery.reachable != True (broker={0} reason={1})" -f $cc['broker'], $cc['reason'])
+                $failList += ("preflight.celery.reachable != True (broker={0} reason={1})" -f (& $GetVal $cc 'broker'), (& $GetVal $cc 'reason'))
             }
         }
     }
@@ -409,7 +444,7 @@ if ($pf -and $pf.PSObject.Properties.Name -contains 'redis') {
 # 根因级断言：验证"产物里的 redis-py 能不能连上 broker"。
 # 若 redis-py >= 5 与内置 Redis 5 的 RESP3/HELLO 不兼容，此断言会
 # 报 'unknown command HELLO' 并硬失败，不再假阳性通过。
-$pkgPython = Join-Path $installDir 'prismenv\Scripts\python.exe'
+$pkgPython = Join-Path $installDir 'resources\prismenv\Scripts\python.exe'
 if (-not (Test-Path $pkgPython)) {
     $failList += "packaged python missing: $pkgPython"
 } else {
@@ -432,7 +467,10 @@ except Exception as e:
     sys.stdout.write('PING_FAIL ' + type(e).__name__ + ': ' + str(e))
     sys.exit(2)
 "@
-    $pingEnv = New-Object System.Collections.Generic.Dictionary[string, string]
+    # 【PS 5.1 陷阱】ProcessStartInfo.EnvironmentVariables 是 .NET 只读属性（get-only），
+    # 不能整体 `=` 赋值，只能用下标逐个写入。之前用 `$pingPsi.EnvironmentVariables = $pingEnv`
+    # 会抛 "只可以获取" RuntimeException。改为：先继承当前环境变量，再覆盖目标键。
+    $pingEnv = @{}
     foreach ($kv in (Get-ChildItem Env:)) { $pingEnv[$kv.Name] = $kv.Value }
     $pingEnv['LAOMA_REDIS_PING_URL']    = $redisUrl
     $pingEnv['PYTHONDONTWRITEBYTECODE'] = '1'
@@ -448,7 +486,11 @@ except Exception as e:
     $pingPsi.RedirectStandardError   = $true
     $pingPsi.StandardOutputEncoding  = [System.Text.Encoding]::UTF8
     $pingPsi.StandardErrorEncoding   = [System.Text.Encoding]::UTF8
-    $pingPsi.EnvironmentVariables    = $pingEnv
+    # ProcessStartInfo.EnvironmentVariables 是只读属性；整体 = 赋值会抛异常。
+    # 逐 key 写入既能继承父进程环境变量，也能覆盖 LAOMA_REDIS_PING_URL / PYTHONDONTWRITEBYTECODE。
+    foreach ($kv in $pingEnv.GetEnumerator()) {
+        $pingPsi.EnvironmentVariables[$kv.Key] = $kv.Value
+    }
     $pingProc.StartInfo = $pingPsi
     $pingOut = ''; $pingErr = ''; $pingRc = -1
     try {

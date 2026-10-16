@@ -138,15 +138,18 @@
 | D 类长期小项 | ✅ 8/8 有结论 | 4 项已改(paths.json 忽略/openclaw 目录级备份/worker 日志统一/编号口径);4 项报告不动 |
 | 前端生产构建 | ✅ | `next build` 21s;standalone 45MB + static 3.6MB + public 0.25MB |
 | 真机联调(auth/订阅) | ✅ 内网通过 | 注册 201 / 登录 200 / 订阅 200 / `llm.health` 200 |
-| C-F 退款↔订阅语义 | ⏳ 待做 | **需业务规则(用户决策)**;接口预留未做 |
+| C-F 退款↔订阅语义 | ✅ 接口预留完成 | `cancel_subscription` / `shorten_subscription`(幂等 + `with_for_update` 行锁);退款端点不自动调用(业务规则待拍板),接入点已注释两条候选规则;`RefundResponse` 新增 `subscription_note`(Optional,旧客户端透明);76 条断言含"退款前后 status/expire_at/plan 逐一相等"的默认行为护栏 |
 | C-G C16a Hermes 联调 | ⏳ 待做 | |
 | C-H 加固范围扩展 | 🚫 阻塞 | **需 pyarmor 商业版 license**(用户侧) |
-| E-C/E-E2 完整重打包 | 🚫 受阻 | 见下"打包阻塞";等效证据已拿到 |
+| E-C/E-E2 完整重打包 | ✅ 完成 | `prepare-release` logs 文件锁已降级为 warning;完整打包成功 **4 分 30 秒**,NSIS 产物 **551MB**,产物内 redis-py **4.6.0**,已用产物自带 python 真实 PING 通 Redis |
+| 产物 e2e | ✅ PASS | **9 条断言全过**,含三道 Redis 硬断言(preflight.reachable / 产物 redis-py PING / 主版本 <5);中文+空格路径下 **67 秒**;C 盘 AppData 写入数 67 → 67 零增长 |
 | 真机联调(AI 链路) | ⏳ | 等 LLM key(用户侧) |
 | 真机联调(支付) | ⏳ | 等商户密钥/商户号(用户侧) |
 | P5 老库 ALTER TABLE | — | 新 MariaDB 库由 `init_db()` 建全列,**不需要** |
 
 ### 8.1 ⚠️ 打包阻塞(2026-10-16)
+
+> ✅ **2026-10-16 已解决**:`prepare-release` 的 logs 文件锁已降级为 warning,完整打包成功(NSIS 551MB / 4m30s,产物内 redis-py 4.6.0);e2e 也 PASS(9/9,含三道 Redis 硬断言)。**以下为当时的记录,保留供回溯。**
 
 - **现象**:`build-package.bat` 在 `[0/7]` 阶段被 `prepare-release.ps1` 抛异常中断 —— 它要删整个 `logs/`,而 dev Celery worker 持有 `logs/celery_fix.log` 句柄,脚本顶部 `$ErrorActionPreference="Stop"` 对文件锁零容错。
 - **已做**:修 `prepare-release.ps1` 让 logs 清理失败降级为 warning(缺陷修复,有长期价值);把 10/13 的旧产物 `dist-out/v1.1.0` 移出(防 e2e 选错)。
