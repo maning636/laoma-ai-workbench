@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -115,6 +116,192 @@ def _get_usage(db: Session, user_id: int, period: str) -> int:
         select(Usage.used).where(Usage.user_id == user_id, Usage.period == period)
     ).scalar_one_or_none()
     return int(row or 0)
+
+
+class SubscriptionNotFoundError(LookupError):
+    """用户不存在或订阅记录不存在(用于 `cancel_subscription` / `shorten_subscription`)。"""
+
+
+def _now_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _tzaware(dt: datetime) -> datetime:
+    """SQLite 存回的 DateTime(timezone=True) 可能是 naive;统一补 UTC tzinfo。"""
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def cancel_subscription(
+    db: Session,
+    user_id: int,
+    *,
+    reason: str = "",
+) -> dict[str, Any]:
+    """把指定用户的订阅置为 ``status='cancelled'``(立即失效)。
+
+    语义:
+      - **不**修改 ``plan`` / ``quota`` / ``expire_at``;下游 ``verify_license`` 会因
+        ``sub.status != 'active'`` 判定 ``valid=False``;``consume`` 也会因 ``is_expired()``
+        或 ``sub.status`` 分支被拒。
+      - **幂等**:订阅已 ``cancelled`` / 已过期 → ``changed=False, reason='already-invalid'``
+        (对 ``expire_at`` 保持不变)。
+      - **行锁**:用 ``with_for_update()`` 锁住 ``Subscription`` 行,避免并发
+        ``activate`` / 退款撤销的竞态覆盖(参考 ``_consume_quota`` / ``_rollback_quota``)。
+
+    参数:
+      - ``db``: SQLAlchemy Session。
+      - ``user_id``: 用户主键。
+      - ``reason``: 操作原因(仅用于响应回显,不落库;Subscription 模型无 audit 字段)。
+
+    返回结构 ``dict[str, Any]``::
+
+        {
+          "ok": True,
+          "changed": True/False,       # False 表示幂等 no-op
+          "reason": "cancelled" | "already-invalid",
+          "subscription": <_serialize_subscription(sub, used=0)>
+        }
+
+    错误:
+      - ``SubscriptionNotFoundError``: ``user_id`` 对应用户不存在,或用户从未创建过
+        订阅(Subscription 表无对应行)。调用方可映射为 HTTP 404。
+    """
+    user = db.execute(select(User).where(User.id == user_id)).scalar_one_or_none()
+    if user is None:
+        raise SubscriptionNotFoundError(f"user {user_id} not found")
+
+    sub = (
+        db.query(Subscription)
+        .filter(Subscription.user_id == user_id)
+        .with_for_update()
+        .first()
+    )
+    if sub is None:
+        raise SubscriptionNotFoundError(
+            f"subscription for user {user_id} not found"
+        )
+
+    # 幂等:已取消 / 已过期 → 不再改字段
+    already_invalid = sub.status == "cancelled" or sub.is_expired()
+    if already_invalid:
+        return {
+            "ok": True,
+            "changed": False,
+            "reason": "already-invalid",
+            "subscription": _serialize_subscription(sub, used=0),
+        }
+
+    # 只改 status;plan / quota / expire_at 均不动
+    sub.status = "cancelled"
+    db.commit()
+    db.refresh(sub)
+    return {
+        "ok": True,
+        "changed": True,
+        "reason": "cancelled",
+        "subscription": _serialize_subscription(sub, used=0),
+    }
+
+
+def shorten_subscription(
+    db: Session,
+    user_id: int,
+    *,
+    days_to_revoke: int,
+) -> dict[str, Any]:
+    """把订阅 ``expire_at`` 前移 ``days_to_revoke`` 天;若前移后已过期 → 等同取消。
+
+    语义:
+      - ``days_to_revoke > 0`` 且 ``expire_at`` 存在:
+        - ``new_expire_at > now`` → ``expire_at = new_expire_at``(``status`` 不变,
+          ``reason='shortened'``);
+        - ``new_expire_at <= now`` → ``expire_at = new_expire_at`` 且
+          ``status='cancelled'``(``reason='cancelled'``,订阅立即失效)。
+      - ``expire_at is None``(如 free 永久订阅):**无法缩短**,返回 no-op
+        (``changed=False, reason='no-expire-at'``),不视为错误。
+      - ``status='cancelled'`` 或已过期:幂等 no-op(``reason='already-invalid'``)。
+      - ``days_to_revoke <= 0``:非法,抛 ``HTTPException(422)``(与现有
+        ``amount=0`` / ``plan=enterprise`` 的 422 语义一致,避免调用方误传 0 时被
+        静默当 no-op 而没发现 bug)。
+
+    **行锁**:同 ``cancel_subscription``,``with_for_update`` 锁行防止与
+    ``activate_for_user`` / 并发退款撤销的竞态。
+
+    返回结构与 ``cancel_subscription`` 一致;``reason`` 取值范围:
+    ``shortened`` / ``cancelled`` / ``already-invalid`` / ``no-expire-at``。
+
+    错误:
+      - ``HTTPException(422)``: ``days_to_revoke <= 0``。
+      - ``SubscriptionNotFoundError``: 用户或订阅不存在。
+    """
+    if days_to_revoke <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"days_to_revoke must be > 0, got {days_to_revoke}",
+        )
+
+    user = db.execute(select(User).where(User.id == user_id)).scalar_one_or_none()
+    if user is None:
+        raise SubscriptionNotFoundError(f"user {user_id} not found")
+
+    sub = (
+        db.query(Subscription)
+        .filter(Subscription.user_id == user_id)
+        .with_for_update()
+        .first()
+    )
+    if sub is None:
+        raise SubscriptionNotFoundError(
+            f"subscription for user {user_id} not found"
+        )
+
+    # 幂等:已取消 / 已过期 → 不动
+    already_invalid = sub.status == "cancelled" or sub.is_expired()
+    if already_invalid:
+        return {
+            "ok": True,
+            "changed": False,
+            "reason": "already-invalid",
+            "subscription": _serialize_subscription(sub, used=0),
+        }
+
+    # 无 expire_at(通常是 free 永久订阅)→ 无法缩短,视为 no-op
+    if sub.expire_at is None:
+        return {
+            "ok": True,
+            "changed": False,
+            "reason": "no-expire-at",
+            "subscription": _serialize_subscription(sub, used=0),
+        }
+
+    now = _now_utc()
+    exp = _tzaware(sub.expire_at)
+    new_exp = exp - timedelta(days=days_to_revoke)
+
+    if new_exp <= now:
+        # 前移后已过期 → 等同取消:expire_at 前移 + status='cancelled'
+        sub.expire_at = new_exp
+        sub.status = "cancelled"
+        db.commit()
+        db.refresh(sub)
+        return {
+            "ok": True,
+            "changed": True,
+            "reason": "cancelled",
+            "subscription": _serialize_subscription(sub, used=0),
+        }
+
+    sub.expire_at = new_exp
+    db.commit()
+    db.refresh(sub)
+    return {
+        "ok": True,
+        "changed": True,
+        "reason": "shortened",
+        "subscription": _serialize_subscription(sub, used=0),
+    }
 
 
 def _consume_quota(db: Session, user: User, sub: Subscription, amount: int, period: str) -> int:

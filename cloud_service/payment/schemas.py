@@ -92,7 +92,18 @@ class RefundRequest(BaseModel):
 
 
 class RefundResponse(BaseModel):
-    """`POST /cloud/payment/refund` 响应。"""
+    """`POST /cloud/payment/refund` 响应。
+
+    - ``subscription_touched``: 本次退款是否**由端点自动**变更了 Subscription。
+      当前迭代恒为 ``False``(业务规则未拍板,退款不自动撤销/缩短订阅),
+      为保留前端契约 **不改变字段含义**;若未来业务决定"全额退款自动撤销订阅",
+      该字段才会变 ``True``,前端可据此决定是否重新拉取订阅状态。
+    - ``subscription_note``: 面向后台/客服的文字说明(新增,兼容旧客户端,
+      因 ``Optional`` + 默认 ``None``,不改变旧字段结构)。
+      当订阅被自动变更时(未来)可填入具体动作;当订阅未被变更但**值得留痕**时
+      (如全额退款但订阅未自动撤销),也会说明原因,便于排查。
+    - ``note``: 保留旧字段,含义/类型不变。
+    """
 
     order_no: str
     refunded_amount: float
@@ -102,6 +113,7 @@ class RefundResponse(BaseModel):
     refunded_at: Optional[str] = None
     subscription_touched: bool = False  # 预留:退款是否撤销订阅(当前迭代不撤销)
     note: Optional[str] = None
+    subscription_note: Optional[str] = None  # 新增:订阅侧动作/未动作的说明(规则待定)
 
     model_config = {"extra": "forbid"}
 

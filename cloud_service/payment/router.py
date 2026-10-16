@@ -525,12 +525,64 @@ def refund_order(
     db.commit()
     db.refresh(order)
 
-    # 决策点(遗留):
-    #   - 是否撤销订阅/缩短 expire_at?当前实现**不**触碰 Subscription,原因:
-    #       (a) activate_for_user 语义是"延长",没有反向"缩短"接口;
-    #       (b) 订阅与订单是一对多关系,部分退款/全额退款的订阅行为需业务侧拍板。
-    #   - 真实上线前应引入 `billing.cancel_subscription(user_id)` 或
-    #     `billing.shorten_subscription(user_id, days_to_revoke)`,再在此调用。
+    # ──────────────────────────────────────────────────────────
+    # 接入点(预留):退款 ↔ 订阅语义
+    # ──────────────────────────────────────────────────────────
+    # 业务规则未拍板前,退款端点**不**触碰 Subscription(见
+    # `subscription_touched=False` 与下方 `subscription_note`),保证"退款
+    # 已发但订阅仍有效"的现状不破坏线上体验。
+    #
+    # 一旦业务侧拍板以下规则之一,应在 `db.commit()` 之后、组装
+    # `RefundResponse` 之前接入 `cloud_service.billing.router` 中的
+    # 内部函数(均**幂等**、带 `with_for_update` 行锁):
+    #
+    #   规则 A · "全额退款立即撤销本期订阅":
+    #       if full_refund:
+    #           from ..billing.router import (
+    #               cancel_subscription, SubscriptionNotFoundError,
+    #           )
+    #           cancel_subscription(db, order.user_id, reason=payload.reason or "refund")
+    #
+    #   规则 B · "部分退款按比例缩短到期时间":
+    #       if not full_refund and order.expire_days_can_be_derived():
+    #           from ..billing.router import shorten_subscription
+    #           days_to_revoke = int(round(
+    #               order.days * (refund_amount / float(order.amount))
+    #           ))
+    #           if days_to_revoke > 0:
+    #               shorten_subscription(db, order.user_id,
+    #                                    days_to_revoke=days_to_revoke)
+    #
+    # 取舍 / 注意事项(供产品决策时参考):
+    #   - 撤销会导致**用户已付费但仍在用**的内容立即不可用
+    #     (云端 prompt / pro 额度 / license/verify 心跳),客户体验风险大;
+    #     是否给"冷静期"或"到期不撤销"需产品拍板。
+    #   - 部分退款若缩短到期时间,可能与后续再购订单叠加产生边界
+    #     (如 30 天订阅退 5 天后又买 30 天,总时长会因 expire_at 前移
+    #     而少 5 天),需要明确"再购是否重新加满 30 天"。
+    #   - 两个函数都是**幂等 + 行锁**,可在同一事务里再调用一次
+    #     (如管理员重复点退款的极端路径)不会重复缩短。
+    #   - 未来若加自动触发开关,建议 env 名
+    #     `CLOUD_REFUND_AUTO_TOUCH_SUBSCRIPTION`(默认关闭);届时
+    #     `RefundResponse.subscription_touched` 会在开关打开时才置 True,
+    #     前端可继续据此决定是否重新拉取订阅状态。
+    #
+    # 见 `cloud_service/test_billing_refund_semantics.py` —— 其中
+    # "退款端点默认不改订阅" 的断言即为"默认行为未变"的护栏。
+    # ──────────────────────────────────────────────────────────
+
+    # 面向后台/客服的说明文字(不改变旧字段含义):
+    #   - 全额退款:明确"未自动撤销订阅,规则待定";
+    #   - 部分退款:同 `note` 里"subscription not touched"的语义,但独立字段便于
+    #     前端/客服侧只关心订阅动作时读取。
+    subscription_note = (
+        "subscription unchanged (rule pending): full refund; "
+        "cancellation can be wired via billing.cancel_subscription"
+        if full_refund
+        else "subscription unchanged (rule pending): partial refund; "
+             "shortening can be wired via billing.shorten_subscription"
+    )
+
     return RefundResponse(
         order_no=order.order_no,
         refunded_amount=round(refund_amount, 2),
@@ -544,6 +596,7 @@ def refund_order(
             if full_refund
             else "partial refund: Order.status remains 'paid'; subscription not touched"
         ),
+        subscription_note=subscription_note,
     )
 
 
