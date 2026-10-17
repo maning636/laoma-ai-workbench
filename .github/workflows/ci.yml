@@ -184,6 +184,39 @@ jobs:
             --extend-exclude 'dist-build,node_modules,prismenv,build,dist,.venv,__pycache__,hermes-agent'
 
   # ============================================================
+  # lint-frontend: 前端 ESLint 全量检查（硬门）
+  # 跑 `npm run lint:all`（等价于 eslint），失败即 CI 红。
+  # 与本地 pre-commit 的 lint-changed 互补：pre-commit 只看变更文件，这里覆盖全仓。
+  # ============================================================
+  lint-frontend:
+    name: ESLint (prism_frontend, full)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: prism_frontend/package-lock.json
+
+      - name: 安装前端依赖
+        working-directory: prism_frontend
+        run: |
+          set -euo pipefail
+          npm ci
+
+      - name: eslint 全量检查
+        working-directory: prism_frontend
+        run: |
+          set -euo pipefail
+          npm run lint:all
+
+  # ============================================================
   # test: pytest 后端测试
   # 现状：conftest.py 直接 import fastapi_app.main（依赖 hermes-agent / .env），
   #       在无完整运行时的 CI 上大概率收集失败或执行失败；先以 continue-on-error

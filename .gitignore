@@ -301,3 +301,4 @@ _backup_demo_*/
 /data/paths.json
 /paths.json
 *.paths.json.tmp
+.backups/
