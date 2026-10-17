@@ -527,7 +527,7 @@ def _classify_component(value: Any) -> str:
 
     - healthy / not_available / "xGB free"  => ok
     - unknown（初始值/探测失败）              => 保留为 unknown，独立于降级判定
-    - unhealthy                             => unhealthy
+    - unhealthy 或 "unhealthy:reason"        => unhealthy
     - 其它未知字符串                          => unknown
     """
     if value is None:
@@ -537,7 +537,7 @@ def _classify_component(value: Any) -> str:
         return "ok"
     if s == "unknown":
         return "unknown"
-    if s == "unhealthy":
+    if s == "unhealthy" or s.startswith("unhealthy:"):
         return "unhealthy"
     if "GB" in s:  # e.g. "42GB free"
         return "ok"
@@ -643,6 +643,151 @@ async def system_health_check():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"健康检查失败: {str(e)}")
+
+
+# ---------------------------------------------------------------------------
+# /health-check/fast —— 快档探活（supervisor / 前端轮询专用）
+#
+# 与 full 端点 (/health-check) 的差异：
+#   跳过：DB SELECT 1、AI 配置探测、run_preflight_check() 深层聚合、Easel/Persona/
+#         Playwright 等 11 项组件探测。
+#   仅做 4 项毫秒级快检（并发执行）：
+#     1) 进程存活：socket 探测 backend 自身监听端口（默认 7000）
+#     2) Redis PING
+#     3) 磁盘可用空间（shutil.disk_usage）
+#     4) 核心依赖可 import（fastapi / sqlalchemy / redis）
+#
+# 返回结构与 full 端点一致（顶层键 status / components / preflight / timestamp），
+# 额外增加 mode="fast" 字段区分。preflight 字段保留最小占位（含 skipped 列表），
+# 便于前端复用同一份解析逻辑。
+# ---------------------------------------------------------------------------
+
+_FAST_DEPS = ("fastapi", "sqlalchemy", "redis")
+
+
+def _check_backend_port_tcp(port: int, timeout: float = 1.0) -> tuple[bool, str]:
+    """探测 backend 自身监听端口（默认 7000）TCP 可达性。"""
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(timeout)
+        try:
+            rc = s.connect_ex(("127.0.0.1", int(port)))
+            return (rc == 0, "") if rc == 0 else (False, f"connect_refused:{rc}")
+        finally:
+            try:
+                s.close()
+            except Exception:
+                pass
+    except Exception as e:
+        return False, f"{type(e).__name__}: {e}"
+
+
+def _check_redis_ping(timeout: float = 1.0) -> tuple[bool, str]:
+    """调用 settings.REDIS_URL 上的 redis.Redis.ping()。"""
+    try:
+        from fastapi_app.core.config import settings
+        import redis  # noqa: F401
+        url = (getattr(settings, "REDIS_URL", "") or "").strip() \
+              or "redis://localhost:6379/0"
+        client = redis.Redis.from_url(url, socket_connect_timeout=timeout)
+        try:
+            client.ping()
+        finally:
+            try:
+                client.close()
+            except Exception:
+                pass
+        return True, ""
+    except Exception as e:
+        return False, f"{type(e).__name__}: {e}"
+
+
+def _check_disk_space_fast() -> tuple[str, bool]:
+    """返回磁盘可用空间描述字符串与是否 healthy。"""
+    try:
+        import shutil
+        from fastapi_app.core.config import settings
+        total, _used, free = shutil.disk_usage(str(settings.BASE_DIR))
+        free_gb = free // (2 ** 30)
+        return f"{free_gb}GB free", True
+    except Exception:
+        return "unknown", False
+
+
+def _check_importable_fast() -> tuple[str, bool]:
+    """检查核心依赖可否 import。返回 (描述字符串, healthy)。"""
+    missing: list[str] = []
+    for name in _FAST_DEPS:
+        try:
+            __import__(name)
+        except Exception:
+            missing.append(name)
+    if missing:
+        return "unhealthy:missing:" + ",".join(missing), False
+    return "healthy", True
+
+
+@router.get("/health-check/fast", summary="系统健康检查（快档：supervisor/轮询专用）")
+async def system_health_check_fast():
+    """
+    轻量健康检查端点，只跑 4 项毫秒级快检（并发），适合 supervisor 探活与前端
+    高频轮询。完整（含 DB SELECT 1 / AI 探测 / preflight 深层聚合）仍走
+    /system/health-check。
+
+    响应结构（与 full 端点保持一致，方便前端复用解析逻辑）：
+    {
+      "mode": "fast",
+      "status": "healthy" | "degraded" | "unknown",
+      "components": {
+          "backend":    "healthy" | "unhealthy",          # 127.0.0.1:7000 TCP
+          "redis":      "healthy" | "unhealthy",          # settings.REDIS_URL ping
+          "disk_space": "<N>GB free" | "unknown",
+          "dependencies":"ok" | "missing:a,b"
+      },
+      "preflight": {
+          "skipped": ["database","browser","ai_service","run_preflight_check"],
+          "hint": "use GET /system/health-check for full inspection"
+      },
+      "timestamp": "..."
+    }
+    """
+    from fastapi_app.core.config import settings
+    try:
+        port = int(getattr(settings, "PORT", 7000) or 7000)
+    except Exception:
+        port = 7000
+
+    # 并发跑 4 项快检，避免串行叠加
+    loop = asyncio.get_running_loop()
+    (backend_ok, backend_reason), (redis_ok, redis_reason), \
+        disk_desc, deps_desc = await asyncio.gather(
+        loop.run_in_executor(None, lambda: _check_backend_port_tcp(port)),
+        loop.run_in_executor(None, lambda: _check_redis_ping()),
+        loop.run_in_executor(None, lambda: _check_disk_space_fast()),
+        loop.run_in_executor(None, lambda: _check_importable_fast()),
+    )
+
+    components: dict[str, Any] = {
+        "backend": "healthy" if backend_ok else f"unhealthy:{backend_reason}",
+        "redis": "healthy" if redis_ok else f"unhealthy:{redis_reason}",
+        "disk_space": disk_desc[0],
+        "dependencies": deps_desc[0],
+    }
+
+    # 三态归并：复用 full 端点的 _classify_component / _rollup_overall
+    overall_status = _rollup_overall(list(components.values()))
+
+    return {
+        "mode": "fast",
+        "status": overall_status,
+        "components": components,
+        "preflight": {
+            "skipped": ["database", "browser", "ai_service", "run_preflight_check"],
+            "hint": "use GET /system/health-check for full inspection",
+        },
+        "timestamp": datetime.now().isoformat(),
+    }
 
 
 @router.get("/automation-worker/health", summary="Automation Worker 健康信息")
