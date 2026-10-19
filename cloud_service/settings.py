@@ -94,6 +94,24 @@ def get_settings():
             # pro 用户月度额度;-1 表示无限(默认)
             "pro_quota": _get_int("CLOUD_PRO_QUOTA", -1),
         },
+        # ── M3 · 积分制配置(2026-10-16) ─────────────────
+        # 默认对齐澜途 `/points/recharge/options`:
+        #   - 1 元 = 10 积分(1 积分 = ¥0.10)
+        #   - 满 1000 积分赠 50%(3000 档赠 1000,5000 档赠 2000)
+        #   - 5 档预设:100/500/1000/3000/5000
+        #   - 支持自定义 1-10000 积分
+        # env 覆盖示例:CLOUD_POINTS_PER_YUAN=20,CLOUD_POINTS_BONUS_RATE=0.3
+        "points": {
+            "enabled": _get_str("CLOUD_POINTS_ENABLED", "true").lower() in {"1", "true", "yes"},
+            "points_per_yuan": _get_float("CLOUD_POINTS_PER_YUAN", 10.0),
+            "bonus_threshold": _get_float("CLOUD_POINTS_BONUS_THRESHOLD", 1000.0),
+            "bonus_rate": _get_float("CLOUD_POINTS_BONUS_RATE", 0.5),
+            "min_points": _get_float("CLOUD_POINTS_MIN", 1.0),
+            "max_points": _get_float("CLOUD_POINTS_MAX", 10000.0),
+            "default_points": _get_float("CLOUD_POINTS_DEFAULT", 3000.0),
+            "custom_enabled": _get_str("CLOUD_POINTS_CUSTOM_ENABLED", "true").lower()
+                in {"1", "true", "yes"},
+        },
         # ── 订单超时任务(P4)───────────────────────────
         # 只影响 `status='created'` 的订单;不影响 paid / refunded / closed。
         # 多 worker 部署下每个 worker 都会跑一份,注意幂等性(按 id 列表关闭)。

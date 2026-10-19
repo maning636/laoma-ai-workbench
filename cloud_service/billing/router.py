@@ -6,11 +6,13 @@
   POST /cloud/usage/consume          → 消耗额度;超限返回 402
   POST /cloud/license/verify         → 客户端心跳:订阅有效性 + 剩余额度 + is_pro
   POST /cloud/subscription/activate  → 模拟激活 pro(供 C19 支付接入前使用)
+  GET  /cloud/feature-flags          → Open Core feature gate 快照(2026-10-18 追加)
 
 复用:
   - `..db.get_db`(SQLAlchemy session)
   - `..auth.router.get_current_user`(C12 的 JWT 依赖)
   - `..settings.get_settings()["billing"]`(额度可配)
+  - `..billing.feature_gate`(Open Core 功能分层,Community vs Pro)
 """
 
 from __future__ import annotations
@@ -26,10 +28,12 @@ from ..auth.models import User
 from ..auth.router import get_current_user  # C12 的 JWT 依赖(复用,不重造)
 from ..db import get_db
 from ..settings import get_settings
+from .feature_gate import get_user_feature_flags
 from .models import Subscription, Usage
 from .schemas import (
     ConsumeRequest,
     ConsumeResponse,
+    FeatureFlagsResponse,
     LicenseVerifyResponse,
     SubscriptionActivateRequest,
     SubscriptionResponse,
@@ -506,6 +510,34 @@ def activate_subscription(
 
     used = _get_usage(db, current_user.id, _current_period())
     return SubscriptionResponse(**_serialize_subscription(sub, used=used))
+
+
+# ──────────────────────────────────────────────────────────────
+# Open Core · Feature Gate 端点
+# ──────────────────────────────────────────────────────────────
+
+@router.get("/feature-flags", response_model=FeatureFlagsResponse)
+def get_feature_flags(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> FeatureFlagsResponse:
+    """返回当前用户的 Open Core feature flags 快照。
+
+    用途:
+      - 客户端心跳或订阅状态变化后调用一次,缓存结果;
+      - UI 层根据 `flags` 隐藏/显示 Pro 功能入口(避免每次请求都打云端);
+      - 与服务端 `require_feature` / `check_quota_or_raise` 保持一致
+        (都以 `Subscription.plan` 为唯一权威来源)。
+
+    详见 `cloud_service/billing/feature_gate.py` 与
+    `docs/dev-reports/2026-10-16-open-core-implementation.md`。
+    """
+    payload = get_user_feature_flags(current_user.id, db=db)
+    return FeatureFlagsResponse(
+        plan=payload["plan"],
+        flags=payload["flags"],
+        upgrade_url=None,
+    )
 
 
 __all__ = ["router"]

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import {
-  Palette, RefreshCw, Loader2, ExternalLink, Sparkles, Save, Trash2,
+  Palette, RefreshCw, Loader2, Sparkles, Save, Trash2,
 } from "lucide-react"
 import { PageHeader } from "@/components/layout/page-scaffold"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { API_ENDPOINTS } from "@/lib/env"
+import AgentStudioPanel from "./agent-studio-panel"
 
 interface Style {
   name: string
@@ -80,6 +81,9 @@ export default function StylesPage() {
       />
 
       <div className="mx-auto max-w-6xl space-y-4 px-6 py-6">
+        {/* M2 · AI Agent Studio（澜途 AI AGENT STUDIO 复刻；配额付费墙 + LLM 风格训练） */}
+        <AgentStudioPanel />
+
         {loading && platforms.length === 0 ? (
           <div className="flex items-center justify-center py-12 text-muted-foreground">
             <Loader2 className="h-5 w-5 mr-2 animate-spin" />加载中...

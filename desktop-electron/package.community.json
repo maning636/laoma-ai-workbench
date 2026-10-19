@@ -1,0 +1,185 @@
+{
+  "extraMetadata": {
+    "name": "laoma-ai-workbench-community",
+    "version": "1.1.0-community",
+    "description": "老马AI工作台 Community (Open Core, AGPL-3.0)",
+    "author": "Laihiujin",
+    "license": "AGPL-3.0",
+    "main": "src/main/index.js"
+  },
+  "appId": "com.laomai.workbench.community",
+  "productName": "老马AI工作台 Community",
+  "executableName": "LaomaAICommunity",
+  "artifactName": "老马AI工作台-Community-${version}-setup.${ext}",
+  "asar": true,
+  "asarUnpack": [
+    "src/renderer/**",
+    "src/preload/**"
+  ],
+  "directories": {
+    "output": "dist-community",
+    "buildResources": "build"
+  },
+  "files": [
+    "src/**/*",
+    "package.json",
+    "icon.ico"
+  ],
+  "extraResources": [
+    {
+      "from": "../prismenv",
+      "to": "prismenv",
+      "filter": [
+        "**/*",
+        "!**/__pycache__/**",
+        "!**/*.pyc",
+        "!**/*.pyo",
+        "!**/nul"
+      ]
+    },
+    {
+      "from": "../scripts/hermes",
+      "to": "scripts/hermes",
+      "filter": [
+        "*.ps1",
+        "*.cmd"
+      ]
+    },
+    {
+      "from": "../scripts/packaging",
+      "to": "scripts/packaging",
+      "filter": [
+        "install_hibbiki_chromium.ps1"
+      ]
+    },
+    {
+      "from": "../prism_backend",
+      "to": "prism_backend",
+      "filter": [
+        "**/*",
+        "!**/__pycache__",
+        "!**/*.pyc",
+        "!**/*.pyo",
+        "!**/test_*",
+        "!**/tests",
+        "!**/.pytest_cache",
+        "!**/data/cookies/**",
+        "!**/cookiesFile/**",
+        "!**/fingerprints/**",
+        "!**/browser_profiles/**",
+        "!**/videoFile/**",
+        "!**/logs/**",
+        "!**/db/*.db",
+        "!**/db/*.db-*",
+        "!**/db/*.sqlite",
+        "!**/db/*.sqlite-*",
+        "!**/db/frontend_accounts_snapshot.json",
+        "!**/backups/**",
+        "!**/nul"
+      ]
+    },
+    {
+      "from": "../prism_frontend/.next/standalone",
+      "to": "frontend/standalone",
+      "filter": [
+        "**/*"
+      ]
+    },
+    {
+      "from": "../prism_frontend/.next/static",
+      "to": "frontend/standalone/.next/static",
+      "filter": [
+        "**/*"
+      ]
+    },
+    {
+      "from": "../prism_frontend/public",
+      "to": "frontend/standalone/public",
+      "filter": [
+        "**/*"
+      ]
+    },
+    {
+      "from": "../config",
+      "to": "config",
+      "filter": [
+        "**/*"
+      ]
+    },
+    {
+      "from": "../.env.example",
+      "to": ".env.community.example"
+    }
+  ],
+  "win": {
+    "icon": "build/icon.ico",
+    "publisherName": "Laihiujin",
+    "legalTrademarks": "Laihiujin",
+    "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      }
+    ],
+    "requestedExecutionLevel": "asInvoker",
+    "extraResources": [
+      {
+        "from": "resources/supervisor",
+        "to": "supervisor",
+        "filter": [
+          "supervisor.py",
+          "api_server.py"
+        ]
+      },
+      {
+        "from": "resources/redis",
+        "to": "redis",
+        "filter": [
+          "redis-server.exe",
+          "redis-cli.exe",
+          "redis.windows.conf",
+          "redis.windows-service.conf",
+          "EventLog.dll"
+        ]
+      },
+      {
+        "from": "../dist/services",
+        "to": "services",
+        "filter": [
+          "**/*",
+          "!**/nul"
+        ]
+      },
+      {
+        "from": "node_modules/7zip-bin/win/x64",
+        "to": "tools/7zip",
+        "filter": [
+          "7za.exe"
+        ]
+      }
+    ]
+  },
+  "nsis": {
+    "oneClick": false,
+    "include": "build/installer.nsh",
+    "allowToChangeInstallationDirectory": true,
+    "perMachine": false,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "老马AI工作台 Community",
+    "installerIcon": "build/icon.ico",
+    "uninstallerIcon": "build/icon.ico",
+    "installerHeaderIcon": "build/icon.ico",
+    "deleteAppDataOnUninstall": true
+  },
+  "compression": "maximum",
+  "electronVersion": "28.0.0",
+  "publish": {
+    "provider": "github",
+    "owner": "Laihiujin",
+    "repo": "laoma-ai-workbench",
+    "releaseType": "release"
+  }
+}

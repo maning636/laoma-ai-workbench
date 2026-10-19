@@ -53,11 +53,13 @@ def get_db() -> Iterator[Session]:
 def init_db() -> None:
     """建表(幂等)+ seed prompt 库。
 
-    C12 创建 users;C13 追加 subscriptions + usage;C14 追加 prompts 并 seed。
+    C12 创建 users;C13 追加 subscriptions + usage;C14 追加 prompts 并 seed;
+    M3 追加 credit_balance / credit_ledger / credit_pricing 并 seed 默认价目表。
     """
     # 让 models 先注册到 Base.metadata,再统一 create_all
     from .auth import models as _auth_models  # noqa: F401
     from .billing import models as _billing_models  # noqa: F401
+    from .billing import points as _billing_points  # noqa: F401
     from .llm_proxy import models as _llm_models  # noqa: F401
     from .llm_proxy import prompts as _llm_prompts  # noqa: F401
     from .payment import models as _payment_models  # noqa: F401
@@ -67,3 +69,5 @@ def init_db() -> None:
     # seed prompt 库(幂等 upsert,按 name 唯一键)
     with SessionLocal() as _session:
         _llm_prompts.sync_prompts_to_db(_session)
+        # M3: 幂等 seed 价目表(澜途对齐)
+        _billing_points.seed_pricing(_session)

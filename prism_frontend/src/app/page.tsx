@@ -37,6 +37,7 @@ import { PublishOtpDialog } from "@/components/publish/publish-otp-dialog"
 import { PageHeader } from "@/components/layout/page-scaffold"
 import CountUp from "@/components/CountUp"
 import { cn } from "@/lib/utils"
+import { ScenarioGuide } from "@/components/wizard/scenario-guide"
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -270,6 +271,8 @@ export default function DashboardPage() {
       </section>
 
       <PublishOtpDialog />
+
+      <ScenarioGuide />
 
       <section className="grid gap-6">
         <Card className="hairline-top overflow-hidden border-border/80 bg-card/70 backdrop-blur-sm">

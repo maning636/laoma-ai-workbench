@@ -1,0 +1,1 @@
+import{t as e}from"./collection-JEa0SVai.js";export{e as default};

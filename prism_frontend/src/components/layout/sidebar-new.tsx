@@ -14,6 +14,7 @@ import {
   Fingerprint,
   FolderKanban,
   Globe,
+  Image as ImageIcon,
   LayoutDashboard,
   LayoutGrid,
   Settings,
@@ -41,6 +42,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { HermesLogoIcon } from "@/components/hermes-logo-icon"
+import { PlanBadge } from "@/components/layout/plan-badge"
 
 import { cn } from "@/lib/utils"
 
@@ -124,6 +126,7 @@ const navSections: NavSection[] = [
       { label: "代理管理", href: "/ip-pool", icon: Globe },
       { label: "代理网关", href: "/persona-proxy", icon: Network },
       { label: "Persona", href: "/persona", icon: Fingerprint },
+      { label: "图片编辑器", href: "/tools/image-editor", icon: ImageIcon },
     ],
   },
   {
@@ -404,6 +407,11 @@ export function SidebarNew({
             ))}
           </nav>
         </ScrollArea>
+
+        {/* Open Core · 套餐徽标（Community / Pro + 配额 + 升级按钮） */}
+        <div className="border-t border-border/80 p-3">
+          <PlanBadge collapsed={collapsed} />
+        </div>
 
         {showCollapseToggle && (
           <div className="border-t border-border/80 p-3">

@@ -1,7 +1,7 @@
 """
 账号管理API路由
 """
-from fastapi import APIRouter, Body, HTTPException, status, Depends
+from fastapi import APIRouter, Body, HTTPException, Request, status, Depends
 from typing import Optional, Any, Dict
 import asyncio
 import subprocess
@@ -47,6 +47,50 @@ _ACTIVE_SESSIONS: Dict[str, Any] = {}
 
 # 包含工具路由
 router.include_router(tools_router)
+
+
+def _extract_user_id_for_billing(request) -> str:
+    """从 Authorization Bearer JWT 提取 user_id（best-effort）。
+
+    与 `fusion_ai/ai_design.py::_extract_user_id` 一致的降级策略：
+      - 有 Bearer + 有效 JWT → 使用 payload.sub 作为 user_id
+      - 有 Bearer + 无效 JWT 或无 Bearer → "anonymous"（billing_client 会回落
+        Community 默认 flag，等价于"未登录即社区版"）
+
+    注意：这里做**校验**（signature + exp），避免攻击者伪造 header 声称身份。
+    严格鉴权版本（缺失即 401）可用 `fastapi_app.api.dependencies.get_auth_user_id`。
+    """
+    if request is None:
+        return "anonymous"
+    import os as _os
+    auth = (
+        getattr(request, "headers", {}).get("authorization")
+        or getattr(request, "headers", {}).get("Authorization")
+    ) or ""
+    auth = auth.strip()
+    if not auth.lower().startswith("bearer "):
+        return "anonymous"
+    token = auth[7:].strip()
+    if not token:
+        return "anonymous"
+    # 复用 ai_design 的解码实现（依赖 PyJWT + 相同的 secret 解析链）
+    try:
+        from fusion_ai.ai_design import _decode_jwt_sub
+        sub = _decode_jwt_sub(token)
+        if sub:
+            return sub
+    except Exception:
+        pass
+    return "anonymous"
+
+
+async def _count_current_accounts() -> int:
+    """统计当前账号总数（供 `max_accounts` 配额检查）。失败返回 0。"""
+    try:
+        result = await account_service.list_accounts(limit=0)
+        return int(result.get("total") or 0)
+    except Exception:
+        return 0
 
 
 @router.get("", response_model=AccountListResponse, include_in_schema=False)
@@ -483,12 +527,27 @@ async def open_creator_center_biliup(account_id: str):
 
 @router.post("", response_model=StatusResponse, status_code=status.HTTP_201_CREATED, include_in_schema=False)
 @router.post("/", response_model=StatusResponse, status_code=status.HTTP_201_CREATED)
-async def create_account(account_data: AccountCreate):
+async def create_account(account_data: AccountCreate, request: Request):
     """
     创建账号
 
     需要提供完整的账号信息和Cookie数据
+
+    Feature Gate（M3 · Open Core）：
+      调用 `billing_client.require_quota(user_id, "max_accounts", current_count)`
+      - Community：max_accounts=3，超出 → 403 `upgrade_required`
+      - Pro：max_accounts=-1（无限），直接放行
+      - 云端不可达 / 未登录 → 回落 Community 默认值（3 个账号上限）
     """
+    # Feature Gate：账号数上限检查
+    from fastapi_app.api.billing_client import require_quota
+    user_id = _extract_user_id_for_billing(request)
+    try:
+        current_count = await _count_current_accounts()
+    except Exception:
+        current_count = 0  # 计数失败时不阻断（避免误伤）
+    require_quota(user_id, "max_accounts", current_count)
+
     try:
         result = await account_service.create_account(account_data.dict())
         return StatusResponse(**result)

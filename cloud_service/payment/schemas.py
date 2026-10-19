@@ -12,16 +12,32 @@ _CHANNELS = {"alipay", "wechat"}
 
 
 class CreateOrderRequest(BaseModel):
-    """`POST /cloud/payment/create_order` 请求体。"""
+    """`POST /cloud/payment/create_order` 请求体。
 
-    plan: str = Field("pro", description="目标套餐: pro | free")
-    days: int = Field(30, ge=1, le=730, description="订阅持续天数(1-730)")
+    M3 硬化(2026-10-16):`plan` 新增 `'credit'` 允许积分充值订单走
+    通用订单端点(可选,主入口仍是 `POST /points/recharge`);
+    积分订单 `days` 可为 None(积分永久有效,无订阅延长)。
+    """
+
+    plan: str = Field("pro", description="目标套餐: pro | free | credit")
+    days: Optional[int] = Field(
+        30, ge=0, le=730,
+        description="订阅持续天数(1-730);plan='credit' 时允许省略/None/0",
+    )
     channel: str = Field(..., description="支付渠道: alipay | wechat")
 
     @model_validator(mode="after")
     def _check(self) -> "CreateOrderRequest":
-        if self.plan not in {"pro", "free"}:
-            raise ValueError("plan must be 'pro' or 'free'")
+        allowed_plans = {"pro", "free", "credit"}
+        if self.plan not in allowed_plans:
+            raise ValueError(f"plan must be one of {sorted(allowed_plans)}")
+        if self.plan == "credit":
+            # 积分订单无有效期;允许 days=None,把 days=0 归一为 None
+            if self.days == 0:
+                self.days = None
+        else:
+            if self.days is None or self.days < 1:
+                raise ValueError("days must be >= 1 for pro/free plans")
         if self.channel not in _CHANNELS:
             raise ValueError(f"channel must be one of {sorted(_CHANNELS)}")
         return self
@@ -40,7 +56,7 @@ class CreateOrderResponse(BaseModel):
     order_no: str
     amount: float
     plan: str
-    days: int
+    days: Optional[int] = None
     channel: str
     pay_params: dict[str, Any]
 
@@ -53,13 +69,15 @@ class OrderResponse(BaseModel):
     order_no: str
     status: str  # created | paid | refunded | closed
     plan: str
-    days: int
+    days: Optional[int] = None
     amount: float
     channel: str
     pay_trade_no: Optional[str] = None
     created_at: Optional[str] = None
     paid_at: Optional[str] = None
     refunded_at: Optional[str] = None
+    # M3 硬化:积分订单落 total points(主 + 赠送),用于审计
+    credit_points: Optional[float] = None
 
     model_config = {"extra": "forbid"}
 

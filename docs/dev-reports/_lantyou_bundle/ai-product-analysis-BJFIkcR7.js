@@ -1,0 +1,2 @@
+function e(e,t){return[e.coreSellingPoints?.length?`${t(`page.aiDesign.coreSellingPoints`)}: ${e.coreSellingPoints.join(`、`)}`:``,e.targetAudiences?.length?`${t(`page.aiDesign.targetAudiences`)}: ${e.targetAudiences.join(`、`)}`:``,e.usageScenarios?.length?`${t(`page.aiDesign.usageScenarios`)}: ${e.usageScenarios.join(`、`)}`:``,e.material?`${t(`page.aiDesign.material`)}: ${e.material}`:``,e.additionalRequirements??``].filter(Boolean).join(`
+`)}export{e as t};

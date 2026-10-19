@@ -1,0 +1,1 @@
+import{O as e,W as t,b as n}from"./vendor-i18n-Bf8Kwh9f.js";import{t as r}from"./infinite-canvas-BdAZAMqB.js";var i=e({name:`ai-design_skills`,__name:`index`,setup(e){return(e,i)=>(t(),n(r,{mode:`skills`}))}});export{i as default};

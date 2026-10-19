@@ -1,8 +1,6 @@
 """Billing 端点的 Pydantic 请求/响应模型(C13)。"""
 
-from __future__ import annotations
-
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -84,7 +82,253 @@ class LicenseVerifyResponse(BaseModel):
     model_config = {"extra": "forbid"}
 
 
+class FeatureFlagsResponse(BaseModel):
+    """`GET /cloud/feature-flags` 响应(Open Core feature gate 快照)。
+
+    客户端订阅后缓存此响应;UI 根据 `flags` 隐藏/显示 Pro 功能入口,
+    避免每次请求都打云端。详见 `cloud_service/billing/feature_gate.py`
+    与 `docs/dev-reports/2026-10-16-open-core-implementation.md`。
+
+    字段:
+      - `plan`: "community" | "pro"
+      - `flags`: 各 feature 的实际值(见 feature_gate.FEATURE_NAMES)
+      - `upgrade_url`: 升级 Pro 的引导 URL;空字符串表示尚未配置
+    """
+
+    plan: str
+    flags: dict[str, Any]
+    upgrade_url: Optional[str] = None
+
+    model_config = {"extra": "forbid"}
+
+
 class ErrorResponse(BaseModel):
     detail: str
 
     model_config = {"extra": "forbid"}
+
+
+# ══════════════════════════════════════════════════════════════
+# M3 · 积分制 schemas(2026-10-16)
+# 字段命名对齐澜途 API(availablePoints / frozenPoints 等 camelCase)。
+# ══════════════════════════════════════════════════════════════
+
+
+class PointsAccountResponse(BaseModel):
+    """`GET /cloud/points/account` 响应(对齐澜途 `/points/account`)。"""
+
+    primaryAccountId: int
+    availablePoints: float
+    frozenPoints: float
+    totalPoints: float
+    totalConsumed: float
+    totalRecharged: float
+
+    model_config = {"extra": "forbid"}
+
+
+class PointsRechargePreset(BaseModel):
+    """充值预设档位。"""
+
+    points: float
+    bonusPoints: float
+    yuan: float
+    enabled: bool
+
+    model_config = {"extra": "forbid"}
+
+
+class PointsRechargeOptionsResponse(BaseModel):
+    """`GET /cloud/points/recharge/options` 响应(对齐澜途)。"""
+
+    enabled: bool
+    pointsPerYuan: float
+    bonusThreshold: float
+    bonusRate: float
+    minPoints: float
+    maxPoints: float
+    defaultPoints: float
+    customEnabled: bool
+    presets: list[PointsRechargePreset]
+    paymentChannels: list[str]
+
+    model_config = {"extra": "forbid"}
+
+
+class PointsRechargeCreateRequest(BaseModel):
+    """`POST /cloud/points/recharge` 请求体。
+
+    - `points`:要充值的积分数量(>=min,<=max,允许小数)。
+    - `channel`:支付渠道(alipay | wechat),与 payment 通道保持一致。
+    - `preset`:可选,预设档位;若不传,按 `points` 计算。
+    """
+
+    points: float = Field(..., gt=0, description="要充值的积分数量")
+    channel: str = Field("alipay", description="支付渠道: alipay | wechat")
+    preset: Optional[float] = Field(None, description="预设档位(可选)")
+
+    @model_validator(mode="after")
+    def _check_channel(self) -> "PointsRechargeCreateRequest":
+        if self.channel not in {"alipay", "wechat"}:
+            raise ValueError("channel must be 'alipay' or 'wechat'")
+        return self
+
+    model_config = {"extra": "forbid"}
+
+
+class PointsRechargeCreateResponse(BaseModel):
+    """`POST /cloud/points/recharge` 响应(不直接落积分,等待支付回调)。"""
+
+    orderNo: str
+    amount: float  # 实际支付金额(元)
+    points: float  # 主积分
+    bonusPoints: float  # 赠送积分
+    totalPoints: float  # 主 + 赠送
+    channel: str
+    payParams: dict[str, Any]
+
+    model_config = {"extra": "forbid"}
+
+
+class PointsLedgerItem(BaseModel):
+    """积分流水单条记录。"""
+
+    id: int
+    txType: str
+    amount: float
+    balanceAfter: float
+    frozenAfter: float
+    useFunction: Optional[str] = None
+    refId: Optional[str] = None
+    rechargeId: Optional[str] = None
+    pricingKey: Optional[str] = None
+    freezeTxId: Optional[int] = None
+    status: Optional[str] = None
+    note: Optional[str] = None
+    createdAt: Optional[str] = None
+
+    model_config = {"extra": "forbid"}
+
+
+class PointsHistoryResponse(BaseModel):
+    """`GET /cloud/points/history` 响应。"""
+
+    current: int
+    size: int
+    total: int
+    items: list[PointsLedgerItem]
+
+    model_config = {"extra": "forbid"}
+
+
+class PointsPricingItem(BaseModel):
+    """价目表单项。"""
+
+    pricingKey: str
+    displayName: str
+    points: float
+    category: str
+    enabled: bool
+    sortOrder: int
+
+    model_config = {"extra": "forbid"}
+
+
+class PointsPricingResponse(BaseModel):
+    """`GET /cloud/points/pricing` 响应。"""
+
+    pricingVersion: str
+    items: list[PointsPricingItem]
+
+    model_config = {"extra": "forbid"}
+
+
+class PointsFreezeRequest(BaseModel):
+    """冻结/消耗/回滚共用请求体。
+
+    - `amount`:冻结金额(仅 freeze 端点使用)。
+    - `freezeTxId` / `freeze_tx_id`:消耗/回滚时指向要处理的冻结流水 ID(二者择一)。
+    - `use_function` / `ref_id` / `pricing_key`:审计字段。
+    - `note`:备注。
+    """
+
+    amount: Optional[float] = Field(None, gt=0, description="冻结金额(仅 freeze 使用)")
+    freeze_tx_id: Optional[int] = Field(None, description="消耗/回滚时必填")
+    use_function: Optional[str] = Field(None, max_length=64)
+    ref_id: Optional[str] = Field(None, max_length=128)
+    pricing_key: Optional[str] = Field(None, max_length=64)
+    note: Optional[str] = Field(None, max_length=255)
+
+    model_config = {"extra": "forbid"}
+
+
+class PointsFreezeResponse(BaseModel):
+    """`POST /cloud/points/freeze` 响应。"""
+
+    freezeTxId: int
+    amount: float
+    useFunction: Optional[str] = None
+    refId: Optional[str] = None
+    pricingKey: Optional[str] = None
+    status: str
+    availablePoints: float
+    frozenPoints: float
+    createdAt: Optional[str] = None
+
+    model_config = {"extra": "forbid"}
+
+
+class PointsConsumeResponse(BaseModel):
+    """`POST /cloud/points/consume` / `/rollback` 响应。"""
+
+    freezeTxId: Optional[int] = None
+    consumeTxId: int
+    amount: float
+    status: str  # 'consumed' | 'rolled_back' | 'refunded'
+    availablePoints: float
+    frozenPoints: float
+    totalConsumed: float
+    createdAt: Optional[str] = None
+
+    model_config = {"extra": "forbid"}
+
+
+class PointsConsumeByPricingRequest(BaseModel):
+    """一次性按 pricing_key 扣积分。"""
+
+    pricing_key: str = Field(..., min_length=1, max_length=64)
+    amount: Optional[float] = Field(None, gt=0, description="覆盖价目表金额(可选)")
+    use_function: Optional[str] = Field(None, max_length=64)
+    ref_id: Optional[str] = Field(None, max_length=128)
+
+    model_config = {"extra": "forbid"}
+
+
+class PointsRefundAdminRequest(BaseModel):
+    """管理员手动退积分请求体。"""
+
+    user_id: int = Field(..., ge=1)
+    amount: float = Field(..., gt=0)
+    recharge_id: Optional[str] = Field(None, max_length=64)
+    note: Optional[str] = Field(None, max_length=255)
+
+    model_config = {"extra": "forbid"}
+
+
+__all__ = [
+    "ErrorResponse",
+    "PointsAccountResponse",
+    "PointsRechargePreset",
+    "PointsRechargeOptionsResponse",
+    "PointsRechargeCreateRequest",
+    "PointsRechargeCreateResponse",
+    "PointsLedgerItem",
+    "PointsHistoryResponse",
+    "PointsPricingItem",
+    "PointsPricingResponse",
+    "PointsFreezeRequest",
+    "PointsFreezeResponse",
+    "PointsConsumeResponse",
+    "PointsConsumeByPricingRequest",
+    "PointsRefundAdminRequest",
+]

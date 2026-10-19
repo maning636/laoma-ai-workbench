@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from myUtils.tikhub_client import get_tikhub_client
@@ -20,6 +20,23 @@ def _require_client():
     if not client:
         raise HTTPException(status_code=400, detail="TikHub API key not configured")
     return client
+
+
+def _require_data_recovery(request: Request) -> None:
+    """Feature Gate (M3 Open Core): Community 用户无数据回收能力。
+
+    调用 `billing_client.require_feature(user_id, "data_recovery")`；
+    Community flag = False → 抛 HTTPException(403, upgrade_required)。
+    Pro flag = True 或云端不可达回落 Community → 后者仍会 403（按任务规范）。
+
+    注意：本 helper **不阻断** `/health` 端点（运维探针，不需要用户身份）。
+    """
+    from fastapi_app.api.billing_client import require_feature
+
+    # 从 Authorization Bearer 提取 user_id；无 token 时视为 anonymous（→ Community → 403）
+    auth = request.headers.get("authorization") or request.headers.get("Authorization") or ""
+    uid = auth.replace("Bearer ", "").replace("bearer ", "").strip() or "anonymous"
+    require_feature(uid, "data_recovery")
 
 
 @router.get("/health")
@@ -71,8 +88,15 @@ async def channels_video_detail(id: Optional[str] = None, export_id: Optional[st
 
 
 @router.post("/collect")
-async def collect_recovery_data(payload: RecoveryCollectRequest):
+async def collect_recovery_data(payload: RecoveryCollectRequest, request: Request):
+    """批量数据采集端点 — 调用多平台 API。
+
+    Open Core Feature Gate: Community 无数据回收能力，仅 Pro/Pro_Plus 可调用。
+    """
     from myUtils.video_collector import collector
+
+    # Feature Gate (Open Core) — Community 用户被 403 拒绝
+    _require_data_recovery(request)
 
     results = await collector.collect_all_accounts(
         account_ids=payload.account_ids,

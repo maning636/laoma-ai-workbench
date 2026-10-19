@@ -58,15 +58,39 @@ async def _normalize_duplicated_api_prefix(request: Request, call_next):
     return await call_next(request)
 
 
-# 配置CORS - 允许所有来源（开发环境）
+# 配置CORS —— 使用 settings.CORS_ORIGINS 白名单（默认覆盖本地开发）。
+# 2026-10-19 medium-hardening：从 `allow_origins=["*"]` 改为域名白名单，
+# 避免任意来源通过 CORS 携带敏感响应；保留 `allow_credentials=True`，
+# 前端若使用 cookie/凭证则依赖具体 origin 匹配。
+# 生产环境通过 `CORS_ORIGINS` 环境变量覆盖（详见 fastapi_app/.env.example）。
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 允许所有来源，避免 CORS 问题
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
 )
+
+# 2026-10-19 medium-hardening：请求级限流（Redis INCR + EXPIRE）。
+# 由 cloud_service.middleware.rate_limit 提供，仅依赖 starlette，可以复用。
+# 关闭开关：CLOUD_RATE_LIMIT_ENABLED=false（灰度或调试用）。
+# 覆盖 M1 `/api/v1/ai-design/generate`（每 user/分钟 10）等敏感端点。
+try:
+    _rl_enabled = os.getenv("CLOUD_RATE_LIMIT_ENABLED", "true").lower() in {
+        "1", "true", "yes"
+    }
+    if _rl_enabled:
+        from cloud_service.middleware import RateLimitMiddleware
+        app.add_middleware(
+            RateLimitMiddleware,
+            window_seconds=int(
+                os.getenv("CLOUD_RATE_LIMIT_WINDOW_SECONDS", "60")
+            ),
+        )
+except Exception as _rl_exc:  # pragma: no cover - defensive
+    from .core import logger as _rl_logger
+    _rl_logger.warning(f"[RateLimit] install failed (skipping): {_rl_exc}")
 
 
 # 配置静态文件服务（用于访问上传的封面图片等）

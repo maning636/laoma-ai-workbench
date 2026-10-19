@@ -60,6 +60,8 @@ from .tools.router import router as tools_router
 from .ccswitch.router import router as ccswitch_router  # CC Switch 桥接（读取本机 cc-switch 库并应用到项目内）
 from .tool_catalog.router import router as tool_catalog_router  # 声明式工具注册中心（能力暴露为 tool）
 from fusion_ai.router import router as fusion_router  # LaomaAI-Fusion 能力扩展（AI 多 Provider/平台风格/生图/热点/审核/模型广场/技能/认知/NL→SQL/配置中心）
+from fusion_ai.ai_design import router as ai_design_router  # M1 AI 生图（澜途 /ai-design 复刻 + M3 积分扣费）
+from fusion_ai.ai_agents import router as ai_agents_router  # M2 AI 智能体（澜途 /system/ai-agents 复刻；配额付费墙 + LLM 风格训练）
 
 # B-B (2026-10-16): crawler_router 已改为懒加载——它 import 时会连带加载
 # `crawlers.hybrid` / `crawlers.tiktok.web.models` / `crawlers.douyin.web.models`
@@ -139,6 +141,12 @@ api_router.include_router(tool_catalog_router)  # 声明式工具目录 /tool-ca
 
 # LaomaAI-Fusion 扩展（P0-P1 能力）
 api_router.include_router(fusion_router)  # /fusion 前缀（AI多Provider/平台风格/生图/热点/审核/模型广场/技能工坊/认知/NL→SQL/配置中心）
+
+# M1 · AI 生图（澜途 /ai-design/* 复刻；复用 fusion_ai.image_generators + M3 积分扣费）
+api_router.include_router(ai_design_router)  # /ai-design 前缀（capabilities / generate）
+
+# M2 · AI 智能体风格训练（澜途 /system/ai-agents 复刻；配额 + LLM 抽取 + M1 注入）
+api_router.include_router(ai_agents_router)  # /ai-design/agents 前缀（列表/配额/CRUD）
 
 # 新增路由：任务状态机/平台字段/登录态检查/内容版本（Phase 0.2/1.1-1.6/3.1+3.3）
 api_router.include_router(task_state_machine_router, prefix="/task-state", tags=["任务状态机"])

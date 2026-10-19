@@ -349,13 +349,80 @@ async def payment_callback(
     except (TypeError, ValueError):
         raise HTTPException(status_code=400, detail="invalid amount in callback")
 
-    # 拿到用户并激活订阅
+    # 拿到用户并按 plan 分派:
+    #   - plan='pro'/'free' → 订阅激活
+    #   - plan='credit'     → 积分充值(M3)
     from ..auth.models import User as _User
     user = db.get(_User, order.user_id)
     if user is None:
         raise HTTPException(status_code=400, detail="order.user not found")
 
-    # 激活(内部会 commit)
+    # ── plan='credit' 分支:走积分充值,不激活订阅 ──────────────────
+    if order.plan == "credit":
+        from ..billing import points as _billing_points
+        from ..settings import get_settings as _get_settings
+        from decimal import Decimal as _Decimal
+
+        _pts_cfg = _get_settings().get("points", {})
+        points_per_yuan = float(_pts_cfg.get("points_per_yuan", 10.0))
+        bonus_threshold = float(_pts_cfg.get("bonus_threshold", 1000.0))
+        bonus_rate = float(_pts_cfg.get("bonus_rate", 0.5))
+
+        # 权威来源:Order.credit_points 存的是"充值总额 = 主积分 + 赠送积分"
+        # (由 points_endpoints.points_create_recharge 在创建时按澜途规则算好)。
+        # 若为 NULL(老订单/其他入口直接构造 Order),回退到 amount * points_per_yuan 推导。
+        if order.credit_points is not None and float(order.credit_points) > 0:
+            total_points = _Decimal(str(order.credit_points))
+            main_points = total_points
+            bonus = _Decimal("0")
+        else:
+            points_per_yuan_dec = _Decimal(str(points_per_yuan))
+            main_points = (_Decimal(str(order.amount)) * points_per_yuan_dec).to_integral_value(
+                rounding="ROUND_FLOOR"
+            )
+            bonus = _Decimal("0")
+            if main_points > _Decimal(str(bonus_threshold)):
+                bonus = ((main_points - _Decimal(str(bonus_threshold)))
+                         * _Decimal(str(bonus_rate))).to_integral_value(
+                    rounding="ROUND_FLOOR"
+                )
+                if bonus < 0:
+                    bonus = _Decimal("0")
+            total_points = main_points + bonus
+
+        if total_points <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"recharge points derived <= 0 for amount {order.amount}",
+            )
+
+        try:
+            _main, _bonus_ledger = _billing_points.recharge_credit(
+                db,
+                user.id,
+                points=main_points,
+                bonus_points=bonus,
+                recharge_id=order.order_no,
+                note=f"recharge {main_points} + bonus {bonus} via order {order.order_no}",
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=f"recharge failed: {e}") from e
+
+        # 标记订单已支付
+        order.status = STATUS_PAID
+        order.pay_trade_no = pay_trade_no
+        order.paid_at = _utcnow()
+        db.commit()
+        db.refresh(order)
+
+        return CallbackResponse(
+            order_no=out_trade_no,
+            ok=True,
+            activated=True,
+            subscription=None,  # 积分订单不涉及订阅
+        )
+
+    # ── 订阅激活分支 ─────────────────────────────────
     try:
         sub = activate_for_user(db, user, plan=order.plan, days=order.days)
     except ValueError as e:
@@ -405,6 +472,7 @@ def get_order(
         created_at=d["created_at"],
         paid_at=d["paid_at"],
         refunded_at=d.get("refunded_at"),
+        credit_points=d.get("credit_points"),
     )
 
 

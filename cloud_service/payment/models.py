@@ -70,7 +70,19 @@ class Order(Base):
     # 金额(元,float);plan/days 冗余存储,方便后续审计
     amount: Mapped[float] = mapped_column(Float, nullable=False)
     plan: Mapped[str] = mapped_column(String(32), default="pro", nullable=False)
-    days: Mapped[int] = mapped_column(Integer, default=30, nullable=False)
+    # M3 硬化:积分订单 plan='credit' 无有效期 → days 可为 NULL(仅订阅订单使用)。
+    # 注意:此列**不设 column default**,避免 SQLAlchemy 在 INSERT 时用 default
+    # 覆盖显式传入的 `days=None`(积分订单需要 days=NULL 表达"永久有效")。
+    # 订阅订单的 30 天默认值由 CreateOrderRequest.days=30 在应用层保证。
+    days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # M3 硬化:积分订单记录实际到账总积分(主积分 + 赠送积分)。
+    #   - plan='pro'/'free' 时恒为 NULL;
+    #   - plan='credit' 时 = recharge_credit() 到账总额,便于审计回调幂等与赠送追溯。
+    # 说明:老库需执行 ALTER TABLE orders ADD COLUMN credit_points FLOAT;
+    #       见 `docs/dev-reports/2026-10-16-m3-hardening.md`。
+    credit_points: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True
+    )
 
     # 状态机
     status: Mapped[str] = mapped_column(
@@ -103,6 +115,7 @@ class Order(Base):
             "amount": self.amount,
             "plan": self.plan,
             "days": self.days,
+            "credit_points": self.credit_points,
             "status": self.status,
             "channel": self.channel,
             "pay_trade_no": self.pay_trade_no,
