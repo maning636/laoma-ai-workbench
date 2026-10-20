@@ -33,6 +33,24 @@ export {
   AI_IMAGE_SCENARIO,
   VIDEO_PIPELINE_SCENARIO,
   IMAGE_EDITOR_SCENARIO,
+  PUBLISH_PLATFORMS,
+  resetScenarioDraft,
+  mockAiSuggestTopics,
+  mockAiGenerateContent,
+  mockAiGenerateImages,
 } from "./scenarios"
 export type { ScenarioDefinition, ScenarioStepDef } from "./scenarios"
 export { ScenarioGuide } from "./scenario-guide"
+export {
+  getSceneDraft,
+  setSceneDraft,
+  clearSceneDraft,
+  clearAllSceneDrafts,
+  peekSceneDraft,
+  subscribeAgentChangeToDraft,
+} from "./wizard-state-cache"
+export type {
+  AiWritingDraft,
+  AiImageDraft,
+  VideoPipelineDraft,
+} from "./wizard-state-cache"

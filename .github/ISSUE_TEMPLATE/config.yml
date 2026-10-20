@@ -1,0 +1,17 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 使用问题 / 上手答疑
+    url: https://github.com/Laihiujin/Prism/discussions
+    about: 使用过程遇到问题、需要指导、讨论最佳实践请走 Discussions。
+  - name: 功能讨论（LINUX DO）
+    url: https://linux.do/
+    about: 中文社区主阵地，功能讨论、经验分享、日常交流。
+  - name: 部署文档
+    url: https://github.com/Laihiujin/Prism/blob/main/README.md#部署开始
+    about: README 里的部署开始章节覆盖 Windows / macOS / PM2 / 一键 start.bat。
+  - name: 开发贡献指南
+    url: https://github.com/Laihiujin/Prism/blob/main/CONTRIBUTING.md
+    about: 提交 PR 前先阅读贡献指南（开发环境 / 测试 / 分支 / Commit 规范）。
+  - name: 开发报告（docs/dev-reports/）
+    url: https://github.com/Laihiujin/Prism/tree/main/docs/dev-reports
+    about: 历史开发过程报告与决策记录，查阅功能实现背景请到这里。

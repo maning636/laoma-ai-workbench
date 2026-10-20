@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import { Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 
@@ -10,6 +11,7 @@ import { Wizard } from "./wizard"
 import {
   ScenarioGrid,
   getScenarioById,
+  resetScenarioDraft,
   type ScenarioDefinition,
 } from "./scenarios"
 
@@ -89,6 +91,15 @@ function ScenarioWizardBlock({
   scenario: ScenarioDefinition
   router: ReturnType<typeof useRouter>
 }) {
+  // Wizard 卸载（退出/重置/切换场景）时清空跨步骤 draft，避免下次进入残留
+  const scenarioRef = React.useRef(scenario)
+  React.useEffect(() => {
+    scenarioRef.current = scenario
+    return () => {
+      resetScenarioDraft(scenarioRef.current.id)
+    }
+  }, [scenario])
+
   // onComplete 仅用于自动跳走的场景（如 image-editor）；
   // 其他场景在 done 视图里保留手动跳转按钮。
   const handleComplete = () => {

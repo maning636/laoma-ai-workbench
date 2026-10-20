@@ -1,0 +1,160 @@
+name: 🐛 Bug 报告
+description: 报告缺陷、崩溃、异常行为或不符合预期的输出
+title: "[Bug] <一句话描述>"
+labels: ["bug", "triage"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈！请尽量提供可复现的信息，越具体越好。
+        如果你只是想讨论想法，请用 [功能请求](./feature_request.yml) 或直接到 [LINUX DO](https://linux.do/) 讨论。
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: 提交前自查
+      options:
+        - label: 我已搜索过现有 Issue，确认没有重复报告
+          required: true
+        - label: 我已确认使用的是最新版本（Community / Pro 版本号见下方）
+          required: true
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: 问题概述
+      description: 一句话说明出了什么问题
+      placeholder: 例如：M1 文生图调用 Flux 模型时返回 502，控制台日志见下方
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 请一步一步说明你做了什么
+      placeholder: |
+        1. 打开 http://localhost:3000/tools
+        2. 点击 ...
+        3. 观察 ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+      placeholder: 期望看到什么结果
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为
+      placeholder: 实际发生了什么？如有报错，请贴出关键日志片段
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志 / 报错截图
+      description: 后端日志（prism_backend/logs/）、前端 Console、Supervisor 日志片段；请**脱敏**任何 API Key / Cookie / Token
+      placeholder: |
+        [ERROR] 2026-10-16 ... ai_design generate failed: ...
+      render: text
+
+  - type: dropdown
+    id: edition
+    attributes:
+      label: 版本
+      description: 你当前使用的是哪个版本？
+      options:
+        - Community（开源，GitHub 安装）
+        - Pro（付费，云端订阅）
+        - Desktop 桌面版（Windows / macOS）
+        - 其他
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: 版本号
+      description: 如 v0.4.2 或 git commit SHA
+      placeholder: v0.4.2
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 操作系统
+      multiple: true
+      options:
+        - Windows 10/11
+        - macOS
+        - Linux
+        - 其他 / Docker
+
+  - type: input
+    id: platform_detail
+    attributes:
+      label: 平台详情
+      placeholder: Windows 11 23H2 / macOS 14 / Ubuntu 22.04
+
+  - type: textarea
+    id: env
+    attributes:
+      label: 运行环境
+      description: |
+        请填写：Node.js / Python / Redis / 浏览器版本；
+        以及涉及的模块：M1 文生图 / M2 智能体 / M3 积分 / M4 工作流 / M5 图片编辑器 / 平台适配器。
+      placeholder: |
+        Node.js 20.11 / Python 3.11.4 / Redis 7.2 / Chromium (patchright)
+        涉及模块：M1 文生图
+    validations:
+      required: false
+
+  - type: dropdown
+    id: module
+    attributes:
+      label: 涉及的模块（可多选）
+      multiple: true
+      options:
+        - 账号 / 登录
+        - M1 文生图
+        - M2 智能体
+        - M3 积分
+        - M4 工作流
+        - M5 图片编辑器
+        - 平台适配器（抖音 / 小红书 / B 站 / TikTok / YouTube / 其他）
+        - Persona / 浏览器运行时
+        - 代理 / IP 池
+        - 开发者工具中心（/tools）
+        - 前端 UI
+        - 后端 API
+        - Electron 桌面端
+        - 部署 / 打包
+        - 其他
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: 补充说明
+      description: 其他有助于排查的信息（是否可复现、出现频率、影响面）
+      placeholder: 大约 30% 概率复现 / 仅新加坡节点复现 / 影响所有用户
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: consent
+    attributes:
+      label: 提交声明
+      options:
+        - label: 我已确认所提交的信息不包含敏感凭据（API Key / Cookie / Token / 密码）
+          required: true
+        - label: 我同意在公开 Issue 中分享上述信息
+          required: false

@@ -83,8 +83,8 @@ $CommunityEdition = "community"
 $EditionColor = "Cyan"
 $VersionTag = "1.1.0-community"
 
-$DesktopDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+$DesktopDir = $PSScriptRoot
+$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $VersionJson = Join-Path $ProjectRoot "scripts\packaging\build-version-community.json"
 $PackageConfig = Join-Path $DesktopDir "package.community.json"
 $InnoScript = Join-Path $DesktopDir "installer-community.iss"
@@ -340,13 +340,14 @@ try {
     # 读取 Community 配置元数据,通过 extraMetadata 显式覆盖,
     # 保证打包产物 package.json 反映 Community 元数据(而非 cwd 下的 Pro 版 package.json)
     $cfgJson = Get-Content -LiteralPath $PackageConfig -Raw | ConvertFrom-Json
+    $meta = $cfgJson.extraMetadata
     $appMetaArgs = @(
-        "--config.extraMetadata.name=$($cfgJson.name)",
+        "--config.extraMetadata.name=$($meta.name)",
         "--config.extraMetadata.version=$semanticVersion",
-        "--config.extraMetadata.main=$($cfgJson.main)",
-        "--config.extraMetadata.description=$($cfgJson.description)",
-        "--config.extraMetadata.author=$($cfgJson.author)",
-        "--config.extraMetadata.license=$($cfgJson.license)"
+        "--config.extraMetadata.main=$($meta.main)",
+        "--config.extraMetadata.description=$($meta.description)",
+        "--config.extraMetadata.author=$($meta.author)",
+        "--config.extraMetadata.license=$($meta.license)"
     )
 
     $buildArgs = @("--config", $PackageConfig, "--win", "--x64", "--dir") + $appMetaArgs + @("--config.buildVersion=$finalVersion")
