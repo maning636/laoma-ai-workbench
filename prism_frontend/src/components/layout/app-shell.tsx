@@ -14,8 +14,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const hermesActive = pathname === "/ai-agent"
   const personaActive = pathname === "/persona"
-  const hermesChatActive = pathname === "/hermes-chat"
-  const embeddedActive = hermesActive || hermesChatActive || personaActive
+  // /hermes-chat 走原生 SSE 客户端（HermesChatPage → /api/v1/agent/hermes-stream），
+  // 不再被硬编码 iframe 劫持；官方 WebUI 由页面内的「官方 WebUI」面板按运行时状态拉起。
+  const embeddedActive = hermesActive || personaActive
 
   // Keep the primary navigation readable after route changes; users can still
   // collapse it manually with the control at the bottom of the sidebar.
@@ -59,15 +60,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </Suspense>
           {hermesActive && <HermesEmbeddedHost active />}
-          {hermesChatActive && (
-            <div className="absolute inset-0 z-10 bg-popover">
-              <iframe
-                src="http://127.0.0.1:9119/chat"
-                title="HermesChat"
-                className="block h-full w-full border-0 bg-popover"
-              />
-            </div>
-          )}
           {personaActive && <PersonaEmbeddedHost active />}
         </main>
       </div>

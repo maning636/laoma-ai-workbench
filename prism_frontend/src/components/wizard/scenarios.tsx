@@ -581,9 +581,9 @@ function AiWritingPublishStep() {
 export const AI_WRITING_SCENARIO: ScenarioDefinition = {
   id: AI_WRITING_SCENE_ID,
   title: "AI 写稿发布",
-  description: "选题 → AI 生成标题/标签/正文 → 一键发布到 8 大平台",
+  description: "选题 → AI 生成标题/标签/正文 → 一键发布到 8 大平台（当前为演示流程，未接真实 LLM 与发布 API）",
   icon: NotebookPen,
-  statusLabel: "已上线",
+  statusLabel: "演示流程",
   target: "/campaigns",
   steps: [
     { title: "选择目标平台", description: "勾选要发布的平台", render: () => <AiWritingPlatformStep /> },
@@ -856,9 +856,9 @@ function AiImageResultStep() {
 export const AI_IMAGE_SCENARIO: ScenarioDefinition = {
   id: AI_IMAGE_SCENE_ID,
   title: "AI 生图",
-  description: "上传原图 → 选择智能体 → 选择类型 → 生成 → 编辑发布",
+  description: "上传原图 → 选择智能体 → 选择类型 → 生成 → 编辑发布（当前为演示流程，使用占位图，未接真实生图 API）",
   icon: ImageIcon,
-  statusLabel: "已上线",
+  statusLabel: "演示流程",
   target: "/fusion/image-studio",
   steps: [
     { title: "上传原图", render: () => <AiImageUploadStep /> },
@@ -1044,9 +1044,9 @@ function VideoPipelineGenerateStep() {
 export const VIDEO_PIPELINE_SCENARIO: ScenarioDefinition = {
   id: VIDEO_PIPELINE_SCENE_ID,
   title: "视频流水线",
-  description: "选择素材 → 流水线配置 → 一键生成",
+  description: "选择素材 → 流水线配置 → 一键生成（当前为演示流程，未接真实上传与渲染）",
   icon: Film,
-  statusLabel: "已上线",
+  statusLabel: "演示流程",
   target: "/video-pipeline",
   steps: [
     { title: "选择素材", render: () => <VideoPipelineMaterialStep /> },

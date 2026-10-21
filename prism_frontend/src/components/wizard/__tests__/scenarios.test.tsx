@@ -132,8 +132,8 @@ describe("scenarios — 场景2 AI生图（骨架）", () => {
       "编辑 / 发布",
     ])
   })
-  it("标记为已上线", () => {
-    expect(AI_IMAGE_SCENARIO.statusLabel).toBe("已上线")
+  it("标注为演示流程（未接真实 API）", () => {
+    expect(AI_IMAGE_SCENARIO.statusLabel).toBe("演示流程")
   })
   it("target 指向 /fusion/image-studio", () => {
     expect(AI_IMAGE_SCENARIO.target).toBe("/fusion/image-studio")

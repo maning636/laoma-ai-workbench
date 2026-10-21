@@ -20,13 +20,19 @@ export function PublishOtpDialog() {
   const [code, setCode] = useState("")
   const [submitting, setSubmitting] = useState(false)
 
-  /*
+  // 轮询后端待处理验证码事件（发布流程触发短信验证时弹出输入框）
   useEffect(() => {
     const timer = setInterval(async () => {
       try {
+        // 后端真实端点：GET /api/v1/verification/otp-events
+        // 返回结构 { success, data: { events: [...], total } }
         const res = await fetch("/api/v1/verification/otp-events", { cache: "no-store" })
         const payload = await res.json().catch(() => ({}))
-        const rows: OtpEvent[] = Array.isArray(payload?.events) ? payload.events : []
+        const rows: OtpEvent[] = Array.isArray(payload?.data?.events)
+          ? payload.data.events
+          : Array.isArray(payload?.events)
+            ? payload.events
+            : []
         if (rows.length) {
           setEvent(rows[0])
           setOpen(true)
@@ -38,7 +44,6 @@ export function PublishOtpDialog() {
     }, 2000)
     return () => clearInterval(timer)
   }, [])
-  */
 
   const handleSubmit = async () => {
     if (!event?.id || code.length !== 6) return

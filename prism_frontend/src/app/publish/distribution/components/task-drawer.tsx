@@ -293,7 +293,31 @@ export function TaskDrawer({ task, open, onOpenChange, onTaskUpdate }: TaskDrawe
         },
     })
 
-    // Publish task
+    // 平台字符串 → 后端 publish/batch 需要的数字平台码
+    const platformCode = (platform: string): number | undefined => {
+        switch (platform) {
+            case "redbook":
+            case "xiaohongshu":
+                return 1
+            case "tencent":
+            case "channels":
+                return 2
+            case "douyin":
+                return 3
+            case "kuaishou":
+                return 4
+            case "bilibili":
+                return 5
+            case "tiktok":
+                return 6
+            case "youtube":
+                return 7
+            default:
+                return undefined
+        }
+    }
+
+    // Publish task：先从派发池领取一条素材（file_id），再走 publish/batch 真发
     const publishMutation = useMutation({
         mutationFn: async ({ immediate, accountId }: { immediate: boolean, accountId?: string }) => {
             const targetAccountId = accountId || selectedAccountId
@@ -304,13 +328,42 @@ export function TaskDrawer({ task, open, onOpenChange, onTaskUpdate }: TaskDrawe
             if (!immediate && (!publishDate || !publishTime)) {
                 throw new Error("请先选择定时日期和时间")
             }
-            const res = await fetch(`/api/dispatch-tasks/${task.id}/publish`, {
+
+            // 1) 从派发任务池领取一条素材
+            const claimRes = await fetch(`/api/v1/tasks/distribution/${task.id}/claim`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ immediate, scheduledAt, accountId: targetAccountId }),
+                body: JSON.stringify({ claimer_id: targetAccountId }),
             })
-            if (!res.ok) throw new Error("Publish failed")
-            return res.json()
+            const claimPayload = await claimRes.json().catch(() => ({}))
+            if (!claimRes.ok) {
+                throw new Error(claimPayload?.detail || "领取素材失败（该任务可能已无可用素材）")
+            }
+            const fileId = claimPayload?.result?.data?.file_id
+            if (fileId === undefined || fileId === null) {
+                throw new Error("领取到的素材未入库素材库，无法发布")
+            }
+
+            // 2) 走统一发布端点真正发布
+            const code = platformCode(selectedPlatform)
+            const publishRes = await fetch("/api/publish/batch", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    file_ids: [fileId],
+                    accounts: [targetAccountId],
+                    platform: code,
+                    title: task.title || claimPayload?.result?.data?.title || "",
+                    description: task.poi ? `打卡 ${task.poi}` : "",
+                    topics: task.tags || [],
+                    scheduled_time: scheduledAt || undefined,
+                }),
+            })
+            const publishPayload = await publishRes.json().catch(() => ({}))
+            if (!publishRes.ok) {
+                throw new Error(publishPayload?.detail || publishPayload?.error || "发布失败")
+            }
+            return publishPayload
         },
         onSuccess: () => {
             toast({ title: "发布成功" })

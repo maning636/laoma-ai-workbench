@@ -34,6 +34,11 @@ import {
   Hammer,
   Film,
   TrendingUp,
+  Send,
+  ListChecks,
+  Package,
+  ShieldCheck,
+  Newspaper,
 } from "lucide-react"
 import { externalModules } from "@/lib/external-modules"
 
@@ -116,7 +121,10 @@ const externalNavSection: NavSection = {
 const navSections: NavSection[] = [
   {
     label: "概览",
-    items: [{ label: "仪表盘", href: "/", icon: LayoutDashboard }],
+    items: [
+      { label: "仪表盘", href: "/", icon: LayoutDashboard },
+      { label: "快速开始", href: "/guide", icon: Sparkles },
+    ],
   },
   {
     label: "资源",
@@ -126,23 +134,51 @@ const navSections: NavSection[] = [
       { label: "代理管理", href: "/ip-pool", icon: Globe },
       { label: "代理网关", href: "/persona-proxy", icon: Network },
       { label: "Persona", href: "/persona", icon: Fingerprint },
-      { label: "图片编辑器", href: "/tools/image-editor", icon: ImageIcon },
+    ],
+  },
+  {
+    label: "内容",
+    items: [
+      { label: "选题库", href: "/ideas", icon: NotebookPen },
+      { label: "趋势热榜", href: "/trends", icon: TrendingUp },
+      { label: "内容拆解", href: "/breakdown", icon: Scissors },
+      { label: "账号画像", href: "/profile", icon: PersonStanding },
+      { label: "内容库", href: "/easel-content", icon: FolderOpen },
+      { label: "收件箱", href: "/easel-inbox", icon: Inbox },
+      { label: "创作工作台", href: "/easel-workbench", icon: Palette },
+      { label: "创作工坊", href: "/workshop", icon: Hammer },
+      { label: "CMS", href: "/cms", icon: Newspaper },
+    ],
+  },
+  {
+    label: "生成",
+    items: [
+      { label: "AI 生图", href: "/fusion/image-studio", icon: ImageIcon },
+      { label: "视频流水线", href: "/video-pipeline", icon: Film },
+      { label: "图片编辑器", href: "/tools/image-editor", icon: Scissors },
     ],
   },
   {
     label: "分发",
     items: [
       { label: "矩阵发布", href: "/publish/matrix", icon: LayoutGrid },
-      { label: "任务管理", href: "/tasks", icon: ClipboardList },
+      { label: "发布中心", href: "/publish", icon: Send },
+      { label: "发布任务", href: "/tasks/publish", icon: ListChecks },
+      { label: "分发记录", href: "/tasks/distribution", icon: Globe },
+      { label: "营销活动", href: "/campaigns", icon: Package },
       { label: "排期日历", href: "/calendar", icon: CalendarDays },
+      { label: "审核队列", href: "/review", icon: ShieldCheck },
+      { label: "任务管理", href: "/tasks", icon: ClipboardList },
     ],
   },
   {
     label: "数据",
     items: [
       { label: "数据中心", href: "/analytics", icon: BarChart3 },
+      { label: "趋势分析", href: "/analytics/trends", icon: TrendingUp },
       {
         label: "视频数据",
+        href: "/analytics/videos",
         icon: Video,
         children: [
           { label: "抖音", href: "/analytics/videos/douyin", icon: DouyinIcon },
@@ -159,22 +195,40 @@ const navSections: NavSection[] = [
   {
     label: "智能",
     items: [
-      { label: "Hermes Agent", href: "/ai-agent", icon: HermesLogoIcon },
+      {
+        label: "Hermes Agent",
+        href: "/ai-agent",
+        icon: HermesLogoIcon,
+        children: [
+          { label: "Agent 控制台", href: "/ai-agent", icon: HermesLogoIcon },
+          { label: "提示词配置", href: "/ai-agent/prompts", icon: NotebookPen },
+          { label: "运行设置", href: "/ai-agent/settings", icon: Settings },
+        ],
+      },
       { label: "HermesChat", href: "/hermes-chat", icon: MessageCircle },
       { label: "AI 对话", href: "/chat", icon: MessageCircle },
       { label: "技能库", href: "/skills", icon: Layers },
-      { label: "创作工坊", href: "/workshop", icon: Hammer },
-      { label: "视频流水线", href: "/video-pipeline", icon: Film },
-      { label: "创作工作台", href: "/easel-workbench", icon: Palette },
-      { label: "内容库", href: "/easel-content", icon: FolderOpen },
-      { label: "选题库", href: "/ideas", icon: NotebookPen },
-      { label: "趋势热榜", href: "/trends", icon: TrendingUp },
-      { label: "内容拆解", href: "/breakdown", icon: Scissors },
-      { label: "账号画像", href: "/profile", icon: PersonStanding },
-      { label: "开发者工具", href: "/tools", icon: Boxes },
     ],
   },
-  externalNavSection,
+  {
+    label: "AI-Fusion",
+    items: [
+      { label: "融合中心", href: "/fusion", icon: Sparkles },
+      { label: "风格库", href: "/fusion/styles", icon: Palette },
+      { label: "内容审查", href: "/fusion/moderation", icon: ShieldCheck },
+      { label: "融合分析", href: "/fusion/analytics", icon: BarChart3 },
+      { label: "融合配置", href: "/fusion/config", icon: Settings },
+      { label: "模型市场", href: "/fusion/model-market", icon: Boxes },
+      { label: "供应商配置", href: "/fusion/providers", icon: Network },
+    ],
+  },
+  {
+    label: "开发者工具",
+    items: [
+      { label: "工具中心", href: "/tools", icon: Boxes },
+      { label: "演示控制台", href: "/dashboard-demo", icon: LayoutGrid },
+    ],
+  },
   {
     label: "系统",
     items: [
@@ -182,6 +236,24 @@ const navSections: NavSection[] = [
     ],
   },
 ]
+
+// 外置模块（external-modules.ts）里已经被上面的原生分组覆盖的条目不再重复展示，
+// 避免同一个页面在侧边栏出现两次。
+const nativeHrefs = new Set<string>()
+for (const section of navSections) {
+  for (const item of section.items) {
+    if (item.href) nativeHrefs.add(item.href)
+    for (const child of item.children ?? []) {
+      if (child.href) nativeHrefs.add(child.href)
+    }
+  }
+}
+const dedupedExternalItems = externalNavSection.items.filter(
+  (item) => !item.href || !nativeHrefs.has(item.href)
+)
+if (dedupedExternalItems.length > 0) {
+  navSections.push({ label: externalNavSection.label, items: dedupedExternalItems })
+}
 
 interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
   collapsed: boolean
@@ -274,7 +346,11 @@ export function SidebarNew({
                     const hasChildren = (item.children?.length ?? 0) > 0
 
                     if (hasChildren) {
-                      const shouldOpen = pathname.startsWith("/analytics/videos")
+                      // 通用展开判定：当前路径落在该分组任一子项前缀下就自动展开，
+                      // 不再为每个分组硬编码路径。
+                      const shouldOpen = item.href
+                        ? pathname === item.href || pathname.startsWith(`${item.href}/`)
+                        : false
                       const triggerContent = (
                         <div
                           className={cn(

@@ -64,12 +64,12 @@ function ScenarioGuideContent() {
         </div>
         {activeScenario ? (
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
-            className="gap-1.5 text-xs text-foreground/70 hover:text-foreground"
+            className="gap-1.5 border-border bg-background text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-foreground"
             onClick={handleExit}
           >
-            <ArrowLeft className="h-3.5 w-3.5" />
+            <ArrowLeft className="h-4 w-4" />
             返回场景列表
           </Button>
         ) : null}

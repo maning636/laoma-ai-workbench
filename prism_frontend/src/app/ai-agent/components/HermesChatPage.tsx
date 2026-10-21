@@ -10,6 +10,7 @@ import {
   Clock,
   Eraser,
   Loader2,
+  Monitor,
   Send,
   Settings2,
   Shield,
@@ -29,6 +30,7 @@ import {
   type HermesTurn,
 } from "../useHermesStream"
 import HermesSettingsDialog from "./HermesSettingsDialog"
+import { HermesWebuiPanel } from "./HermesWebuiPanel"
 
 // =============================================================
 // HermesChatPage
@@ -231,6 +233,7 @@ export default function HermesChatPage() {
   const { session, send, stop, confirm, clear, isRunning } = useHermesStream()
   const [input, setInput] = useState("")
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [webuiOpen, setWebuiOpen] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -247,7 +250,7 @@ export default function HermesChatPage() {
   const historyTurns = session.turns.slice().reverse()
 
   return (
-    <div className="flex h-screen">
+    <div className="relative flex h-screen">
       {/* 左：历史 turn */}
       <aside className="w-72 shrink-0 border-r bg-muted/20 flex flex-col">
         <div className="p-4 space-y-2">
@@ -311,6 +314,9 @@ export default function HermesChatPage() {
               {isRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <Circle className="h-3 w-3" />}
               {isRunning ? "运行中" : "空闲"}
             </Badge>
+            <Button size="sm" variant="outline" onClick={() => setWebuiOpen(true)}>
+              <Monitor className="h-3.5 w-3.5" /> 官方 WebUI
+            </Button>
             {isRunning && (
               <Button size="sm" variant="destructive" onClick={stop}>
                 <Square className="h-4 w-4" /> 停止
@@ -386,6 +392,8 @@ export default function HermesChatPage() {
           </p>
         </div>
       </main>
+
+      {webuiOpen && <HermesWebuiPanel onClose={() => setWebuiOpen(false)} />}
     </div>
   )
 }

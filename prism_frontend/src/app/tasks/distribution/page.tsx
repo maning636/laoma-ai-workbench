@@ -144,17 +144,23 @@ export default function DistributionPage() {
                 })
             }, 200)
 
-            const response = await fetch("/api/task/create", {
+            const response = await fetch("/api/v1/tasks/distribution", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(data)
+                body: JSON.stringify({
+                    platform: data.platform,
+                    title_template: data.title_template,
+                    poi_location: data.poi_location,
+                    expire_time: data.expire_time,
+                    video_files: data.video_files,
+                })
             })
 
             clearInterval(progressInterval)
 
             const payload = await response.json().catch(() => ({}))
-            if (!response.ok || payload?.code !== 200) {
-                throw new Error(payload?.msg || "创建失败")
+            if (!response.ok || payload?.status !== "success") {
+                throw new Error(payload?.detail || payload?.msg || "创建失败")
             }
             return payload
         },

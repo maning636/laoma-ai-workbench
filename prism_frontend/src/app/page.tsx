@@ -183,7 +183,9 @@ export default function DashboardPage() {
     () => [
       {
         label: "账号总数",
-        value: accountTotal ? `${accountTotal}` : "—",
+        // 0 是合法值（本地还没导入账号），不能渲染成"—"，
+        // 否则用户会以为是接口挂了而不是真的没有账号。只有加载中才显示"—"。
+        value: dashboardLoading ? "—" : `${accountTotal}`,
         delta: accountSyncLabel ? `最新同步：${accountSyncLabel}` : "等待同步",
         icon: Users,
         href: "/account",
@@ -211,7 +213,7 @@ export default function DashboardPage() {
         icon: Activity,
       },
     ],
-    [accountTotal, accountSyncLabel, materialsTotal, errorTaskCount, beijingClock, clockReady]
+    [accountTotal, accountSyncLabel, materialsTotal, errorTaskCount, beijingClock, clockReady, dashboardLoading]
   )
 
   const isLoading = dashboardLoading || publishLoading || accountsLoading || tasksLoading

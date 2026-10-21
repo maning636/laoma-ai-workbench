@@ -185,7 +185,13 @@ export default function CampaignPackageBuilderPage() {
       const packageId = pkg?.data?.package_id ?? pkg?.package_id
 
       if (generateTasks && packageId) {
-        await fetch(`/api/task-packages/${packageId}/generate`, { method: "POST" })
+        const genRes = await fetch(`/api/v1/task-packages/${packageId}/generate-tasks`, {
+          method: "POST",
+        })
+        if (!genRes.ok) {
+          const detail = await genRes.text().catch(() => "")
+          throw new Error(detail || "生成任务失败")
+        }
       }
 
       if (publishNow) {

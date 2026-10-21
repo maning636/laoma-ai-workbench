@@ -86,19 +86,20 @@ export default function PublishTasksPage() {
 
     const handleCancelTask = async (taskId: string) => {
         try {
-            const res = await fetch(`/api/tasks/${taskId}/cancel`, {
+            // 后端真实端点：POST /api/v1/tasks/cancel/{task_id}
+            const res = await fetch(`/api/v1/tasks/cancel/${taskId}`, {
                 method: 'POST',
             })
-            const result = await res.json()
+            const result = await res.json().catch(() => ({}))
 
-            if (result.success) {
+            if (res.ok && result.success) {
                 toast({ title: "任务已取消" })
                 refetchTasks()
             } else {
                 toast({
                     variant: "destructive",
                     title: "取消失败",
-                    description: result.error,
+                    description: result.error || result.detail || `HTTP ${res.status}`,
                 })
             }
         } catch (error) {

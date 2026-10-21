@@ -8,37 +8,30 @@ import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
-import { TemplateLibrary } from "./template-library"
 
 interface Clip {
+  id: string
   name: string
-  html_path: string
-  thumbnail?: string | null
-  has_webm: boolean
-  html_excerpt: string
-  html_content: string
-  html_size_kb: number
-  title: string | null
-  description: string | null
-  copy_text: string
+  description: string
+  category: string
+  tags: string[]
+  duration?: number
+  size?: string
+  dir?: string
 }
 
 interface ClipLibraryResult {
-  root: string
-  total_templates: number
-  with_html: number
-  with_webm: number
+  count: number
+  total: number
+  categories: string[]
   clips: Clip[]
 }
 
 interface ConcatResult {
   ok: boolean
-  clip_names: string[]
-  input_count: number
-  output_path: string | null
-  file_id: number | null
-  duration_seconds: number
-  size_mb: number
+  outputs: string[]
+  file_ids: number[]
+  elapsed_seconds: number
   error: string | null
 }
 
@@ -68,9 +61,19 @@ export default function VideoPipelinePage() {
     setResult(null)
     setVideoUrl(null)
     try {
-      const data = await fetch("/api/v1/fusion/video-pipeline/clips?limit=500")
-      const json = await data.json()
-      setLibrary(json)
+      // 后端真实端点：GET /api/v1/video-pipeline/templates（素材库 HyperFrames 模板）
+      const res = await fetch("/api/v1/video-pipeline/templates", { cache: "no-store" })
+      const json = await res.json()
+      if (!res.ok || json?.status !== "success") {
+        throw new Error(json?.detail || `加载模板失败 (${res.status})`)
+      }
+      const r = json.result ?? {}
+      setLibrary({
+        count: r.count ?? 0,
+        total: r.total ?? 0,
+        categories: r.categories ?? [],
+        clips: r.templates ?? [],
+      })
     } catch (err) {
       toast({ title: "片段库加载失败", description: String(err), variant: "destructive" })
     } finally {
@@ -82,18 +85,18 @@ export default function VideoPipelinePage() {
   useEffect(() => () => { if (pollTimerRef.current) window.clearInterval(pollTimerRef.current) }, [])
 
   const toggleSelect = (c: Clip) => {
-    setSelected(prev => prev.find(x => x.name === c.name)
-      ? prev.filter(x => x.name !== c.name)
+    setSelected(prev => prev.find(x => x.id === c.id)
+      ? prev.filter(x => x.id !== c.id)
       : [...prev, c])
   }
 
   const filtered = (library?.clips ?? []).filter(c => {
     if (!search.trim()) return true
     const q = search.toLowerCase()
-    return c.name.toLowerCase().includes(q) || c.copy_text.toLowerCase().includes(q)
+    return c.name.toLowerCase().includes(q) || c.description.toLowerCase().includes(q)
   }) ?? []
 
-  // 拼接成片：把选中的片段 HTML 拼接成完整片，走 compose 渲染
+  // 渲染成片：把选中的模板逐个走 /api/v1/video-pipeline/render（HyperFrames → MP4 → 自动入素材库）
   const doConcat = async () => {
     if (selected.length === 0) {
       toast({ title: "请至少选 1 个片段", variant: "destructive" })
@@ -103,33 +106,52 @@ export default function VideoPipelinePage() {
     setResult(null)
     setVideoUrl(null)
     try {
-      const res = await fetch("/api/v1/fusion/video-pipeline/concat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clip_names: selected.map(c => c.name),
-          output_name: "剪辑_" + new Date().toISOString().slice(0,10) + "_" + selected.length + "片段",
-        }),
-      })
-      const json = await res.json()
-      setResult(json)
-      if (json.ok && json.output_path) {
-        // 生成播放 URL
-        const absPath = json.output_path.replace(/\\/g, "/")
-        // 用临时 HTTP 服务或本地文件协议
-        // 走后端 asset 接口预览（如果已上传素材库）
-        if (json.file_id) {
-          // 通过 assets 接口拿到 url
-          fetch(`/api/v1/assets/${json.file_id}`).then(r=>r.ok?r.json():null).then(d => {
-            if (d?.url) setVideoUrl(d.url)
-          }).catch(() => {})
+      const outputs: string[] = []
+      const fileIds: number[] = []
+      let elapsed = 0
+      for (const c of selected) {
+        const detailRes = await fetch(`/api/v1/video-pipeline/templates/${encodeURIComponent(c.id)}`, {
+          cache: "no-store",
+        })
+        const detail = await detailRes.json().catch(() => ({}))
+        const dir = detail?.result?.dir
+        if (!detailRes.ok || !dir) {
+          throw new Error(`模板「${c.name}」缺少可渲染目录`)
         }
-        toast({ title: "剪辑完成", description: `${json.duration_seconds}s / ${json.size_mb}MB，已入素材库` })
-      } else {
-        toast({ title: "剪辑失败", description: json.error || "未知错误", variant: "destructive" })
+
+        const form = new FormData()
+        form.append("composition_dir", dir)
+        form.append("quality", "standard")
+        form.append("fps", "30")
+
+        const res = await fetch("/api/v1/video-pipeline/render", { method: "POST", body: form })
+        const json = await res.json()
+        if (!res.ok || json?.status !== "success") {
+          throw new Error(json?.detail || `渲染「${c.name}」失败 (${res.status})`)
+        }
+        outputs.push(...(json.result.outputs ?? []))
+        fileIds.push(...(json.result.file_ids ?? []))
+        elapsed += json.result.elapsed_seconds ?? 0
       }
+
+      setResult({ ok: true, outputs, file_ids: fileIds, elapsed_seconds: elapsed, error: null })
+
+      // 渲染产物已自动入素材库，取详情拿到可播放地址
+      const firstFileId = fileIds[0]
+      if (firstFileId) {
+        const fileRes = await fetch(`/api/v1/files/${firstFileId}`, { cache: "no-store" })
+        const fileData = await fileRes.json().catch(() => ({}))
+        const url = fileData?.file_url || fileData?.url || fileData?.file_path
+        if (url) setVideoUrl(url)
+      }
+
+      toast({
+        title: "渲染完成",
+        description: `${outputs.length} 个产物，已入素材库（file_ids: ${fileIds.join(", ") || "无"}）`,
+      })
     } catch (err) {
-      toast({ title: "剪辑失败", description: String(err), variant: "destructive" })
+      setResult({ ok: false, outputs: [], file_ids: [], elapsed_seconds: 0, error: String(err) })
+      toast({ title: "渲染失败", description: String(err), variant: "destructive" })
     } finally {
       setConcatting(false)
     }
@@ -142,7 +164,7 @@ export default function VideoPipelinePage() {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-background/80 backdrop-blur-xl sticky top-0 z-50">
         <div>
-          <PageHeader title="视频剪辑" description="从 4312 片段库挑片段，剪成完整视频，直接推素材库发布" />
+          <PageHeader title="视频流水线" description="从 HyperFrames 模板库挑片段渲染成片，产物自动入素材库可直接发布" />
         </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={() => setReloadKey(k => k+1)} disabled={loadingLib}>
@@ -167,7 +189,7 @@ export default function VideoPipelinePage() {
           <div className="p-3 border-b border-border">
             <div className="flex items-center justify-between mb-2">
               <div className="text-sm font-medium">片段库</div>
-              <div className="text-xs text-muted-foreground">{filtered.length} / {library?.total_templates ?? "-"}</div>
+              <div className="text-xs text-muted-foreground">{filtered.length} / {library?.total ?? "-"}</div>
             </div>
             <input
               value={search}
@@ -182,10 +204,10 @@ export default function VideoPipelinePage() {
               <div className="text-center text-xs text-muted-foreground py-8">无匹配片段</div>
             )}
             {filtered.map(c => {
-              const isSel = selected.some(x => x.name === c.name)
+              const isSel = selected.some(x => x.id === c.id)
               return (
                 <div
-                  key={c.name}
+                  key={c.id}
                   onClick={() => toggleSelect(c)}
                   className={`cursor-pointer rounded-lg border p-2.5 transition-all ${
                     isSel ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "border-border hover:border-primary/40 hover:bg-accent/30"
@@ -198,12 +220,12 @@ export default function VideoPipelinePage() {
                     <div className="flex-1 min-w-0">
                       <div className="text-xs font-mono font-medium truncate" title={c.name}>{c.name}</div>
                       <div className="text-[10px] text-muted-foreground truncate mt-0.5">
-                        {c.copy_text.slice(0, 40)}{c.copy_text.length > 40 ? "..." : ""}
+                        {c.description.slice(0, 40)}{c.description.length > 40 ? "..." : ""}
                       </div>
                       <div className="flex items-center gap-1.5 mt-1.5 text-[10px] text-muted-foreground">
-                        {c.has_webm && <Badge variant="outline" className="h-4 px-1.5 text-[9px]">6-8s</Badge>}
-                        <span>{c.html_size_kb}KB HTML</span>
-                        {c.title && <span className="text-primary/70">· 有标题</span>}
+                        {c.duration ? <Badge variant="outline" className="h-4 px-1.5 text-[9px]">{c.duration}s</Badge> : null}
+                        {c.category && <Badge variant="secondary" className="h-4 px-1.5 text-[9px]">{c.category}</Badge>}
+                        {c.size && <span>{c.size}</span>}
                       </div>
                     </div>
                   </div>
@@ -230,7 +252,7 @@ export default function VideoPipelinePage() {
                 <div className="text-xs text-muted-foreground py-2">还没选片段。点左侧片段加进来，然后点「拼接成片」剪成完整视频。</div>
               )}
               {selected.map((c, i) => (
-                <div key={c.name} className="flex items-center gap-1.5 px-2 py-1 rounded bg-primary/10 border border-primary/30 text-xs">
+                <div key={c.id} className="flex items-center gap-1.5 px-2 py-1 rounded bg-primary/10 border border-primary/30 text-xs">
                   <span className="text-primary font-mono">#{i+1}</span>
                   <span className="font-mono text-foreground">{c.name}</span>
                   <button onClick={() => toggleSelect(c)} className="text-muted-foreground hover:text-destructive text-[10px]">✕</button>
@@ -246,12 +268,12 @@ export default function VideoPipelinePage() {
                 <Card className="p-4">
                   <div className="flex items-center gap-2 mb-3">
                     <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                    <div className="font-semibold">剪辑完成</div>
-                    <Badge variant="outline" className="ml-auto">{result.duration_seconds}s</Badge>
-                    <Badge variant="outline">{result.size_mb}MB</Badge>
+                    <div className="font-semibold">渲染完成</div>
+                    <Badge variant="outline" className="ml-auto">{result.elapsed_seconds}s</Badge>
+                    <Badge variant="outline">{result.outputs.length} 个产物</Badge>
                   </div>
                   <div className="flex items-center gap-1.5 mb-3 flex-wrap">
-                    {result.clip_names.map((n, i) => (
+                    {result.outputs.map((n, i) => (
                       <span key={i} className="text-xs px-2 py-1 bg-primary/10 rounded font-mono">{n}</span>
                     ))}
                   </div>
@@ -260,28 +282,23 @@ export default function VideoPipelinePage() {
                     controls
                     className="w-full max-h-96 bg-popover rounded-lg"
                   />
-                  {result.file_id && (
+                  {result.file_ids.length > 0 && (
                     <div className="mt-3 text-xs text-emerald-600 flex items-center gap-1.5">
                       <CheckCircle2 className="h-3.5 w-3.5" />
-                      已入素材库 · ID {result.file_id}，可直接走矩阵发布
+                      已入素材库 · ID {result.file_ids.join(", ")}，可直接走矩阵发布
                     </div>
                   )}
                   <div className="mt-3 flex gap-2">
                     <Button variant="outline" size="sm" onClick={() => { window.open(videoUrl, "_blank") }}>
                       <ExternalLink className="h-3.5 w-3.5 mr-1.5" /> 新窗口打开
                     </Button>
-                    {result.file_id && (
+                    {result.file_ids.length > 0 && (
                       <Button size="sm" onClick={() => {
-                        window.dispatchEvent(new CustomEvent("navigate", { detail: { path: `/files?tag=剪辑_${result.file_id}` } }))
+                        window.dispatchEvent(new CustomEvent("navigate", { detail: { path: `/files?tag=video-pipeline` } }))
                       }}>
                         <ExternalLink className="h-3.5 w-3.5 mr-1.5" /> 去素材库发布
                       </Button>
                     )}
-                  </div>
-                </Card>
-                <Card className="p-3">
-                  <div className="text-xs font-mono text-muted-foreground break-all">
-                    {result.output_path}
                   </div>
                 </Card>
               </>
@@ -289,10 +306,10 @@ export default function VideoPipelinePage() {
               <Card className="p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                  <div className="font-semibold">剪辑完成 · {result.duration_seconds}s / {result.size_mb}MB</div>
+                  <div className="font-semibold">渲染完成 · {result.elapsed_seconds}s · {result.outputs.length} 个产物</div>
                 </div>
-                <div className="text-xs text-muted-foreground">视频文件已生成（{result.clip_names.length} 片段拼接），但预览 URL 暂未就绪。</div>
-                <div className="mt-2 text-xs font-mono text-muted-foreground break-all">{result.output_path}</div>
+                <div className="text-xs text-muted-foreground">视频文件已生成，但预览 URL 暂未就绪。</div>
+                <div className="mt-2 text-xs font-mono text-muted-foreground break-all">{result.outputs.join(", ")}</div>
               </Card>
             ) : concatting ? (
               <Card className="p-8 text-center">
@@ -308,7 +325,7 @@ export default function VideoPipelinePage() {
                 <div className="mt-4 grid grid-cols-3 gap-3 text-xs">
                   <div className="p-3 rounded-lg bg-muted/30">
                     <div className="font-medium text-foreground mb-1">1. 选片段</div>
-                    <div>从 4312 片段库多选</div>
+                    <div>从模板库多选</div>
                   </div>
                   <div className="p-3 rounded-lg bg-muted/30">
                     <div className="font-medium text-foreground mb-1">2. 拼接</div>
@@ -338,7 +355,7 @@ export default function VideoPipelinePage() {
                           <span className="text-xs font-mono font-medium text-primary">#{i+1}</span>
                           <span className="text-xs font-mono">{c.name}</span>
                         </div>
-                        <div className="text-xs text-muted-foreground leading-relaxed">{c.copy_text.slice(0, 100)}</div>
+                        <div className="text-xs text-muted-foreground leading-relaxed">{c.description.slice(0, 100)}</div>
                       </div>
                     ))}
                   </div>
