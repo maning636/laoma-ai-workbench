@@ -62,6 +62,10 @@ class ReviewItem(BaseModel):
     decision_reason: Optional[str] = None
     decision_by: Optional[str] = None
     metadata: Optional[str] = None
+    # 2026-10-22 修复：`enqueue_review` 一直写入 item.created_at，但模型里没有这个
+    # 字段 → 任何送审请求（POST /api/v1/review/queue、auto-check、批量入队）
+    # 都在入库前抛 AttributeError，整条「送审」链路是断的。
+    created_at: str = Field(default_factory=now_beijing_iso)
 
 
 class ReviewDecision(BaseModel):
@@ -115,6 +119,43 @@ def _ensure_tables(conn: sqlite3.Connection) -> None:
     conn.cursor().execute("CREATE INDEX IF NOT EXISTS idx_rq_campaign ON review_queue(campaign_id)")
     conn.cursor().execute("CREATE INDEX IF NOT EXISTS idx_rd_review ON review_decisions(review_id)")
     conn.commit()
+
+
+def _get_review_task_id(review_id: str) -> str:
+    """取审核项的 task_id（送审时存的是统一产物 ID art_xxx）。"""
+    from fastapi_app.db.session import open_main_db
+    try:
+        conn = open_main_db()
+        _ensure_tables(conn)
+        cur = conn.execute(
+            "SELECT task_id FROM review_queue WHERE review_id = ?", (review_id,)
+        )
+        row = cur.fetchone()
+        if row is None:
+            return ""
+        return str(row[0] or "")
+    except Exception:
+        return ""
+
+
+def _apply_artifact_review_writeback(
+    review_id: str, decision: str, reason: str = "", task_id: str = ""
+) -> None:
+    """审核决策回写到「统一产物总线」的阶段。
+
+    这是「送审 → 审核 → 阶段回写」闭环的最后一环：
+    审核通过 → 产物 stage=approved；拒绝/需修改 → stage=rejected。
+
+    回写失败只记日志，不影响审核结果本身（审核是主业务）。
+    """
+    try:
+        from prism_core import artifacts as artifact_service
+
+        artifact_service.apply_review_decision(
+            review_id, decision, task_id=task_id, reason=reason
+        )
+    except Exception as e:
+        logger.warning(f"[Review] 产物阶段回写失败 {review_id}: {e}")
 
 
 def enqueue_review(item: ReviewItem) -> str:
@@ -229,6 +270,9 @@ def approve_review(review_id: str, reviewer: str, reason: str = "") -> Optional[
         """, (data.decision_id, data.review_id, data.decision, data.reason, data.reviewer, data.created_at))
         conn.commit()
     logger.info(f"[Review] 通过: {review_id} by {reviewer}")
+    _apply_artifact_review_writeback(
+        review_id, "approved", reason, _get_review_task_id(review_id)
+    )
     return data
 
 
@@ -262,6 +306,9 @@ def reject_review(review_id: str, reviewer: str, reason: str = "") -> Optional[R
         """, (data.decision_id, data.review_id, data.decision, data.reason, data.reviewer, data.created_at))
         conn.commit()
     logger.warning(f"[Review] 拒绝: {review_id} by {reviewer} - {reason}")
+    _apply_artifact_review_writeback(
+        review_id, "rejected", reason, _get_review_task_id(review_id)
+    )
     return data
 
 
@@ -302,6 +349,18 @@ def auto_pre_check(task_id: str, platform: int, platform_name: str, account_id: 
         decision_reason="; ".join(risk_factors) if risk_factors else None,
     )
     enqueue_review(item)
+    # 自动预检查有结论时，同步回写产物阶段
+    if status in (
+        ReviewStatus.AUTO_APPROVED,
+        ReviewStatus.AUTO_REJECTED,
+        ReviewStatus.NEEDS_EDIT,
+    ):
+        _apply_artifact_review_writeback(
+            item.review_id,
+            status.value,
+            "; ".join(risk_factors) if risk_factors else "",
+            task_id,
+        )
     if status == ReviewStatus.AUTO_REJECTED:
         logger.warning(f"[Review] 自动拒绝: {task_id} - {risk_factors}")
     return item
@@ -375,6 +434,7 @@ def _row_to_item(row: dict) -> ReviewItem:
         reviewer=row.get("reviewer"), submitted_at=row["submitted_at"],
         reviewed_at=row.get("reviewed_at"), decision_reason=row.get("decision_reason"),
         decision_by=row.get("decision_by"), metadata=row.get("metadata"),
+        created_at=row.get("created_at") or row.get("submitted_at") or now_beijing_iso(),
     )
 
 
@@ -407,6 +467,9 @@ class ReviewQueueManager:
             conn.execute("UPDATE review_queue SET status='needs_edit', reviewed_at=?, decision_by=?, decision_reason=? WHERE review_id=?",
                          (now, reviewer, reason, review_id))
             conn.commit()
+        _apply_artifact_review_writeback(
+            review_id, "needs_edit", reason, _get_review_task_id(review_id)
+        )
 
     def get_next_pending(self, platform: Optional[int] = None, limit: int = 1) -> list:
         return list_reviews(status=ReviewStatus.PENDING.value, account_id=None,

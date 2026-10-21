@@ -119,6 +119,10 @@ interface ReviewDecision {
   reviewer?: string
   decision_reason?: string
   reviewed_at?: string
+  /** 关联的统一产物 ID（送审自产物中心 / 生图 / 素材时存在） */
+  artifact_id?: string
+  /** 审核决策回写后的产物阶段 */
+  artifact_stage?: string
 }
 
 /** 内容版本 */
@@ -312,14 +316,21 @@ export default function ReviewPage() {
       if (!res.ok) throw new Error(`操作失败 (HTTP ${res.status})`)
       return res.json() as Promise<ReviewDecision>
     },
-    onSuccess: (_data, vars) => {
+    onSuccess: (data, vars) => {
       const msg =
         vars.action === "approve"
           ? "已通过"
           : vars.action === "reject"
             ? "已拒绝"
             : "已标记需要修改"
-      toast({ title: `${msg}：${vars.reviewId.slice(0, 8)}…` })
+      // 产物阶段回写结果：审核决策会自动推进来源产物的阶段
+      const stageHint = data.artifact_stage
+        ? ` · 产物阶段 → ${data.artifact_stage}`
+        : ""
+      toast({
+        title: `${msg}：${vars.reviewId.slice(0, 8)}…${stageHint}`,
+        description: data.artifact_id ? `来源产物 ${data.artifact_id}` : undefined,
+      })
       setDetailItem(null)
       setDetailReason("")
       void refetchQueue()
@@ -669,6 +680,7 @@ export default function ReviewPage() {
                         />
                       </TableHead>
                       <TableHead>标题 / 内容摘要</TableHead>
+                      <TableHead className="w-36">来源产物</TableHead>
                       <TableHead>平台</TableHead>
                       <TableHead>账号</TableHead>
                       <TableHead>风险分</TableHead>
@@ -697,6 +709,22 @@ export default function ReviewPage() {
                             <div className="truncate text-xs text-muted-foreground" title={item.content}>
                               {snippet(item.content)}
                             </div>
+                          </TableCell>
+                          {/* 来源产物（统一产物总线）：task_id 形如 art_xxx 即为产物 ID */}
+                          <TableCell>
+                            {item.task_id?.startsWith("art_") ? (
+                              <a
+                                href="/artifacts"
+                                title={`来源产物 ${item.task_id}（点击打开产物中心）`}
+                                className="font-mono text-[11px] text-primary underline-offset-2 hover:underline"
+                              >
+                                {item.task_id}
+                              </a>
+                            ) : (
+                              <span className="font-mono text-[11px] text-muted-foreground">
+                                {item.task_id || "-"}
+                              </span>
+                            )}
                           </TableCell>
                           <TableCell className="whitespace-nowrap">
                             <Badge variant="outline">{item.platform_name || "未知平台"}</Badge>

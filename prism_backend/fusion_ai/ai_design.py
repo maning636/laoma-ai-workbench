@@ -214,6 +214,66 @@ def _new_ref_id() -> str:
     return f"gen_{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}"
 
 
+def _register_generation_artifacts(
+    *,
+    record_id: Optional[int],
+    urls: List[str],
+    prompt: str,
+    model_key: str,
+    aspect_ratio: str,
+    agent_id: str,
+    task_id: str,
+) -> List[str]:
+    """把生图产出登记进「统一产物总线」，返回 artifact_id 列表。
+
+    这是「生成 → 送审 → 发布」串联的第一环：生图产出不再是孤立的一串 URL，
+    而是拿到统一产物 ID（art_xxx），后续任何功能都能按这个 ID 找到它、
+    推进它的阶段、或者把它作为父产物派生新版本。
+
+    - provider 返回远程 URL → path 直接存 URL；
+    - provider 返回 data:base64 → 先落盘到 VIDEO_FILES_DIR/generated/，
+      path 存相对路径（/getFile?filename= 可取），避免把几 MB 的 base64 塞进 DB。
+    - 登记失败只记日志、不阻断生成（safe_register_artifact）。
+    """
+    from prism_core import artifacts as artifact_service
+
+    artifact_ids: List[str] = []
+    for idx, raw_url in enumerate(urls or []):
+        if not raw_url:
+            continue
+        path = raw_url
+        media_type = ""
+        if raw_url.startswith("data:"):
+            path, media_type = artifact_service.persist_data_url(
+                raw_url, subdir="generated"
+            )
+            if not path:
+                # 落盘失败：保留原始 data URL（不阻断主流程）
+                path = raw_url
+        aid = artifact_service.safe_register_artifact(
+            source=artifact_service.SOURCE_IMAGE_GEN,
+            ref_type="image_generation",
+            ref_id=str(record_id if record_id is not None else task_id),
+            path=path,
+            kind=artifact_service.KIND_IMAGE,
+            stage=artifact_service.STAGE_GENERATED,
+            title=(prompt or "")[:120],
+            thumb=path,
+            media_type=media_type,
+            meta={
+                "model_key": model_key,
+                "aspect_ratio": aspect_ratio,
+                "agent_id": agent_id,
+                "task_id": task_id,
+                "index": idx,
+                "remote_url": raw_url if raw_url.startswith("http") else "",
+            },
+        )
+        if aid:
+            artifact_ids.append(aid)
+    return artifact_ids
+
+
 # ──────────────────────────────────────────────────────────────
 # GET /api/v1/ai-design/capabilities
 # ──────────────────────────────────────────────────────────────
@@ -497,6 +557,20 @@ async def generate_images(request: Request):
             image_gen_models.update_success(
                 record_id, images=urls, points_cost=total_amount, status="success"
             )
+        # 统一产物总线：登记产物，返回 artifact_ids（失败不阻断生成）
+        try:
+            artifact_ids = _register_generation_artifacts(
+                record_id=record_id,
+                urls=urls,
+                prompt=prompt,
+                model_key=model_key,
+                aspect_ratio=aspect_ratio,
+                agent_id=agent_id,
+                task_id=task_id,
+            )
+        except Exception as _art_exc:
+            logger.warning(f"[ai_design] 产物登记失败（不阻断生成）: {_art_exc}")
+            artifact_ids = []
         response = {
             "task_id": task_id,
             "model_key": model_key,
@@ -511,6 +585,8 @@ async def generate_images(request: Request):
                 "status": points_status,
             },
             "record_id": record_id,
+            # 统一产物 ID：下游（送审 / 发布 / 二次编辑）凭这个 ID 找到产出
+            "artifact_ids": artifact_ids,
         }
         if idempotency_key:
             idempotency.complete(user_id, idempotency_key, response)

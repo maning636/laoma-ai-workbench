@@ -37,6 +37,63 @@ def get_file_service():
     return FileService()
 
 
+#: 素材扩展名 → 产物类型（统一产物总线用）
+_VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv", ".flv", ".wmv", ".webm", ".m4v"}
+_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"}
+_AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"}
+
+
+def _register_upload_artifact(
+    *,
+    file_id: int,
+    unique_filename: str,
+    display_filename: str,
+    note: Optional[str],
+    group_name: Optional[str],
+    filesize_mb: float,
+) -> Optional[str]:
+    """把上传的素材登记进「统一产物总线」。
+
+    这是「素材 → 送审 → 发布」串联的入口：上传完的素材拿到统一产物 ID，
+    就能被审核队列、发布任务按同一套 ID 引用。
+
+    登记失败只记日志、不阻断上传（safe_register_artifact 内部已兜底）。
+    """
+    try:
+        from prism_core import artifacts as artifact_service
+
+        ext = Path(unique_filename).suffix.lower()
+        if ext in _VIDEO_EXTS:
+            kind = artifact_service.KIND_VIDEO
+        elif ext in _IMAGE_EXTS:
+            kind = artifact_service.KIND_IMAGE
+        elif ext in _AUDIO_EXTS:
+            kind = artifact_service.KIND_AUDIO
+        else:
+            kind = artifact_service.KIND_FILE
+
+        return artifact_service.safe_register_artifact(
+            source=artifact_service.SOURCE_UPLOAD,
+            ref_type="file_record",
+            ref_id=str(file_id),
+            # 与 file_records.file_path 同口径：只存文件名（相对 VIDEO_FILES_DIR）
+            path=unique_filename,
+            kind=kind,
+            stage=artifact_service.STAGE_UPLOADED,
+            title=display_filename or unique_filename,
+            thumb=unique_filename,
+            media_type=ext.lstrip("."),
+            meta={
+                "note": note or "",
+                "group_name": group_name or "",
+                "size_mb": round(float(filesize_mb or 0), 2),
+            },
+        )
+    except Exception as e:
+        logger.warning(f"[Files] 产物登记失败（不影响上传）: {e}")
+        return None
+
+
 @router.get(
     "/",
     response_model=FileListResponse,
@@ -424,6 +481,16 @@ async def upload_and_save(
         except Exception as e:
             logger.warning(f"生成首帧预览图失败（不影响上传）: {e}")
 
+        # 🆕 统一产物总线：把上传的素材登记成产物（失败不阻断上传）
+        artifact_id = _register_upload_artifact(
+            file_id=file_id,
+            unique_filename=unique_filename,
+            display_filename=display_filename,
+            note=note,
+            group_name=group,
+            filesize_mb=filesize_mb,
+        )
+
         logger.info(
             f"File uploaded and saved: {file.filename} -> {file_path} "
             f"({filesize_mb:.2f}MB, ID: {file_id})"
@@ -439,7 +506,8 @@ async def upload_and_save(
                 "size_mb": round(filesize_mb, 2),
                 "note": note,
                 "group_name": group,
-                "cover_path": cover_path  # 🆕 返回首帧预览图路径
+                "cover_path": cover_path,  # 🆕 返回首帧预览图路径
+                "artifact_id": artifact_id,  # 🆕 统一产物 ID（下游功能凭它串联）
             }
         )
 

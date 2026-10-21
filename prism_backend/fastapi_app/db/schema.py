@@ -45,6 +45,73 @@ def _ensure_columns(
     return added
 
 
+def ensure_artifacts_table(conn: sqlite3.Connection) -> None:
+    """
+    建「统一产物总线」主表 `artifacts`（唯一真源）。
+
+    背景：项目里原本有四套互不相通的 ID 空间——
+      image_generations.id（生图）、file_records.id（素材）、
+      review_queue.review_id（审核）、publish_tasks.task_id（发布），
+    导致「上一步的产出接不到下一步的调用」。本表把四者统一到
+    一个 `artifact_id`（art_ + 12 位十六进制）之下：
+
+      - stage：产物在流水线上的阶段（generated/uploaded/reviewing/
+        approved/rejected/published），是「功能之间串联」的状态载体；
+      - ref_type + ref_id：回指本域记录（哪张生图记录、哪个素材、
+        哪个审核项、哪个发布任务），保证旧数据仍可反查；
+      - parent_id：血缘（父产物 → 子产物），支撑「一稿多版」；
+      - dedupe_key：登记幂等键 = hash(ref_type|ref_id|path)，
+        一次生图 count>1 会产生多张图共享同一 record_id，靠 path 区分。
+
+    本函数是 DDL 的**唯一真源**：`prism_core/artifacts.py` 只做 CRUD，
+    不再自己 CREATE TABLE，避免两处漂移。
+    """
+    conn.cursor().execute(
+        """
+        CREATE TABLE IF NOT EXISTS artifacts (
+            artifact_id TEXT PRIMARY KEY,
+            stage TEXT NOT NULL DEFAULT 'generated',
+            kind TEXT NOT NULL DEFAULT 'image',
+            title TEXT DEFAULT '',
+            path TEXT DEFAULT '',
+            thumb TEXT DEFAULT '',
+            media_type TEXT DEFAULT '',
+            source TEXT DEFAULT '',
+            ref_type TEXT DEFAULT '',
+            ref_id TEXT DEFAULT '',
+            parent_id TEXT,
+            campaign_id TEXT DEFAULT '',
+            platform TEXT DEFAULT '',
+            review_id TEXT DEFAULT '',
+            publish_task_id TEXT DEFAULT '',
+            dedupe_key TEXT,
+            meta TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    conn.cursor().execute(
+        "CREATE INDEX IF NOT EXISTS idx_artifact_stage ON artifacts(stage)"
+    )
+    conn.cursor().execute(
+        "CREATE INDEX IF NOT EXISTS idx_artifact_source ON artifacts(source)"
+    )
+    conn.cursor().execute(
+        "CREATE INDEX IF NOT EXISTS idx_artifact_ref ON artifacts(ref_type, ref_id)"
+    )
+    conn.cursor().execute(
+        "CREATE INDEX IF NOT EXISTS idx_artifact_parent ON artifacts(parent_id)"
+    )
+    # 登记幂等：同一 (ref_type, ref_id, path) 只登记一次。
+    # 唯一索引放在 dedupe_key 上而不是三列复合索引上——
+    # MySQL/SQLite 的 NULL 语义差异会让复合唯一索引在 path 为空时失效。
+    conn.cursor().execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_artifact_dedupe ON artifacts(dedupe_key)"
+    )
+    conn.commit()
+
+
 def ensure_main_db_schema(conn: sqlite3.Connection) -> None:
     """
     Ensure required tables/columns exist in settings.DATABASE_PATH.
@@ -134,6 +201,9 @@ def ensure_main_db_schema(conn: sqlite3.Connection) -> None:
         "completed_at": "ALTER TABLE publish_tasks ADD COLUMN completed_at DATETIME",
         "task_data": "ALTER TABLE publish_tasks ADD COLUMN task_data TEXT",  # 完整的任务数据（JSON）
         "priority": "ALTER TABLE publish_tasks ADD COLUMN priority INTEGER DEFAULT 5",
+        # 统一产物总线：发布任务指回它的来源产物（art_xxx），
+        # 让「生成 → 审核 → 发布」三段在数据层连成一条线。
+        "artifact_id": "ALTER TABLE publish_tasks ADD COLUMN artifact_id TEXT",
     }
 
     # --- publish_tasks ---
@@ -231,6 +301,9 @@ def ensure_main_db_schema(conn: sqlite3.Connection) -> None:
     )
 
     conn.commit()
+
+    # --- artifacts（统一产物总线） ---
+    ensure_artifacts_table(conn)
 
     added = 0
     added += _ensure_columns(conn, "file_records", file_records_required)

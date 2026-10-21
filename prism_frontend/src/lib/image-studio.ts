@@ -58,6 +58,8 @@ export interface AiDesignGenerateResponse {
   agent_id?: string
   points?: AiDesignPoints
   record_id?: string
+  /** 统一产物 ID（art_xxx）：下游功能（送审 / 发布 / 二次编辑）凭它找到这次产出 */
+  artifact_ids?: string[]
 }
 
 export interface AiDesignRecord {

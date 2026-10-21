@@ -260,6 +260,7 @@ async def render(
 
     service = FileService()
     file_ids: List[int] = []
+    artifact_ids: List[str] = []
     note = f"video-pipeline:hyperframes quality={quality} fps={fps}"
     with main_db_pool.get_connection() as conn:
         for out_path in result["outputs"]:
@@ -276,6 +277,33 @@ async def render(
                 file_ids.append(file_id)
             except Exception as e:
                 logger.error(f"[VideoPipeline] 产物入库失败 {p.name}: {e}")
+                continue
+
+            # 统一产物总线：登记产物（失败不阻断渲染结果返回）
+            try:
+                from prism_core import artifacts as artifact_service
+
+                aid = artifact_service.safe_register_artifact(
+                    source=artifact_service.SOURCE_VIDEO_PIPELINE,
+                    ref_type="file_record",
+                    ref_id=str(file_id),
+                    path=str(p),
+                    kind=artifact_service.KIND_VIDEO,
+                    stage=artifact_service.STAGE_GENERATED,
+                    title=p.name,
+                    thumb=str(p),
+                    media_type="mp4",
+                    meta={
+                        "engine": "hyperframes",
+                        "quality": quality,
+                        "fps": fps,
+                        "note": note,
+                    },
+                )
+                if aid:
+                    artifact_ids.append(aid)
+            except Exception as e:
+                logger.warning(f"[VideoPipeline] 产物登记失败（不影响渲染）: {e}")
 
     return {
         "status": "success",
@@ -284,6 +312,8 @@ async def render(
             "elapsed_seconds": result["elapsed_seconds"],
             "outputs": [Path(o).name for o in result["outputs"]],
             "file_ids": file_ids,
+            # 统一产物 ID：渲染产出可直接进入送审 / 发布链路
+            "artifact_ids": artifact_ids,
         },
     }
 

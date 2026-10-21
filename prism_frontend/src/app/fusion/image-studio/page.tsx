@@ -300,6 +300,41 @@ export default function ImageStudioPage() {
     }
   }
 
+  // ── 送审（统一产物总线）──
+  // 把刚生成的图送进审核队列：产物阶段 reviewing → 审核决策回写 approved/rejected。
+  const [submittingArtifact, setSubmittingArtifact] = useState<string | null>(null)
+
+  const handleSubmitReview = useCallback(
+    async (artifactId: string) => {
+      setSubmittingArtifact(artifactId)
+      try {
+        const r = await fetch(`/api/v1/artifacts/${artifactId}/submit-review`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: `AI 生图送审 · ${lastResult?.model_key ?? ""}`,
+            content: draft.prompt,
+          }),
+        })
+        if (!r.ok) {
+          const text = await r.text()
+          throw new Error(`送审失败 (HTTP ${r.status}) ${text.slice(0, 160)}`)
+        }
+        const data = (await r.json()) as { review_id?: string }
+        toast({
+          title: "已送审",
+          description: `审核项 ${data.review_id?.slice(0, 12) ?? "-"}… · 可在「审核队列」处理`,
+        })
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        toast({ title: "送审失败", description: msg, variant: "destructive" })
+      } finally {
+        setSubmittingArtifact(null)
+      }
+    },
+    [draft.prompt, lastResult?.model_key, toast]
+  )
+
   // ── UI 派生 ──
   const pointsEstimate = estimatePoints(draft.count)
   const validationErr = validateDraft(draft, currentModel)
@@ -646,6 +681,24 @@ export default function ImageStudioPage() {
                             #{i + 1} · {lastResult.model_key}
                           </span>
                           <div className="flex items-center gap-1">
+                            {/* 统一产物 ID + 送审（串联到审核队列） */}
+                            {lastResult.artifact_ids?.[i] && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2 text-xs"
+                                disabled={submittingArtifact === lastResult.artifact_ids[i]}
+                                onClick={() => void handleSubmitReview(lastResult.artifact_ids![i])}
+                                title={`产物 ${lastResult.artifact_ids[i]}`}
+                              >
+                                {submittingArtifact === lastResult.artifact_ids[i] ? (
+                                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Send className="mr-1 h-3 w-3" />
+                                )}
+                                送审
+                              </Button>
+                            )}
                             <Button
                               size="sm"
                               variant="ghost"
@@ -667,6 +720,11 @@ export default function ImageStudioPage() {
                             </a>
                           </div>
                         </div>
+                        {lastResult.artifact_ids?.[i] && (
+                          <code className="block truncate border-t border-border/40 bg-background/30 px-2 py-1 text-[10px] text-muted-foreground">
+                            {lastResult.artifact_ids[i]}
+                          </code>
+                        )}
                       </div>
                     ))}
                   </div>

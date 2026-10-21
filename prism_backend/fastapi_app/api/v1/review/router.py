@@ -20,6 +20,8 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from fastapi_app.core.logger import logger
+
 from prism_core.review_queue import (
     ReviewItem,
     ReviewStatus,
@@ -73,7 +75,11 @@ class BatchBody(BaseModel):
 
 @router.post("/queue", status_code=201)
 async def enqueue(body: EnqueueBody):
-    """提交审核"""
+    """提交审核。
+
+    若 `task_id` 是统一产物 ID（art_xxx），会自动把产物推进到「审核中」
+    并回填 review_id，从而形成「生成 → 送审 → 审核 → 阶段回写」闭环。
+    """
     item = ReviewItem(
         task_id=body.task_id,
         campaign_id=body.campaign_id,
@@ -87,7 +93,22 @@ async def enqueue(body: EnqueueBody):
         cover_url=body.cover_url,
     )
     enqueue_review(item)
-    return item.model_dump(mode="json")
+
+    # 统一产物总线：task_id 命中产物 → 推进到审核中并关联审核项
+    artifact_id = None
+    try:
+        from prism_core import artifacts as artifact_service
+
+        if artifact_service.is_artifact_id(body.task_id):
+            artifact_service.attach_review(body.task_id, item.review_id)
+            artifact_id = body.task_id
+    except Exception as exc:
+        logger.warning(f"[Review] 产物关联失败（不影响入队）: {exc}")
+
+    payload = item.model_dump(mode="json")
+    if artifact_id:
+        payload["artifact_id"] = artifact_id
+    return payload
 
 
 @router.get("/queue")
@@ -119,20 +140,40 @@ async def get_item(review_id: str):
 
 @router.post("/items/{review_id}/approve")
 async def approve(review_id: str, body: DecisionBody):
-    """通过审核"""
+    """通过审核（产物阶段自动回写为 approved）"""
     decision = approve_review(review_id, body.reviewer, body.reason)
     if not decision:
         raise HTTPException(404, f"审核项不存在: {review_id}")
-    return decision.model_dump(mode="json")
+    payload = decision.model_dump(mode="json")
+    payload.update(_artifact_state_of(review_id))
+    return payload
 
 
 @router.post("/items/{review_id}/reject")
 async def reject(review_id: str, body: DecisionBody):
-    """拒绝审核"""
+    """拒绝审核（产物阶段自动回写为 rejected）"""
     decision = reject_review(review_id, body.reviewer, body.reason)
     if not decision:
         raise HTTPException(404, f"审核项不存在: {review_id}")
-    return decision.model_dump(mode="json")
+    payload = decision.model_dump(mode="json")
+    payload.update(_artifact_state_of(review_id))
+    return payload
+
+
+def _artifact_state_of(review_id: str) -> dict:
+    """取审核项关联产物的当前状态（用于前端展示串联结果）。"""
+    try:
+        from prism_core import artifacts as artifact_service
+
+        found = artifact_service.find_artifact_by_review_id(review_id)
+        if not found:
+            return {}
+        return {
+            "artifact_id": found.get("artifact_id"),
+            "artifact_stage": found.get("stage"),
+        }
+    except Exception:
+        return {}
 
 
 @router.post("/items/{review_id}/edit")

@@ -159,6 +159,12 @@ const navSections: NavSection[] = [
     ],
   },
   {
+    label: "产物",
+    items: [
+      { label: "产物中心", href: "/artifacts", icon: Boxes },
+    ],
+  },
+  {
     label: "分发",
     items: [
       { label: "矩阵发布", href: "/publish/matrix", icon: LayoutGrid },

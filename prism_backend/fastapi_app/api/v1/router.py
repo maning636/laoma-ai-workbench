@@ -46,6 +46,7 @@ from .receipts.router import router as receipts_router  # 发布回执（Phase 0
 from .webhooks.router import router as webhooks_router  # Webhook（Phase 5）
 from .health.router import router as health_router  # 账号健康（Phase 1）
 from .review.router import router as review_router  # 审核队列（Phase 3.3）
+from .artifacts.router import router as artifacts_router  # 统一产物总线（生图/素材/视频/审核/发布串通用）
 from .dedup.router import router as dedup_router  # 去重查重（Phase 4.3）
 from .insight.router import router as insight_router  # 数据洞察（Phase 4.2）
 
@@ -128,6 +129,7 @@ api_router.include_router(receipts_router)  # /receipts 发布回执（Phase 0.1
 api_router.include_router(webhooks_router)  # /webhooks Webhook（Phase 5）
 api_router.include_router(health_router)  # /health 账号健康（Phase 1）
 api_router.include_router(review_router)  # /review 审核队列（Phase 3.3）
+api_router.include_router(artifacts_router)  # /artifacts 统一产物总线
 api_router.include_router(dedup_router)  # /dedup 去重查重（Phase 4.3）
 api_router.include_router(insight_router)  # /insights 数据洞察（Phase 4.2）
 
