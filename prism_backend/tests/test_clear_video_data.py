@@ -1,15 +1,34 @@
 """测试清除视频数据功能"""
+import os
 import sys
 from pathlib import Path
 
 # 添加项目路径
 sys.path.insert(0, str(Path(__file__).parent))
 
+import pytest
+
 from fastapi_app.core.config import settings
 from fastapi_app.db.session import main_db_pool
 import shutil
 from datetime import datetime
 
+# 该用例是**破坏性**的：它会 rmtree 真实视频目录，并 DELETE 真实库里的
+# video_analytics / analytics_history 表。历史上它在 pytest 里被无条件执行，
+# 导致每次跑 pytest 都会清掉开发者/用户的真实视频数据,并在仓库工作区留下
+# prism_backend/backups/ 垃圾目录。
+#
+# 现在默认在 pytest 下跳过,需要显式声明才执行:
+#     PRISM_RUN_DESTRUCTIVE_TESTS=1 pytest prism_backend/tests/test_clear_video_data.py
+# 脚本式用法 `python test_clear_video_data.py` 不受此限制(仍可直接执行)。
+RUN_DESTRUCTIVE = os.getenv("PRISM_RUN_DESTRUCTIVE_TESTS") == "1"
+
+
+@pytest.mark.skipif(
+    not RUN_DESTRUCTIVE,
+    reason="破坏性用例：会清空真实视频文件与 video_analytics/analytics_history 表；"
+           "需显式设置 PRISM_RUN_DESTRUCTIVE_TESTS=1 才执行",
+)
 def test_clear_video_data(backup=True):
     """测试清除视频数据"""
     print("=" * 60)
@@ -38,7 +57,10 @@ def test_clear_video_data(backup=True):
         # 2. 执行备份（如果需要）
         if backup:
             print("\n2. 执行备份...")
-            backup_dir = Path(settings.BASE_DIR) / "backups" / f"video_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            # 备份写到 DATA_DIR 下（运行时数据目录，gitignored / 用户可写），
+            # 不再写进 BASE_DIR —— 后者位于源码树或安装目录，会污染仓库工作区，
+            # 且在 Program Files 等只读安装位置不可写。
+            backup_dir = Path(settings.DATA_DIR) / "backups" / f"video_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             backup_dir.mkdir(parents=True, exist_ok=True)
 
             # 备份视频文件
