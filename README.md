@@ -83,6 +83,49 @@
 - 适合多平台、多账号的规模化分发与运营底座；
 - 不强行覆盖剪辑/混剪/内容工厂，可作为外部生产链路的对接层；
 - 设计参考行业常见“编-投-管-回”闭环，但项目更聚焦于“投 + 管 + 回”；
+- **同时是 AI 内容生产平台**：选题、趋势、拆解、账号画像、内容库、创作工作台，加上 AI 生图、视频流水线与图片编辑器，让素材从「产出」直接进入「发布」；
+- **对话式生成**：内置 Hermes Agent，可用自然语言把上面的能力串起来（HermesChat / AI 对话）。
+
+---
+
+## 我们基于什么（借鉴与致谢）
+
+| 上游项目 | 许可证 | 我们拿走什么 | 我们自己加了什么 |
+|---|---|---|---|
+| [social-auto-upload](https://github.com/dreammis/social-auto-upload) | MIT | 多平台发布适配器与 CLI 发布基础 | Web 工作台、账号体系、任务队列、审核与调度 |
+| [Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API) | Apache-2.0 | 抖音 / TikTok 解析与数据采集 | 统一的数据回收工作台与复盘看板 |
+| [HermesAgent](https://github.com/nousresearch/hermes-agent)（Nous Research） | MIT | 本地 AI Agent 运行时 | 对话式生成（HermesChat）、Agent 控制台与提示词体系 |
+| [Persona Studio](https://github.com/TechQaiser/persona-studio) | MIT | 浏览器身份 / 指纹 / Profile 层 | 代理网关、账号→身份→代理的固定绑定编排 |
+| [Easel](https://github.com/ZJU-REAL/Easel)（浙大 ZJU-REAL Lab） | Apache-2.0 | 内容创作工作台的 API 契约（**仅参考，未 vendor 源码**） | 内容库 / 收件箱 / 创作工作台 / 创作工坊 + 审核队列 |
+
+> 谱系：`social-auto-upload (MIT)` → 本项目早期形态 `SynapseAutomation (Apache-2.0)` → **老马AI工作台 (AGPL-3.0)**。
+> 逐项归属见 [NOTICE.txt](NOTICE.txt) 与 [vendor/VENDOR.md](vendor/VENDOR.md)。
+
+---
+
+## 我们在其上做了什么（新增能力与开放级别）
+
+> **Community** = 开源版直接可用；**Pro** = 需官方云端账号 / 授权（云端推理、模型市场、Agent 配额、数据回收增强等）。
+> 具体额度口径见 [cloud_service/billing/feature_gate.py](cloud_service/billing/feature_gate.py)。
+
+| 能力组 | 新增能力 | 相对原项目 | Community | Pro |
+|---|---|---|---|---|
+| 概览 | 仪表盘、快速开始向导 | 全新 | 全部 | — |
+| 资源 | 账号管理、素材库 | 沿用并重做 | 全部 | 账号数 3 → 无限 |
+| 资源 | 代理管理、代理网关、Persona 指纹 | 全新 | — | 全部 |
+| 内容 | 选题库、趋势热榜、内容拆解、账号画像、CMS | 全新 | 全部 | — |
+| 内容 | 内容库、收件箱、创作工作台、创作工坊 | 全新 | 全部 | — |
+| 生成 | AI 生图、视频流水线、图片编辑器 | 全新 | 本地自配 Key | 官方云端生图 / 渲染 |
+| 分发 | 矩阵发布、发布中心、发布任务、分发记录、排期日历、任务管理 | 沿用并重做 | 全部 | 平台数 3 → 8 |
+| 分发 | 审核队列（队列 / 版本审批 / 敏感词库） | 全新 | 全部 | — |
+| 分发 | 营销活动 + 任务包编排 | 全新 | — | 全部 |
+| 数据 | 数据中心、趋势分析、各平台视频数据 | 数据回收扩到全部已接入平台 | 全部 | 数据回收增强 |
+| 智能 | AI 对话、技能库 | 全新 | 全部 | — |
+| 智能 | HermesChat 对话式生成 | 全新 | — | 流式对话 |
+| 智能 | Agent 控制台、提示词配置、运行设置 | 全新 | — | Agent 配额 0 → 2 |
+| AI-Fusion | 融合中心、风格库、内容审查、融合分析、融合配置 | 全新 | 全部 | — |
+| AI-Fusion | 模型市场、供应商配置 | 全新 | — | 官方云端模型 |
+| 开发者工具 | 工具中心（MCP / 技能）、演示控制台、系统设置 | 全新 | 全部 | 授权 / 订阅管理 |
 
 ---
 
