@@ -48,19 +48,37 @@ done
 [[ -f "${CRED_DIR}/.env" ]] || fail "credentials file not found: ${CRED_DIR}/.env"
 [[ -r "${CRED_DIR}/.env" ]] || fail "credentials file not readable by current user: ${CRED_DIR}/.env"
 
+# 载入凭据文件（deploy.sh 生成的 KEY=value 格式，权限 600，含 CLOUD_DB_URL=...）。
+# 早期版本只检查文件存在却**从不载入**，导致 $CLOUD_DB_URL 未绑定变量，
+# 脚本在 set -u 下直接报 "CLOUD_DB_URL: unbound variable" 而退出。
+# 这里不用 `set -a`：DB_PASSWORD 等只需要作为 shell 变量，
+# 导出到环境反而扩大暴露面（子进程 environ 可见）。
+if [[ -z "${CLOUD_DB_URL:-}" ]]; then
+  # shellcheck disable=SC1091
+  . "${CRED_DIR}/.env"
+fi
+[[ -n "${CLOUD_DB_URL:-}" ]] || fail "CLOUD_DB_URL not found in ${CRED_DIR}/.env"
+# 凭据文件里若带 DB_NAME 则以它为准；为空则回落到默认库名。
+DB_NAME="${DB_NAME:-prism_cloud}"
+
 mkdir -p "${BACKUP_DIR}"
 chmod 700 "${BACKUP_DIR}" 2>/dev/null || true
 
 # ------------------------------------------- 从 CLOUD_DB_URL 中解析账号与密码 --
 # 密码**不**进入 stdout/stderr,也不写入任何非 tmpfs 的路径。
 parse_credential() {
-  python3 - "$CLOUD_DB_URL" "${DB_NAME}" <<'PY'
+  # URL 经**环境变量**传给 python，而不是 argv —— argv 会出现在 `ps` 输出里，
+  # 那等于把数据库口令暴露给同机任意用户。环境变量只在 /proc/<pid>/environ
+  # 中可见（root 权限），符合本脚本"密码不出现在 ps 参数里"的设计目标。
+  CLOUD_DB_URL="${CLOUD_DB_URL}" python3 - "${DB_NAME}" <<'PY'
 import os, sys
 from urllib.parse import urlparse, unquote
 
-url = os.environ.get("CLOUD_DB_URL") or sys.argv[1]
-expected_db = sys.argv[2]
+url = os.environ.get("CLOUD_DB_URL") or ""
+expected_db = sys.argv[1]
 
+if not url:
+    sys.exit("[backup] CLOUD_DB_URL is empty (not loaded from the credentials file?)")
 if not url.startswith("mysql"):
     sys.exit("[backup] CLOUD_DB_URL must start with 'mysql...' (got unexpected scheme)")
 
@@ -130,10 +148,14 @@ log "starting backup: db=${DB_NAME}@${DB_HOST}:${DB_PORT} user=${DB_USER} -> ${B
 # --single-transaction : 对 InnoDB 做一致性快照, 不锁表
 # --routines           : 附带存储过程 / 函数 / 触发器 / 事件
 # --databases          : dump 里会写 CREATE DATABASE / USE, 便于直接恢复
-# --no-defaults        : 跳过系统 /root/.my.cnf 等,避免与 --defaults-extra-file 冲突
+# --defaults-file      : **只**读这个文件, 跳过 /root/.my.cnf 等所有默认文件。
+#                        必须放在命令行最前面(mysql 客户端要求选项文件类选项居首)。
+#                        早期版本用 `--no-defaults --defaults-extra-file=...`,
+#                        但这两个选项在 mysql 客户端里互斥 —— --no-defaults 禁止
+#                        再使用 --defaults-extra-file, 会报
+#                        "unknown variable 'defaults-extra-file=...'"。
 if ! mysqldump \
-       --no-defaults \
-       --defaults-extra-file="${TMP_PWD_FILE}" \
+       --defaults-file="${TMP_PWD_FILE}" \
        --single-transaction \
        --routines \
        --triggers \
