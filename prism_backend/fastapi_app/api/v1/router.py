@@ -90,8 +90,11 @@ api_router.include_router(files_router, tags=["文件管理"])  # router 已自�
 api_router.include_router(analytics_router)  # router 已自带 /analytics 前缀
 api_router.include_router(scripts_router)  # router 已自带 /scripts 前缀
 api_router.include_router(publish_router, tags=["视频发布"])  # router 已自带 /publish 前缀
+# distribution_alias 必须排在 tasks_router 之前：
+# tasks_router 有 `GET /tasks/{task_id}`，若先注册会把 `/tasks/distribution`
+# 当成 task_id="distribution" 匹配掉（返回 404「任务不存在」），扫码派发列表永远取不到。
+api_router.include_router(distribution_router)  # /tasks/distribution（真实实现）
 api_router.include_router(tasks_router)  # router 已自带 /tasks 前缀
-api_router.include_router(distribution_router)  # /tasks/distribution (当前实现为占位)
 api_router.include_router(recovery_router)  # router 已自带 /recovery 前缀
 api_router.include_router(data_router)  # router 已自带 /data 前缀
 api_router.include_router(ai_router)  # router 已自带 /ai 前缀

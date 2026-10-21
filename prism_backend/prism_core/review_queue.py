@@ -118,7 +118,7 @@ def _ensure_tables(conn: sqlite3.Connection) -> None:
 
 
 def enqueue_review(item: ReviewItem) -> str:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     data = item.model_dump()
     if mysql_enabled():
         from sqlalchemy import text
@@ -177,7 +177,7 @@ def enqueue_review(item: ReviewItem) -> str:
                     decision_by=VALUES(decision_by), metadata=VALUES(metadata)
             """), data)
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_tables(conn)
         conn.execute("""
             INSERT OR REPLACE INTO review_queue
@@ -200,7 +200,7 @@ def enqueue_review(item: ReviewItem) -> str:
 
 
 def approve_review(review_id: str, reviewer: str, reason: str = "") -> Optional[ReviewDecision]:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     now = now_beijing_iso()
     data = ReviewDecision(review_id=review_id, decision=ReviewStatus.APPROVED.value,
                           reason=reason, reviewer=reviewer)
@@ -218,7 +218,7 @@ def approve_review(review_id: str, reviewer: str, reason: str = "") -> Optional[
                     reason=VALUES(reason), reviewer=VALUES(reviewer)
             """), data.model_dump())
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_tables(conn)
         conn.execute("UPDATE review_queue SET status='approved', reviewed_at=?, decision_by=?, decision_reason=? WHERE review_id=?",
                      (now, reviewer, reason, review_id))
@@ -233,7 +233,7 @@ def approve_review(review_id: str, reviewer: str, reason: str = "") -> Optional[
 
 
 def reject_review(review_id: str, reviewer: str, reason: str = "") -> Optional[ReviewDecision]:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     now = now_beijing_iso()
     data = ReviewDecision(review_id=review_id, decision=ReviewStatus.REJECTED.value,
                           reason=reason, reviewer=reviewer)
@@ -251,7 +251,7 @@ def reject_review(review_id: str, reviewer: str, reason: str = "") -> Optional[R
                     reason=VALUES(reason), reviewer=VALUES(reviewer)
             """), data.model_dump())
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_tables(conn)
         conn.execute("UPDATE review_queue SET status='rejected', reviewed_at=?, decision_by=?, decision_reason=? WHERE review_id=?",
                      (now, reviewer, reason, review_id))
@@ -310,7 +310,7 @@ def auto_pre_check(task_id: str, platform: int, platform_name: str, account_id: 
 def list_reviews(status: Optional[str] = None, priority: Optional[str] = None,
                  campaign_id: Optional[str] = None, account_id: Optional[str] = None,
                  limit: int = 50, offset: int = 0) -> list:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     rows = []
     if mysql_enabled():
         from sqlalchemy import text
@@ -326,7 +326,7 @@ def list_reviews(status: Optional[str] = None, priority: Optional[str] = None,
                 text(f"SELECT * FROM review_queue{where} ORDER BY queue_position ASC, submitted_at ASC LIMIT :limit OFFSET :offset"), params
             ).mappings().all()]
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_tables(conn)
         c = conn.cursor()
         conds, plist = [], []
@@ -342,7 +342,7 @@ def list_reviews(status: Optional[str] = None, priority: Optional[str] = None,
 
 
 def get_review_item(review_id: str) -> Optional[ReviewItem]:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     row = None
     if mysql_enabled():
         from sqlalchemy import text
@@ -350,7 +350,7 @@ def get_review_item(review_id: str) -> Optional[ReviewItem]:
             row = conn.execute(text("SELECT * FROM review_queue WHERE review_id = :rid"), {"rid": review_id}).mappings().first()
         if row: row = dict(row)
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_tables(conn)
         c = conn.cursor()
         c.execute("SELECT * FROM review_queue WHERE review_id = ?", (review_id,))
@@ -394,7 +394,7 @@ class ReviewQueueManager:
         return reject_review(review_id, reviewer, reason)
 
     def request_edit(self, review_id: str, reviewer: str, reason: str = "") -> None:
-        from fastapi_app.db.session import get_main_db
+        from fastapi_app.db.session import open_main_db
         now = now_beijing_iso()
         if mysql_enabled():
             from sqlalchemy import text
@@ -402,7 +402,7 @@ class ReviewQueueManager:
                 conn.execute(text("UPDATE review_queue SET status='needs_edit', reviewed_at=:now, decision_by=:reviewer, decision_reason=:reason WHERE review_id=:rid"),
                               {"rid": review_id, "now": now, "reviewer": reviewer, "reason": reason})
         else:
-            conn = get_main_db()
+            conn = open_main_db()
             _ensure_tables(conn)
             conn.execute("UPDATE review_queue SET status='needs_edit', reviewed_at=?, decision_by=?, decision_reason=? WHERE review_id=?",
                          (now, reviewer, reason, review_id))

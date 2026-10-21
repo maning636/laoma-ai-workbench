@@ -1339,7 +1339,14 @@ async def get_otp_events() -> Dict[str, Any]:
                 return {"error": f"获取验证码事件失败: {resp.status_code}"}
 
             data = resp.json()
-            return data.get("data", {})
+            # 后端返回 {"success": true, "data": {"events": [...], "total": n}}
+            payload = data.get("data", data)
+            if not isinstance(payload, dict):
+                payload = {}
+            return {
+                "events": payload.get("events", []),
+                "total": payload.get("total", len(payload.get("events", []))),
+            }
 
     except Exception as e:
         logger.error(f"获取验证码事件失败: {e}")

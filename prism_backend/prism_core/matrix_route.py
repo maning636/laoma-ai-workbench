@@ -84,7 +84,7 @@ def _ensure_tables(conn: sqlite3.Connection) -> None:
 
 
 def save_group(group: MatrixGroup) -> str:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     data = group.model_dump()
     if mysql_enabled():
         from sqlalchemy import text
@@ -111,7 +111,7 @@ def save_group(group: MatrixGroup) -> str:
                     active_accounts=VALUES(active_accounts), updated_at=VALUES(updated_at)
             """), data)
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_tables(conn)
         conn.execute("""
             INSERT OR REPLACE INTO matrix_groups
@@ -127,7 +127,7 @@ def save_group(group: MatrixGroup) -> str:
 
 
 def get_group(group_id: str) -> Optional[MatrixGroup]:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     row = None
     if mysql_enabled():
         from sqlalchemy import text
@@ -135,7 +135,7 @@ def get_group(group_id: str) -> Optional[MatrixGroup]:
             row = conn.execute(text("SELECT * FROM matrix_groups WHERE group_id = :gid"), {"gid": group_id}).mappings().first()
         if row: row = dict(row)
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_tables(conn)
         c = conn.cursor()
         c.execute("SELECT * FROM matrix_groups WHERE group_id = ?", (group_id,))
@@ -155,7 +155,7 @@ def get_group(group_id: str) -> Optional[MatrixGroup]:
 
 
 def list_groups(limit: int = 50, offset: int = 0) -> list:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     rows = []
     if mysql_enabled():
         from sqlalchemy import text
@@ -165,7 +165,7 @@ def list_groups(limit: int = 50, offset: int = 0) -> list:
                 text("SELECT * FROM matrix_groups ORDER BY created_at DESC LIMIT :limit OFFSET :offset"), params
             ).mappings().all()]
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_tables(conn)
         c = conn.cursor()
         c.execute("SELECT * FROM matrix_groups ORDER BY created_at DESC LIMIT ? OFFSET ?", (limit, offset))
@@ -244,7 +244,7 @@ def assign_task(group_id: str, task_id: str, accounts: List[Dict[str, Any]]) -> 
 
 
 def _save_assignment(assignment: MatrixAssignment) -> str:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     data = assignment.model_dump()
     if mysql_enabled():
         from sqlalchemy import text
@@ -273,7 +273,7 @@ def _save_assignment(assignment: MatrixAssignment) -> str:
                     status=VALUES(status)
             """), data)
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_tables(conn)
         conn.execute("""
             INSERT OR REPLACE INTO matrix_assignments
@@ -289,7 +289,7 @@ def _save_assignment(assignment: MatrixAssignment) -> str:
 
 
 def get_assignments(group_id: Optional[str] = None, limit: int = 50, offset: int = 0) -> list:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     rows = []
     if mysql_enabled():
         from sqlalchemy import text
@@ -302,7 +302,7 @@ def get_assignments(group_id: Optional[str] = None, limit: int = 50, offset: int
                 text(f"SELECT * FROM matrix_assignments{where} ORDER BY assigned_at DESC LIMIT :limit OFFSET :offset"), params
             ).mappings().all()]
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_tables(conn)
         c = conn.cursor()
         if group_id:

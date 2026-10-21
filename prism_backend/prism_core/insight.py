@@ -90,7 +90,7 @@ def _ensure_insight_table(conn: sqlite3.Connection) -> None:
 
 
 def save_insight(insight: PublishInsight) -> str:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     data = insight.model_dump()
     if mysql_enabled():
         from sqlalchemy import text
@@ -141,7 +141,7 @@ def save_insight(insight: PublishInsight) -> str:
                     suggestion=VALUES(suggestion), raw_data=VALUES(raw_data)
             """), {"is_anomaly": int(insight.is_anomaly), **data})
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_insight_table(conn)
         conn.execute("""
             INSERT OR REPLACE INTO publish_insights
@@ -165,7 +165,7 @@ def save_insight(insight: PublishInsight) -> str:
 
 
 def get_insight(task_id: str) -> Optional[PublishInsight]:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     row = None
     if mysql_enabled():
         from sqlalchemy import text
@@ -173,7 +173,7 @@ def get_insight(task_id: str) -> Optional[PublishInsight]:
             row = conn.execute(text("SELECT * FROM publish_insights WHERE task_id = :tid ORDER BY collected_at DESC LIMIT 1"), {"tid": task_id}).mappings().first()
         if row: row = dict(row)
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_insight_table(conn)
         c = conn.cursor()
         c.execute("SELECT * FROM publish_insights WHERE task_id = ? ORDER BY collected_at DESC LIMIT 1", (task_id,))
@@ -186,7 +186,7 @@ def get_insight(task_id: str) -> Optional[PublishInsight]:
 
 def list_insights(account_id: Optional[str] = None, platform: Optional[int] = None,
                   anomaly_only: bool = False, limit: int = 50, offset: int = 0) -> list:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     rows = []
     if mysql_enabled():
         from sqlalchemy import text
@@ -201,7 +201,7 @@ def list_insights(account_id: Optional[str] = None, platform: Optional[int] = No
                 text(f"SELECT * FROM publish_insights{where} ORDER BY collected_at DESC LIMIT :limit OFFSET :offset"), params
             ).mappings().all()]
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_insight_table(conn)
         c = conn.cursor()
         conds, plist = [], []

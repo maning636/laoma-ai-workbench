@@ -86,7 +86,7 @@ def _ensure_health_table(conn: sqlite3.Connection) -> None:
 
 # ── 保存快照 ──
 def save_health_snapshot(snapshot: HealthSnapshot) -> str:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     if mysql_enabled():
         from sqlalchemy import text
         with sa_connection() as conn:
@@ -143,7 +143,7 @@ def save_health_snapshot(snapshot: HealthSnapshot) -> str:
                 "created_at": snapshot.created_at,
             })
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_health_table(conn)
         conn.execute("""
             INSERT INTO account_health_snapshots 
@@ -167,7 +167,7 @@ def save_health_snapshot(snapshot: HealthSnapshot) -> str:
 
 # ── 查询 ──
 def get_latest_health(account_id: str) -> Optional[HealthSnapshot]:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     row = None
     if mysql_enabled():
         from sqlalchemy import text
@@ -178,7 +178,7 @@ def get_latest_health(account_id: str) -> Optional[HealthSnapshot]:
             ).mappings().first()
         if row: row = dict(row)
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_health_table(conn)
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM account_health_snapshots WHERE account_id = ? ORDER BY created_at DESC LIMIT 1", (account_id,))
@@ -195,7 +195,7 @@ def list_health_snapshots(
     limit: int = 50,
     offset: int = 0,
 ) -> List[HealthSnapshot]:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     rows = []
     if mysql_enabled():
         from sqlalchemy import text
@@ -217,7 +217,7 @@ def list_health_snapshots(
             ).mappings().all()
         rows = [dict(r) for r in rows]
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_health_table(conn)
         cursor = conn.cursor()
         conditions = []
@@ -264,7 +264,7 @@ def _row_to_snapshot(row: Dict[str, Any]) -> HealthSnapshot:
 def compute_health_from_receipts(account_id: str, platform: int = 0) -> HealthSnapshot:
     """从 publish_receipts 表聚合计算账号健康状态"""
     from prism_core.receipts import list_receipts, ReceiptStatus
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
 
     receipts = list_receipts(account_id=account_id, limit=1000)
     

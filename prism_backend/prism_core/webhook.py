@@ -136,7 +136,7 @@ def _ensure_tables(conn: sqlite3.Connection) -> None:
 
 
 def _save_subscription(sub: WebhookSubscription) -> str:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     data = sub.model_dump()
     if mysql_enabled():
         from sqlalchemy import text
@@ -173,7 +173,7 @@ def _save_subscription(sub: WebhookSubscription) -> str:
                     failed_deliveries=VALUES(failed_deliveries), updated_at=VALUES(updated_at)
             """), data)
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_tables(conn)
         conn.execute("""
             INSERT OR REPLACE INTO webhook_subscriptions
@@ -191,7 +191,7 @@ def _save_subscription(sub: WebhookSubscription) -> str:
 
 
 def _save_delivery(delivery: WebhookDelivery) -> str:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     data = delivery.model_dump()
     if mysql_enabled():
         from sqlalchemy import text
@@ -226,7 +226,7 @@ def _save_delivery(delivery: WebhookDelivery) -> str:
                     signature=VALUES(signature), delivered_at=VALUES(delivered_at)
             """), data)
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_tables(conn)
         conn.execute("""
             INSERT OR REPLACE INTO webhook_deliveries
@@ -246,7 +246,7 @@ def _save_delivery(delivery: WebhookDelivery) -> str:
 
 def log_incoming_event(event_type: str, source: str, payload: Dict[str, Any]) -> str:
     """记录收到的事件，支持去重"""
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     now = now_beijing_iso()
     dedup_key = hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True).encode()).hexdigest()[:32]
     log_id = f"wel_{uuid.uuid4().hex[:12]}"
@@ -279,7 +279,7 @@ def log_incoming_event(event_type: str, source: str, payload: Dict[str, Any]) ->
                     "payload": payload_str, "dedup_key": dedup_key,
                     "received_at": now, "processed": 0})
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_tables(conn)
         c = conn.cursor()
         c.execute("SELECT COUNT(*) FROM webhook_events_log WHERE dedup_key = ?", (dedup_key,))
@@ -315,7 +315,7 @@ def create_subscription(sub: WebhookSubscription) -> str:
 
 
 def get_subscription(sub_id: str) -> Optional[WebhookSubscription]:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     row = None
     if mysql_enabled():
         from sqlalchemy import text
@@ -323,7 +323,7 @@ def get_subscription(sub_id: str) -> Optional[WebhookSubscription]:
             row = conn.execute(text("SELECT * FROM webhook_subscriptions WHERE subscription_id = :sid"), {"sid": sub_id}).mappings().first()
         if row: row = dict(row)
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_tables(conn)
         c = conn.cursor()
         c.execute("SELECT * FROM webhook_subscriptions WHERE subscription_id = ?", (sub_id,))
@@ -334,7 +334,7 @@ def get_subscription(sub_id: str) -> Optional[WebhookSubscription]:
 
 
 def list_subscriptions(active_only: bool = False, limit: int = 50, offset: int = 0) -> list:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     rows = []
     if mysql_enabled():
         from sqlalchemy import text
@@ -345,7 +345,7 @@ def list_subscriptions(active_only: bool = False, limit: int = 50, offset: int =
                 text(f"SELECT * FROM webhook_subscriptions{where} ORDER BY created_at DESC LIMIT :limit OFFSET :offset"), params
             ).mappings().all()]
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_tables(conn)
         c = conn.cursor()
         if active_only:
@@ -375,7 +375,7 @@ def _row_to_sub(row: dict) -> WebhookSubscription:
 
 def list_deliveries(subscription_id: Optional[str] = None, status: Optional[str] = None,
                     limit: int = 50, offset: int = 0) -> list:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     rows = []
     if mysql_enabled():
         from sqlalchemy import text
@@ -389,7 +389,7 @@ def list_deliveries(subscription_id: Optional[str] = None, status: Optional[str]
                 text(f"SELECT * FROM webhook_deliveries{where} ORDER BY created_at DESC LIMIT :limit OFFSET :offset"), params
             ).mappings().all()]
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_tables(conn)
         c = conn.cursor()
         conds, plist = [], []
@@ -411,14 +411,14 @@ def list_deliveries(subscription_id: Optional[str] = None, status: Optional[str]
 
 
 def delete_subscription(sub_id: str) -> bool:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     if mysql_enabled():
         from sqlalchemy import text
         with sa_connection() as conn:
             result = conn.execute(text("DELETE FROM webhook_subscriptions WHERE subscription_id = :sid"), {"sid": sub_id})
             return result.rowcount > 0
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_tables(conn)
         c = conn.cursor()
         c.execute("DELETE FROM webhook_subscriptions WHERE subscription_id = ?", (sub_id,))
@@ -427,7 +427,7 @@ def delete_subscription(sub_id: str) -> bool:
 
 
 def deactivate_subscription(sub_id: str) -> bool:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     now = now_beijing_iso()
     if mysql_enabled():
         from sqlalchemy import text
@@ -436,7 +436,7 @@ def deactivate_subscription(sub_id: str) -> bool:
                                   {"sid": sub_id, "now": now})
             return result.rowcount > 0
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_tables(conn)
         c = conn.cursor()
         c.execute("UPDATE webhook_subscriptions SET active = 0, updated_at = ? WHERE subscription_id = ?", (now, sub_id))
@@ -536,8 +536,8 @@ class WebhookManager:
                         "fail": 0 if delivery.status == "delivered" else 1,
                     })
             else:
-                from fastapi_app.db.session import get_main_db
-                conn = get_main_db()
+                from fastapi_app.db.session import open_main_db
+                conn = open_main_db()
                 now = now_beijing_iso()
                 fail = 0 if delivery.status == "delivered" else 1
                 conn.execute("""
@@ -562,8 +562,8 @@ class WebhookManager:
                         WHERE subscription_id = :sid
                     """), {"sid": sub.subscription_id, "now": now_beijing_iso()})
             else:
-                from fastapi_app.db.session import get_main_db
-                conn = get_main_db()
+                from fastapi_app.db.session import open_main_db
+                conn = open_main_db()
                 conn.execute("""
                     UPDATE webhook_subscriptions SET last_delivery_at = ?,
                     failed_deliveries = failed_deliveries + 1, updated_at = ?

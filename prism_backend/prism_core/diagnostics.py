@@ -78,7 +78,7 @@ def _ensure_diagnostics_table(conn: sqlite3.Connection) -> None:
 
 
 def save_diagnostic_artifacts(artifacts: DiagnosticArtifacts) -> str:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     data = artifacts.model_dump()
     if mysql_enabled():
         from sqlalchemy import text
@@ -106,7 +106,7 @@ def save_diagnostic_artifacts(artifacts: DiagnosticArtifacts) -> str:
                         :ip_address, :collector_version, :redacted, :created_at)
             """), {"redacted": int(artifacts.redacted), **data})
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_diagnostics_table(conn)
         conn.execute("""
             INSERT OR REPLACE INTO diagnostics_artifacts
@@ -127,7 +127,7 @@ def save_diagnostic_artifacts(artifacts: DiagnosticArtifacts) -> str:
 
 
 def get_diagnostic_artifacts(task_id: str) -> Optional[DiagnosticArtifacts]:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     row = None
     if mysql_enabled():
         from sqlalchemy import text
@@ -135,7 +135,7 @@ def get_diagnostic_artifacts(task_id: str) -> Optional[DiagnosticArtifacts]:
             row = conn.execute(text("SELECT * FROM diagnostics_artifacts WHERE task_id = :tid ORDER BY created_at DESC LIMIT 1"), {"tid": task_id}).mappings().first()
         if row: row = dict(row)
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_diagnostics_table(conn)
         c = conn.cursor()
         c.execute("SELECT * FROM diagnostics_artifacts WHERE task_id = ? ORDER BY created_at DESC LIMIT 1", (task_id,))
@@ -147,7 +147,7 @@ def get_diagnostic_artifacts(task_id: str) -> Optional[DiagnosticArtifacts]:
 
 
 def list_diagnostic_artifacts(task_id: Optional[str] = None, platform: Optional[int] = None, limit: int = 50, offset: int = 0) -> list:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     rows = []
     if mysql_enabled():
         from sqlalchemy import text
@@ -159,7 +159,7 @@ def list_diagnostic_artifacts(task_id: Optional[str] = None, platform: Optional[
         with sa_connection() as conn:
             rows = [dict(r) for r in conn.execute(text(f"SELECT * FROM diagnostics_artifacts{where} ORDER BY created_at DESC LIMIT :limit OFFSET :offset"), params).mappings().all()]
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_diagnostics_table(conn)
         c = conn.cursor()
         conds, plist = [], []

@@ -70,6 +70,26 @@ def get_main_db() -> Generator[sqlite3.Connection, None, None]:
         yield conn
 
 
+def open_main_db() -> sqlite3.Connection:
+    """打开一个独立的主数据库连接（业务层直连用，**非** FastAPI 依赖注入）。
+
+    与 `get_main_db` 的区别：`get_main_db` 是 FastAPI 依赖注入用的生成器，只能以
+    `Depends(get_main_db)` 形式使用；直接调用它拿到的是生成器对象而非连接
+    （表现为 `AttributeError: 'generator' object has no attribute 'cursor'`）。
+    业务层代码请统一使用本函数：
+
+        conn = open_main_db()
+        conn.execute(...)
+        conn.commit()
+
+    生命周期：CPython 引用计数会在局部变量离开作用域时自动关闭连接，
+    调用方无需显式 close()（也不要跨函数长期持有）。
+    """
+    conn = sqlite3.connect(settings.DATABASE_PATH, check_same_thread=False)
+    conn.row_factory = sqlite3.Row  # 与连接池保持一致，支持字典访问
+    return conn
+
+
 def get_cookie_db() -> Generator[sqlite3.Connection, None, None]:
     """获取Cookie数据库连接（依赖注入）"""
     with cookie_db_pool.get_connection() as conn:

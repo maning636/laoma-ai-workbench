@@ -75,7 +75,7 @@ def _ensure_variants_table(conn: sqlite3.Connection) -> None:
 
 
 def save_variant(variant: ContentVariant) -> str:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     tags_str = json.dumps(variant.tags, ensure_ascii=False)
     if mysql_enabled():
         from sqlalchemy import text
@@ -117,7 +117,7 @@ def save_variant(variant: ContentVariant) -> str:
                 "updated_at": variant.updated_at,
             })
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_variants_table(conn)
         conn.execute("""
             INSERT OR REPLACE INTO content_variants
@@ -135,7 +135,7 @@ def save_variant(variant: ContentVariant) -> str:
 
 
 def get_variant(variant_id: str) -> Optional[ContentVariant]:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     row = None
     if mysql_enabled():
         from sqlalchemy import text
@@ -143,7 +143,7 @@ def get_variant(variant_id: str) -> Optional[ContentVariant]:
             row = conn.execute(text("SELECT * FROM content_variants WHERE variant_id = :vid"), {"vid": variant_id}).mappings().first()
         if row: row = dict(row)
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_variants_table(conn)
         c = conn.cursor()
         c.execute("SELECT * FROM content_variants WHERE variant_id = ?", (variant_id,))
@@ -156,7 +156,7 @@ def get_variant(variant_id: str) -> Optional[ContentVariant]:
 
 def list_variants(campaign_id: Optional[str] = None, status: Optional[str] = None,
                   platform: Optional[int] = None, limit: int = 50, offset: int = 0) -> list:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     rows = []
     if mysql_enabled():
         from sqlalchemy import text
@@ -171,7 +171,7 @@ def list_variants(campaign_id: Optional[str] = None, status: Optional[str] = Non
                 text(f"SELECT * FROM content_variants{where} ORDER BY updated_at DESC LIMIT :limit OFFSET :offset"), params
             ).mappings().all()]
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_variants_table(conn)
         c = conn.cursor()
         conds, plist = [], []
@@ -252,7 +252,7 @@ def record_review(variant_id: str, decision: ReviewDecision, reviewer: str = "",
         return None
     record = ReviewRecord(variant_id=variant_id, decision=decision, reviewer=reviewer, comment=comment)
 
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     if mysql_enabled():
         from sqlalchemy import text
         with sa_connection() as conn:
@@ -276,7 +276,7 @@ def record_review(variant_id: str, decision: ReviewDecision, reviewer: str = "",
                 "comment": record.comment, "created_at": record.created_at,
             })
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_review_table(conn)
         conn.execute("""
             INSERT INTO review_records (review_id, variant_id, decision, reviewer, comment, created_at)
@@ -299,7 +299,7 @@ def record_review(variant_id: str, decision: ReviewDecision, reviewer: str = "",
 
 
 def list_reviews(variant_id: Optional[str] = None, limit: int = 50) -> list:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     rows = []
     if mysql_enabled():
         from sqlalchemy import text
@@ -312,7 +312,7 @@ def list_reviews(variant_id: Optional[str] = None, limit: int = 50) -> list:
                 text(f"SELECT * FROM review_records{where} ORDER BY created_at DESC LIMIT :limit"), params
             ).mappings().all()]
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_review_table(conn)
         c = conn.cursor()
         if variant_id:

@@ -91,7 +91,7 @@ def _ensure_dedup_table(conn: sqlite3.Connection) -> None:
 
 
 def save_dedup_record(record: DedupRecord) -> str:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     data = record.model_dump()
     if mysql_enabled():
         from sqlalchemy import text
@@ -134,7 +134,7 @@ def save_dedup_record(record: DedupRecord) -> str:
                     dup_similarity=VALUES(dup_similarity), checked_at=VALUES(checked_at)
             """), data)
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_dedup_table(conn)
         conn.execute("""
             INSERT OR REPLACE INTO dedup_records
@@ -159,7 +159,7 @@ def check_duplicate(task_id: str, platform: int, platform_name: str, account_id:
     t_hash = title_fingerprint(title)
     v_hash = video_hash
 
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     existing = []
 
     if mysql_enabled():
@@ -171,7 +171,7 @@ def check_duplicate(task_id: str, platform: int, platform_name: str, account_id:
             ).mappings().all()
         existing = [dict(r) for r in rows]
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_dedup_table(conn)
         c = conn.cursor()
         c.execute("SELECT * FROM dedup_records WHERE content_hash = ? OR title_hash = ? ORDER BY checked_at DESC LIMIT 50", (c_hash, t_hash))
@@ -223,7 +223,7 @@ def check_duplicate(task_id: str, platform: int, platform_name: str, account_id:
 
 def get_dedup_record(dedup_id: str) -> Optional[DedupRecord]:
     """查询单条查重记录"""
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     row = None
     if mysql_enabled():
         from sqlalchemy import text
@@ -232,7 +232,7 @@ def get_dedup_record(dedup_id: str) -> Optional[DedupRecord]:
         if row:
             row = dict(row)
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_dedup_table(conn)
         c = conn.cursor()
         c.execute("SELECT * FROM dedup_records WHERE dedup_id = ?", (dedup_id,))
@@ -245,7 +245,7 @@ def get_dedup_record(dedup_id: str) -> Optional[DedupRecord]:
 
 def list_dedup_records(dup_level: Optional[str] = None, account_id: Optional[str] = None,
                        limit: int = 50, offset: int = 0) -> list:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     rows = []
     if mysql_enabled():
         from sqlalchemy import text
@@ -259,7 +259,7 @@ def list_dedup_records(dup_level: Optional[str] = None, account_id: Optional[str
                 text(f"SELECT * FROM dedup_records{where} ORDER BY checked_at DESC LIMIT :limit OFFSET :offset"), params
             ).mappings().all()]
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_dedup_table(conn)
         c = conn.cursor()
         conds, plist = [], []

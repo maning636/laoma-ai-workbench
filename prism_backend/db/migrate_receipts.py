@@ -18,11 +18,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from fastapi_app.core.config import settings
 from fastapi_app.core.logger import logger
 from fastapi_app.db.runtime import mysql_enabled, sa_connection
-from fastapi_app.db.session import get_main_db
+from fastapi_app.db.session import open_main_db
 
 
 def migrate_sqlite() -> None:
-    conn = get_main_db()
+    conn = open_main_db()
     c = conn.cursor()
 
     c.execute("""CREATE TABLE IF NOT EXISTS publish_receipts (

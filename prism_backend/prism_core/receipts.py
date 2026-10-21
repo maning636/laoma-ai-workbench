@@ -132,7 +132,7 @@ def _ensure_receipt_table(conn: sqlite3.Connection) -> None:
 
 def save_receipt(receipt: PublishReceipt) -> str:
     """保存/更新回执到数据库，返回 task_id"""
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     receipt.updated_at = now_beijing_iso()
     artifacts_json = receipt.artifacts.model_dump_json() if receipt.artifacts else None
 
@@ -198,7 +198,7 @@ def save_receipt(receipt: PublishReceipt) -> str:
             })
     else:
         db_path = settings.DATABASE_PATH
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_receipt_table(conn)
         conn.execute("""
             INSERT OR REPLACE INTO publish_receipts
@@ -223,7 +223,7 @@ def save_receipt(receipt: PublishReceipt) -> str:
 
 def get_receipt(task_id: str) -> Optional[PublishReceipt]:
     """查询回执"""
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     row = None
     if mysql_enabled():
         from sqlalchemy import text
@@ -233,7 +233,7 @@ def get_receipt(task_id: str) -> Optional[PublishReceipt]:
             row = dict(row)
     else:
         db_path = settings.DATABASE_PATH
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_receipt_table(conn)
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM publish_receipts WHERE task_id = ?", (task_id,))
@@ -278,7 +278,7 @@ def list_receipts(
     offset: int = 0,
 ) -> list[PublishReceipt]:
     """列出回执"""
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     conditions = []
     params = {}
 
@@ -307,7 +307,7 @@ def list_receipts(
         rows = [dict(r) for r in rows]
     else:
         db_path = settings.DATABASE_PATH
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_receipt_table(conn)
         cursor = conn.cursor()
         sqlite_conditions = []

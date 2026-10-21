@@ -117,7 +117,7 @@ def _ensure_monitor_tables(conn: sqlite3.Connection) -> None:
 
 # ── 记录事件 ──
 def record_event(event: MonitorEvent) -> str:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     if mysql_enabled():
         from sqlalchemy import text
         with sa_connection() as conn:
@@ -156,7 +156,7 @@ def record_event(event: MonitorEvent) -> str:
                 "created_at": event.created_at,
             })
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_monitor_tables(conn)
         conn.execute("""
             INSERT INTO monitor_events 
@@ -176,7 +176,7 @@ def record_event(event: MonitorEvent) -> str:
 
 # ── 记录状态流转 ──
 def record_state_transition(transition: StateTransition) -> str:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     if mysql_enabled():
         from sqlalchemy import text
         with sa_connection() as conn:
@@ -205,7 +205,7 @@ def record_state_transition(transition: StateTransition) -> str:
                 "created_at": transition.created_at,
             })
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_monitor_tables(conn)
         conn.execute("""
             INSERT INTO state_transitions 
@@ -228,7 +228,7 @@ def list_monitor_events(
     limit: int = 50,
     offset: int = 0,
 ) -> List[MonitorEvent]:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     rows = []
     if mysql_enabled():
         from sqlalchemy import text
@@ -253,7 +253,7 @@ def list_monitor_events(
             ).mappings().all()
         rows = [dict(r) for r in rows]
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_monitor_tables(conn)
         cursor = conn.cursor()
         conditions = []
@@ -296,7 +296,7 @@ def list_monitor_events(
 
 
 def list_state_transitions(task_id: Optional[str] = None, limit: int = 50) -> List[StateTransition]:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     rows = []
     if mysql_enabled():
         from sqlalchemy import text
@@ -314,7 +314,7 @@ def list_state_transitions(task_id: Optional[str] = None, limit: int = 50) -> Li
                 ).mappings().all()
         rows = [dict(r) for r in rows]
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_monitor_tables(conn)
         cursor = conn.cursor()
         if task_id:

@@ -97,6 +97,18 @@ class VerificationManager:
         logger.info(f"[Verification] Code submitted: {account_id}")
         return True
 
+    def peek_pending_events(self) -> list:
+        """
+        查看待处理的验证码事件（不消费）
+
+        用于前端轮询接口与 AI 工具并发读取同一批事件时，
+        避免 get_pending_events() 的"取回即清空"语义造成互相抢占。
+
+        Returns:
+            事件列表副本（不清空内部队列）
+        """
+        return self.otp_events[:]
+
     def get_pending_events(self) -> list:
         """
         获取待处理的验证码事件（前端轮询接口调用）

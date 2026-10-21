@@ -126,8 +126,8 @@ def delete_variant(variant_id: str):
             conn.execute(text("DELETE FROM content_variants WHERE variant_id = :vid"), {"vid": variant_id})
             conn.commit()
     else:
-        from fastapi_app.db.session import get_main_db
-        conn = get_main_db()
+        from fastapi_app.db.session import open_main_db
+        conn = open_main_db()
         conn.execute("DELETE FROM content_variants WHERE variant_id = ?", (variant_id,))
         conn.commit()
     return {"ok": True, "variant_id": variant_id}

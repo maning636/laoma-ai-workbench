@@ -8,11 +8,68 @@ import os
 # 数据库路径配置
 # 假设此文件位于 prism_backend/myUtils/
 BASE_DIR = Path(__file__).parent.parent
-DB_PATH = BASE_DIR / "db" / "database.db"
+
+
+def _resolve_db_path() -> Path:
+    """派发系统与主库共用同一个 SQLite 文件（data/db/database.db）。
+
+    历史实现硬编码 prism_backend/db/database.db，导致：
+      1) 与 files/accounts 等模块读写的不是同一个库；
+      2) 该文件从未建过 distribution_tasks / task_videos 表，
+         所有派发接口静默失败。
+    现统一到 settings.DATABASE_PATH，并按需自动建表。
+    """
+    try:
+        from fastapi_app.core.config import settings
+        return Path(settings.DATABASE_PATH)
+    except Exception:
+        # 独立脚本场景（无 fastapi_app 上下文）回退到 data/db
+        project_root = BASE_DIR.parent
+        return project_root / "data" / "db" / "database.db"
+
+
+DB_PATH = _resolve_db_path()
+
 
 class DistributionManager:
     def __init__(self, db_path=None):
         self.db_path = db_path or DB_PATH
+        self.ensure_tables()
+
+    def ensure_tables(self) -> None:
+        """确保派发相关表存在（幂等）。"""
+        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS distribution_tasks (
+                task_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                qr_token TEXT UNIQUE NOT NULL,
+                platform TEXT NOT NULL,
+                poi_location TEXT,
+                expire_time DATETIME,
+                title_template TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            ''')
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS task_videos (
+                video_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id INTEGER NOT NULL,
+                file_path TEXT NOT NULL,
+                status TEXT DEFAULT 'AVAILABLE',
+                claimer_id TEXT,
+                distribution_time DATETIME,
+                FOREIGN KEY (task_id) REFERENCES distribution_tasks(task_id)
+            )
+            ''')
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_task_videos_task ON task_videos(task_id)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_task_videos_status ON task_videos(status)"
+            )
+            conn.commit()
 
     def delete_task(self, task_id):
         """
@@ -80,6 +137,34 @@ class DistributionManager:
                 return {"success": True, "count": len(video_files)}
         except Exception as e:
             return {"success": False, "error": str(e)}
+
+    def _resolve_file_id(self, file_path: str):
+        """把素材路径映射为素材库 file_id（publish/batch 需要整数 ID）。
+
+        优先精确匹配 file_records.file_path，其次按文件名匹配。
+        找不到返回 None（调用方需自行处理）。
+        """
+        if not file_path:
+            return None
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                row = conn.execute(
+                    "SELECT id FROM file_records WHERE file_path = ? LIMIT 1",
+                    (file_path,),
+                ).fetchone()
+                if row:
+                    return int(row[0])
+                # 回退：按文件名匹配（路径可能因分隔符/相对路径不同）
+                name = Path(file_path).name
+                row = conn.execute(
+                    "SELECT id, file_path FROM file_records WHERE file_path LIKE ? LIMIT 1",
+                    (f"%{name}",),
+                ).fetchone()
+                if row:
+                    return int(row[0])
+        except Exception as e:
+            print(f"Error resolving file_id for {file_path}: {e}")
+        return None
 
     def get_task_status(self, task_id):
         """
@@ -204,10 +289,12 @@ class DistributionManager:
                         
                         conn.commit()
                         
+                        file_id = self._resolve_file_id(video_record['file_path'])
                         return {
                             "success": True,
                             "data": {
                                 "video_path": video_record['file_path'],
+                                "file_id": file_id,
                                 "title": video_record['title_template'], # 实际可能需要根据模板生成
                                 "poi": video_record['poi_location']
                             }
@@ -260,10 +347,12 @@ class DistributionManager:
                 )
                 conn.commit()
 
+                file_id = self._resolve_file_id(row["file_path"])
                 return {
                     "success": True,
                     "data": {
                         "video_path": row["file_path"],
+                        "file_id": file_id,
                         "title": row["title_template"],
                         "poi": row["poi_location"],
                         "platform": row["platform"],

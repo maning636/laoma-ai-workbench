@@ -151,7 +151,7 @@ def _ensure_task_state_table(conn: sqlite3.Connection) -> None:
 
 def save_task_state(state: TaskState) -> str:
     """保存/更新任务状态"""
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     state.updated_at = now_beijing_iso()
 
     if state.status in (TaskStatus.SUCCEEDED, TaskStatus.FAILED_FINAL, TaskStatus.CANCELLED):
@@ -218,7 +218,7 @@ def save_task_state(state: TaskState) -> str:
                 "completed_at": state.completed_at,
             })
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_task_state_table(conn)
         conn.execute("""
             INSERT OR REPLACE INTO task_states 
@@ -241,7 +241,7 @@ def save_task_state(state: TaskState) -> str:
 
 
 def get_task_state(task_id: str) -> Optional[TaskState]:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     row = None
     if mysql_enabled():
         from sqlalchemy import text
@@ -249,7 +249,7 @@ def get_task_state(task_id: str) -> Optional[TaskState]:
             row = conn.execute(text("SELECT * FROM task_states WHERE task_id = :tid"), {"tid": task_id}).mappings().first()
         if row: row = dict(row)
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_task_state_table(conn)
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM task_states WHERE task_id = ?", (task_id,))
@@ -262,7 +262,7 @@ def get_task_state(task_id: str) -> Optional[TaskState]:
 
 def find_by_idempotency_key(key: str) -> Optional[TaskState]:
     """按幂等键查找任务（用于去重）"""
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     row = None
     if mysql_enabled():
         from sqlalchemy import text
@@ -270,7 +270,7 @@ def find_by_idempotency_key(key: str) -> Optional[TaskState]:
             row = conn.execute(text("SELECT * FROM task_states WHERE idempotency_key = :k LIMIT 1"), {"k": key}).mappings().first()
         if row: row = dict(row)
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_task_state_table(conn)
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM task_states WHERE idempotency_key = ? LIMIT 1", (key,))
@@ -282,7 +282,7 @@ def find_by_idempotency_key(key: str) -> Optional[TaskState]:
 
 
 def list_task_states(status: Optional[str] = None, limit: int = 50, offset: int = 0) -> List[TaskState]:
-    from fastapi_app.db.session import get_main_db
+    from fastapi_app.db.session import open_main_db
     where = " WHERE status = ?" if status else ""
     params: list = []
     if status: params.append(status)
@@ -297,7 +297,7 @@ def list_task_states(status: Optional[str] = None, limit: int = 50, offset: int 
             rows = conn.execute(text(f"SELECT * FROM task_states{w} ORDER BY created_at DESC LIMIT :limit OFFSET :offset"), p).mappings().all()
         rows = [dict(r) for r in rows]
     else:
-        conn = get_main_db()
+        conn = open_main_db()
         _ensure_task_state_table(conn)
         cursor = conn.cursor()
         cursor.execute(f"SELECT * FROM task_states{where} ORDER BY created_at DESC LIMIT ? OFFSET ?", params)
