@@ -1,7 +1,29 @@
-老马AI工作台
+老马AI工作台（Prism-Fusion）
 
+Copyright (c) 2026 老马AI工作台（Prism-Fusion）贡献者
+
+Licensed under the GNU Affero General Public License, Version 3 (AGPL-3.0)
+(the "License"); you may not use this file except in compliance with the
+License. You may obtain a copy of the License at
+
+    https://www.gnu.org/licenses/agpl-3.0.html
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+本项目自身代码的完整许可条款见仓库根目录 LICENSE 文件（AGPL-3.0）。
+本文件同时保留上游与第三方组件的原始版权声明与许可证要求 ——
+这些组件以独立文件 / 独立目录存在，与本项目代码弱耦合（HTTP / 命令行 / 环境变量交互）。
+
+
+Upstream and third-party notices
+=================================
+
+SynapseAutomation（本项目的早期形态，沿用其原始版权声明与许可证）
 Copyright (c) 2026 Laihuijin
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -11,22 +33,33 @@ You may obtain a copy of the License at
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 
-Third-party notices
-===================
+说明：本项目早期以 SynapseAutomation 名义按 Apache-2.0 发布，现整体改为 AGPL-3.0 分发。
+Apache-2.0 与 AGPL-3.0 兼容，本段声明予以保留，以尊重早期版本的版权与许可证要求。
 
 social-auto-upload
 Copyright and license: retained under the upstream MIT License.
 Source: https://github.com/dreammis/social-auto-upload
+Usage: 上游 CLI 自动发布基础 —— 作为「平台能力补充」接入其 YouTube / TikTok / CLI 发布能力，
+       未复制其独立 Web 与运行架构。详见 vendor/VENDOR.md。
 
 Douyin_TikTok_Download_API
 Copyright and license: retained under the upstream Apache License 2.0.
 Source: https://github.com/Evil0ctal/Douyin_TikTok_Download_API
+Usage: 抖音 / TikTok 解析与数据回收能力参考。
 
 HermesAgent
 Copyright (c) 2025 Nous Research
 License: MIT License.
 Source: https://github.com/nousresearch/hermes-agent
+Usage: 本地 AI Agent 运行时与编排集成参考。
+
+Persona Studio
+License: MIT License.
+Source: https://github.com/TechQaiser/persona-studio
+Usage: 浏览器身份 / 指纹 / Profile 层。
 
 Easel (reference copy, not vendored)
 Copyright and license: retained under the upstream Apache License 2.0.

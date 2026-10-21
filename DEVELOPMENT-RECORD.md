@@ -979,7 +979,7 @@ scripts\launchers\start_frontend.bat
 
 第三方归属和许可证说明保留在 `NOTICE.txt`。
 
-**本项目许可**：Apache License 2.0。项目中保留的 MIT 与 Apache-2.0 上游组件继续分别适用其原始许可证。
+**本项目许可**：GNU Affero General Public License v3.0 (AGPL-3.0)。项目中保留的 MIT 与 Apache-2.0 上游组件继续分别适用其原始许可证；本项目早期形态（SynapseAutomation）按 Apache-2.0 发布的历史声明保留在 `NOTICE.txt`。
 
 ---
 
@@ -1062,4 +1062,4 @@ scripts\launchers\start_frontend.bat
 - **文档生成日期**：2026-09-23
 - **当前状态**：开发中（Phase 0 基础稳定化阶段）
 - **品牌名**：老马AI研习社
-- **代码许可**：Apache License 2.0
+- **代码许可**：GNU Affero General Public License v3.0 (AGPL-3.0)

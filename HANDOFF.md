@@ -537,7 +537,7 @@ tools/hermes-home/auth.json / .env
 
 - 项目 GitHub：`https://github.com/Laihiujin/laoma-ai-workbench`
 - 社区：LINUX DO
-- 许可证：Apache-2.0（本项目代码）+ MIT/Apache-2.0（上游组件）
+- 许可证：AGPL-3.0（本项目代码）+ MIT/Apache-2.0（上游组件）
 - 归属详见：`NOTICE.txt`
 
 ---

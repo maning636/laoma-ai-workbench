@@ -2,7 +2,7 @@
 
 > Prism-Fusion（老马AI工作台）内置/参考的上游开源项目清单。
 > 每一项都标注：来源仓库、归属方、许可证、抽取版本、本地改动范围、同步方式。
-> 项目代码许可证（Apache-2.0）见仓库根 [LICENSE](../LICENSE) 与 [NOTICE.txt](../NOTICE.txt)。
+> 项目代码许可证（AGPL-3.0）见仓库根 [LICENSE](../LICENSE) 与 [NOTICE.txt](../NOTICE.txt)。
 
 ---
 
