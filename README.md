@@ -15,7 +15,7 @@
 
 **Community Edition** 是 GitHub 开源的免费版本，AGPL-3.0 协议；**Pro Edition** 是订阅制云端服务，本仓库不包含。详见下文 [Community vs Pro](#community-vs-pro)。
 
-完整部署指南见 [部署开始](#部署开始)；矩阵投放 SOP 见 [矩阵投放流程](#矩阵投放流程sop)。
+完整部署指南见 [部署开始](#部署开始)；矩阵投放 SOP 见 [矩阵投放流程](#矩阵投放流程sop)；参与开发请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ---
 
@@ -70,6 +70,7 @@
 - [目录结构](#目录结构)
 - [合规提示](#合规提示)
 - [项目支持与采用](#项目支持与采用)
+- [贡献与开源](#贡献与开源)
 - [许可](#许可)
 
 ---
@@ -607,6 +608,21 @@ POST /api/v1/tools/{tool_id}/toggle     # 软启用/停用技能
 本项目在 [LINUX DO](https://linux.do/) 社区进行交流与开源推广。
 
 感谢 LINUX DO 社区为开发者提供交流与分享的平台。
+
+## 贡献与开源
+
+欢迎通过 Issue / PR 参与本项目开发。参与前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)，涵盖：
+
+- **开发环境搭建**（Node.js 20 / Python 3.11 / `prismenv` 虚拟环境 / Electron）
+- **代码规范**（TypeScript strict / Python PEP 8 / Conventional Commits）
+- **测试要求**（`tsc --noEmit` / `vitest` / 后端 M1-M2-M3 自运行测试 / ruff / eslint）
+- **分支策略**（`main` / `feature/*` / `fix/*` / `chore/*` / `docs/*`）
+- **PR 模板**（`.github/PULL_REQUEST_TEMPLATE.md`）
+- **Issue 模板**（`.github/ISSUE_TEMPLATE/`：Bug 报告 / 功能请求）
+- **行为准则**（简短版 Code of Conduct）
+- **Open Core 边界**（Community 可贡献 vs Pro 云端不公开）
+
+CI 流程见 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)（push/PR 自动运行 8 个 job：6 个硬门 + 2 个软门 `test`（backend pytest）与 `e2e-packaged`（打包 E2E，仅 workflow_dispatch）），发布走 [`.github/workflows/release.yml`](.github/workflows/release.yml)（tag `v*` 触发 Windows/macOS 打包 + GitHub Release）。
 
 ## [BuymeaCoffee](https://buymeacoffee.com/laihiujin3)
 
