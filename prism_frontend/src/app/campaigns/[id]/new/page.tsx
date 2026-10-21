@@ -51,9 +51,12 @@ export default function CampaignPackageBuilderPage() {
   const { data: planResponse } = useQuery({
     queryKey: ["plan-new", planId],
     queryFn: async () => {
-      const res = await fetch(`/api/plans/${planId}`)
+      // 关联的是营销活动（campaigns，UUID 主键），不是旧 plans 表的整数 ID；
+      // 之前这里查 /api/plans/{uuid} 必然 404，导致计划信息读不到。
+      const res = await fetch(`/api/v1/campaigns/${planId}`)
+      if (!res.ok) throw new Error("加载投放计划失败")
       const payload = await res.json()
-      return payload?.data
+      return payload?.result?.plan
     },
   })
 
@@ -157,7 +160,8 @@ export default function CampaignPackageBuilderPage() {
     setSaving(true)
     try {
       const payload = {
-        plan_id: Number(planId),
+        // plan_id 传 campaign UUID（字符串）；传 Number(uuid) 会得到 NaN
+        plan_id: planId,
         name: packageName || "任务包",
         platform: selectedPlatform,
         account_ids: selectedAccounts,
@@ -171,7 +175,7 @@ export default function CampaignPackageBuilderPage() {
         remark: note,
       }
 
-      const res = await fetch("/api/task-packages", {
+      const res = await fetch("/api/v1/task-packages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -182,7 +186,11 @@ export default function CampaignPackageBuilderPage() {
         throw new Error(msg || "创建任务包失败")
       }
       const pkg = await res.json().catch(() => ({}))
-      const packageId = pkg?.data?.package_id ?? pkg?.package_id
+      // 后端统一返回 { status, result: { success, package_id } }
+      if (pkg?.result?.success === false) {
+        throw new Error(pkg?.result?.error || "创建任务包失败")
+      }
+      const packageId = pkg?.result?.package_id ?? pkg?.package_id
 
       if (generateTasks && packageId) {
         const genRes = await fetch(`/api/v1/task-packages/${packageId}/generate-tasks`, {
@@ -191,6 +199,10 @@ export default function CampaignPackageBuilderPage() {
         if (!genRes.ok) {
           const detail = await genRes.text().catch(() => "")
           throw new Error(detail || "生成任务失败")
+        }
+        const genPayload = await genRes.json().catch(() => ({}))
+        if (genPayload?.result?.success === false) {
+          throw new Error(genPayload?.result?.error || "生成任务失败")
         }
       }
 

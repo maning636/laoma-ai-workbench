@@ -7,12 +7,75 @@ import random
 from config.conf import BASE_DIR
 
 
+def _resolve_db_path() -> Path:
+    """投放计划/任务包与主库共用同一个 SQLite 文件（data/db/database.db）。
+
+    历史实现硬编码 prism_backend/db/database.db，导致：
+      1) 与发布流程读写的 publish_tasks 不是同一个库 —— 任务包生成的任务
+         发布流程根本看不到；
+      2) 该文件从未建过 plans / task_packages 表，所有接口静默失败
+         （no such table: plans / task_packages）。
+    现统一到 settings.DATABASE_PATH，并按需自动建表。
+    """
+    try:
+        from fastapi_app.core.config import settings
+        return Path(settings.DATABASE_PATH)
+    except Exception:
+        # 独立脚本场景（无 fastapi_app 上下文）回退到 data/db
+        project_root = Path(BASE_DIR).parent
+        return project_root / "data" / "db" / "database.db"
+
+
 class CampaignManager:
     """投放任务系统管理器"""
 
     def __init__(self, db_path=None):
-        # 默认使用 BASE_DIR 下的 database.db，避免相对路径导致找不到表
-        self.db_path = db_path or Path(BASE_DIR) / "db" / "database.db"
+        # 与主库共用同一个 SQLite 文件，避免任务包与发布任务分属两库
+        self.db_path = db_path or _resolve_db_path()
+        self.ensure_tables()
+
+    def ensure_tables(self) -> None:
+        """确保投放计划/任务包相关表存在（幂等）。
+
+        与 fastapi_app/db/schema.py 中的定义保持一致；
+        此处再兜一层，保证独立脚本或未跑启动钩子的场景也能用。
+        """
+        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS plans (
+                plan_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                platforms TEXT,
+                start_date TEXT,
+                end_date TEXT,
+                goal_type TEXT DEFAULT 'other',
+                remark TEXT,
+                status TEXT DEFAULT 'draft',
+                created_by TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            ''')
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS task_packages (
+                package_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                plan_id INTEGER,
+                name TEXT NOT NULL,
+                platform TEXT NOT NULL,
+                account_ids_scope TEXT,
+                material_ids_scope TEXT,
+                dispatch_mode TEXT DEFAULT 'random',
+                time_strategy TEXT,
+                generated_task_count INTEGER DEFAULT 0,
+                status TEXT DEFAULT 'draft',
+                created_by TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            ''')
+            conn.commit()
     
     # ========== Plan 管理 ==========
     

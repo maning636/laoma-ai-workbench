@@ -881,7 +881,12 @@ export default function PublishPage() {
       })
       if (!planResponse.ok) throw new Error("创建投放计划失败")
       const planResult = await planResponse.json()
-      const planId = planResult.data?.result?.plan_id
+      // 后端返回 { status, result: { success, plan_id } }，代理再包一层 data
+      const planResultBody = planResult?.data?.result
+      if (planResultBody?.success === false) {
+        throw new Error(planResultBody?.error || "创建投放计划失败")
+      }
+      const planId = planResultBody?.plan_id
 
       if (!planId) throw new Error("获取计划ID失败")
 
@@ -910,7 +915,7 @@ export default function PublishPage() {
 
         if (platformAccounts.length === 0) continue
 
-        await fetch(`/api/task-packages`, {
+        const pkgResponse = await fetch(`/api/v1/task-packages`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -924,6 +929,16 @@ export default function PublishPage() {
             created_by: "matrix_publish"
           }),
         })
+        // 这里以前不看返回值：建包失败也会继续走到「保存成功」，
+        // 实际上什么都没落库。现在失败必须抛出，避免假成功。
+        if (!pkgResponse.ok) {
+          const detail = await pkgResponse.text().catch(() => "")
+          throw new Error(detail || `创建 ${platform} 任务包失败`)
+        }
+        const pkgResult = await pkgResponse.json().catch(() => ({}))
+        if (pkgResult?.result?.success === false) {
+          throw new Error(pkgResult?.result?.error || `创建 ${platform} 任务包失败`)
+        }
       }
 
       return { success: true, plan_id: planId }

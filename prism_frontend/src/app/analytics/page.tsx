@@ -455,7 +455,7 @@ export default function AnalyticsPage() {
                     </div>
 
                     {/* Trend Chart */}
-                    <Card className="border-border/60 bg-card/20">
+                    <Card id="trend" className="border-border/60 bg-card/20 scroll-mt-20">
                         <CardHeader>
                             <div className="flex items-center justify-between">
                                 <div>

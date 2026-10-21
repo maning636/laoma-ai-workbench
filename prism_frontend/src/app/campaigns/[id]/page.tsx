@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, Calendar, Users, FileVideo, Play, CheckCircle2, XCircle, Clock, AlertCircle } from "lucide-react"
+import { ArrowLeft, Calendar, Users, FileVideo, Play, Pause, Plus, Loader2, Trash2, CheckCircle2, XCircle, Clock, AlertCircle } from "lucide-react"
 import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -18,6 +18,7 @@ export default function CampaignDetailPage() {
     const router = useRouter()
     const { toast } = useToast()
     const campaignId = params.id as string
+    const queryClient = useQueryClient()
 
     // 获取计划详情
     const { data: campaignRes, isLoading: campaignLoading } = useQuery({
@@ -42,6 +43,54 @@ export default function CampaignDetailPage() {
     const campaign = campaignRes?.result?.plan
     const tasks = (tasksRes?.result?.items as any[]) || []
 
+    // 执行计划
+    const executeMutation = useMutation({
+        mutationFn: async (id: string) => {
+            const res = await fetch(`/api/v1/campaigns/${id}/execute`, { method: "POST" })
+            if (!res.ok) throw new Error("执行失败")
+            return res.json()
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["campaign", campaignId] })
+            toast({ title: "计划已执行" })
+        },
+        onError: (error: Error) => {
+            toast({ variant: "destructive", title: "执行失败", description: error.message })
+        },
+    })
+
+    // 暂停 / 恢复计划
+    const toggleStatusMutation = useMutation({
+        mutationFn: async ({ id, action }: { id: string; action: "pause" | "resume" }) => {
+            const res = await fetch(`/api/v1/campaigns/${id}/${action}`, { method: "POST" })
+            if (!res.ok) throw new Error(action === "pause" ? "暂停失败" : "恢复失败")
+            return res.json()
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["campaign", campaignId] })
+            toast({ title: "状态已更新" })
+        },
+        onError: (error: Error) => {
+            toast({ variant: "destructive", title: "操作失败", description: error.message })
+        },
+    })
+
+    // 删除计划
+    const deleteMutation = useMutation({
+        mutationFn: async (id: string) => {
+            const res = await fetch(`/api/v1/campaigns/${id}`, { method: "DELETE" })
+            if (!res.ok) throw new Error("删除失败")
+            return res.json()
+        },
+        onSuccess: () => {
+            toast({ title: "计划已删除" })
+            router.push("/campaigns")
+        },
+        onError: (error: Error) => {
+            toast({ variant: "destructive", title: "删除失败", description: error.message })
+        },
+    })
+
     if (campaignLoading || !campaign) {
         return <div className="p-10 text-center">加载中...</div>
     }
@@ -52,6 +101,14 @@ export default function CampaignDetailPage() {
         xiaohongshu: "小红书",
         bilibili: "B站",
         channels: "视频号",
+    }
+
+    // 与列表页保持一致的状态文案
+    const statusLabels: Record<string, string> = {
+        draft: "草稿",
+        running: "运行中",
+        paused: "已暂停",
+        finished: "已完成",
     }
 
     // Group tasks by platform
@@ -77,16 +134,77 @@ export default function CampaignDetailPage() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-4">
                 <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-xl">
                     <ArrowLeft className="h-5 w-5" />
                 </Button>
                 <div className="flex-1">
                     <h1 className="text-3xl font-semibold">{campaign.name}</h1>
                     <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
-                        <Badge variant="outline">{campaign.status}</Badge>
+                        <Badge variant="outline">{statusLabels[campaign.status] || campaign.status}</Badge>
                         <span>{format(new Date(campaign.created_at), "yyyy-MM-dd HH:mm")} 创建</span>
                     </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                    {/* 任务包构建器入口：选平台/账号/素材/时段后生成投放任务 */}
+                    <Button
+                        variant="outline"
+                        className="rounded-xl border-border/70 bg-popover hover:bg-accent/50"
+                        onClick={() => router.push(`/campaigns/${campaignId}/new`)}
+                    >
+                        <Plus className="mr-2 h-4 w-4" />
+                        创建任务包
+                    </Button>
+                    {campaign.status === "draft" && (
+                        <Button
+                            className="rounded-xl"
+                            onClick={() => executeMutation.mutate(campaignId)}
+                            disabled={executeMutation.isPending}
+                        >
+                            {executeMutation.isPending ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                                <Play className="mr-2 h-4 w-4" />
+                            )}
+                            执行计划
+                        </Button>
+                    )}
+                    {campaign.status === "running" && (
+                        <Button
+                            variant="outline"
+                            className="rounded-xl"
+                            onClick={() => toggleStatusMutation.mutate({ id: campaignId, action: "pause" })}
+                            disabled={toggleStatusMutation.isPending}
+                        >
+                            <Pause className="mr-2 h-4 w-4" />
+                            暂停投放
+                        </Button>
+                    )}
+                    {campaign.status === "paused" && (
+                        <Button
+                            variant="outline"
+                            className="rounded-xl"
+                            onClick={() => toggleStatusMutation.mutate({ id: campaignId, action: "resume" })}
+                            disabled={toggleStatusMutation.isPending}
+                        >
+                            <Play className="mr-2 h-4 w-4" />
+                            恢复投放
+                        </Button>
+                    )}
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="rounded-xl text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => deleteMutation.mutate(campaignId)}
+                        disabled={deleteMutation.isPending}
+                        title="删除计划"
+                    >
+                        {deleteMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                            <Trash2 className="h-4 w-4" />
+                        )}
+                    </Button>
                 </div>
             </div>
 

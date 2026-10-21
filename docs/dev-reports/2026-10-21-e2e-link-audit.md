@@ -4,7 +4,8 @@
 - **审计目标**：用户诉求原文 —— 「后台的调用是通的，编某一个功能跟下一个功能是对接不上的，你的产出跟下一个步骤的调用是对不上的，这是不行的」
 - **审计真源**：后端 `GET http://127.0.0.1:7000/api/openapi.json`（运行时真源，不是代码 grep）
 - **断链判定**：真实 HTTP 实测。`404`=路由不存在；`404` 但 body 是「任务不存在/文件不存在」=路由存在只是资源缺失；`405`=方法不符；`500`=路由存在但服务端炸
-- **修复状态**：全部落地并复验通过（28/28 链路实测 + 前端 tsc 0 错 / vitest 336/336 + 后端 pytest 136 passed）
+- **修复状态**：全部落地并复验通过（首轮 28/28 链路实测 + 二审路由入口覆盖 0 孤儿 + 前端 tsc 0 错 / vitest 336/336 + 后端 pytest 136 passed）
+- **二审补漏**：首轮复验时用「路由 → 入口」反向核查（`tmp/check_route_entries.py`）又揪出 4 个首轮漏网的问题，已全部修复 —— 见 **§8**
 
 ---
 
@@ -353,6 +354,7 @@ tmp/verify_chains.py   →  28 项，28 通过，0 失败
 | **内容 → 发布** | 派发任务是 TODO 空壳 + 打错库；发布步骤打不存在的端点 | **通**：claim 拿 file_id → `publish/batch` 真发，两步链路 |
 | **发布 → 审查** | 审查队列接口 500 | **通** |
 | **账号/素材 → 仪表盘** | 统计接口 500；0 显示成 `—` | **通** |
+| **营销活动 → 任务包 → 发布**（二审补上） | 构建器零入口；`plans`/`task_packages` 两表从未建过；manager 打错库；plan_id 类型对不上；失败还报「成功」 | **通**：详情页有入口 → 建包 → 生成发布任务落到主库 `publish_tasks`，失败不再假成功 |
 
 ### 5.2 仍然未打通的部分（诚实记录）
 
@@ -396,3 +398,81 @@ python tmp\verify_chains.py    # 端到端链路复验（28 项）
 ```
 
 **注意**：打包版 Electron（`desktop-electron/dist-community/.../LaomaAICommunity.exe`）会自带一个 standalone server 抢占 3000 端口。跑 dev 前必须先停掉它，否则浏览器访问到的是旧打包产物 —— 本轮就踩过这个坑（表现为「侧边栏还是旧的、`/review` 404」）。
+
+---
+
+## 8. 二审补漏（首轮复验之后追加发现，已全部修复）
+
+首轮复验全绿之后，我换了个角度又查了一遍：**不看「页面调了哪些后端」，而看「每个页面能不能被找到」**。脚本 `tmp/check_route_entries.py` 枚举全部 `app/**/page.tsx`，逐个反查它的入口来源（侧边栏 href / 站内跳转字面量 / 模板字符串跳转 / 父级动态路由覆盖 / 兼容跳转页）。
+
+首轮这个脚本还不成熟，前后修了它 4 次才敢采信（正则只匹配单引号、模板字符串用子串匹配、Windows 路径分隔符混用导致键全落空）。**最终结论：首轮结论「51 个路由无一死页」是错的** —— 页面不空，但有 2 个页面**没有任何入口**，另有 2 个页面**入口名不副实**。
+
+### 8.1 P1-5 ★ `/publish/distribution` 与 `/tasks/distribution` 是同一功能的整棵重复树
+
+- 现象：两个目录各存一份完整实现（`page.tsx` 29KB + `components/task-drawer.tsx` + `publish-otp.tsx`），后两者 SHA-256 **完全一致**。
+- 现象：`/publish/distribution` 全项目搜不到任何指向它的链接 —— 侧边栏没有、站内也没有，是个**孤儿页**。
+- 现象：`publish-otp.tsx` 两份都是死代码（两个页面都没有 import 它，两个页面都 import 共享的 `@/components/publish/publish-otp-dialog`）。
+- 修法：以侧边栏已指向、且浏览器验证过的 `/tasks/distribution` 为唯一实现（并把新版 `PageHeader` 布局搬过去，两个目录各留一份 556 行完全相同的实现）；`/publish/distribution` 改为 `redirect("/tasks/distribution")` 兼容跳转；删掉 3 份重复/死文件（净减约 30KB）。
+- 证据：合并后 `/tasks/distribution/page.tsx` 与原新版实现**逐行完全一致**（归一化换行后 556/556 行）；浏览器访问 `/publish/distribution` → 最终 `location.href` = `/tasks/distribution`，渲染「扫码派发管理」。
+
+### 8.2 P1-6 ★ `/campaigns/[id]/new`（任务包构建器）功能完整但**零入口**
+
+- 现象：这是「选平台/账号/素材/时段 → 生成可发布子任务 → 可直接触发发布」的完整构建器，但详情页 `/campaigns/[id]` 一个操作按钮都没有，全站无人能进入。
+- 现象：详情页只 import 了 `useMutation/useQueryClient` 却从未使用 —— 四个 mutation（execute/pause/resume/delete）在列表页有、详情页是死的。
+- 修法：详情页头部补齐操作区 —— **创建任务包**（→ `/campaigns/{id}/new`）、执行计划（draft）、暂停投放（running）、恢复投放（paused）、删除；状态徽标由原始 `draft` 改为中文「草稿」并与列表页一致。
+- 证据：浏览器实测 —— 详情页按钮为 `[创建任务包, 执行计划]`，点「创建任务包」→ URL 变为 `/campaigns/9f67b8db.../new`，页面渲染「构建任务包」，关联计划正确解析。
+
+### 8.3 P1-7 ★ 任务包链路整体断链（三处叠加，且会「假成功」）
+
+这是本轮最深的断链，也是用户「产出跟下一步的调用对不上」的原样复现。**四处问题互相掩护，缺一不可**：
+
+| # | 断点 | 表现 |
+|---|---|---|
+| a | **两张表从没建过** | `plans` / `task_packages` 只在 `prism_backend/db/create_campaign_tables.py` 里定义过，主库从未执行 → `no such table: plans` |
+| b | **打错数据库** | `campaign_manager` 硬编码 `prism_backend/db/database.db`，而发布流程读的是主库 `data/db/database.db` → 就算建了表，任务包生成的发布任务也**发布流程根本看不到** |
+| c | **ID 空间对不上** | 营销活动用 UUID，旧 plans 用整数；构建器查 `/api/plans/{uuid}` → 必然 404；`plan_id: Number(uuid)` → **NaN** |
+| d | **失败被报成成功** | 建包失败返回 HTTP 200 + `success:false`，前端只看 `res.ok` → 照样弹「任务包已创建」；矩阵发布「存草稿」更是只看 `plan_id` 拿不到就报「获取计划ID失败」 |
+
+- 修法：
+  1. `fastapi_app/db/schema.py` 统一补建 `plans` + `task_packages`（`ensure_main_db_schema` 启动时执行）——这是全项目唯一的建表真源；
+  2. `campaign_manager` 改用 `settings.DATABASE_PATH`（与 `distribution_manager` 同一范式），并自带幂等 `ensure_tables()`；
+  3. `task_packages.plan_id` 改为 `Union[int, str]`（SQLite INTEGER 亲和列遇非数字文本按 TEXT 存储，同一列可同时容纳整数 ID 与 UUID）；
+  4. 构建器改查 `/api/v1/campaigns/{id}`、`plan_id` 传 UUID 字符串、正确解包 `{status, result:{...}}`；
+  5. 后端建包/生成任务失败改为显式 **HTTP 500**，前端同步校验 `result.success` —— 失败必须被感知，不允许「假成功」；
+  6. 矩阵发布「存草稿」补上建包返回值校验。
+- 证据（`tmp/verify_taskpkg_chain.py` 实测）：
+
+```
+== 1) 建任务包（plan_id = campaign UUID）==
+   status: 200 {"status":"success","result":{"success":true,"package_id":1}}
+== 2) 任务包落库（主库 task_packages）==
+   [{'package_id': 1, 'plan_id': '9f67b8db-10f6-4751-a532-73bdbfff26c7', 'platform': 'douyin', 'status': 'draft'}]
+   plan_id 存为: str '9f67b8db-10f6-4751-a532-73bdbfff26c7'
+== 3) 生成发布任务 ==
+   status: 200 {"result":{"success":true,"task_count":1,"tasks":[{...}]}}
+== 4) 发布任务落在主库 publish_tasks（发布流程读的就是这张表）==
+   行数: 1  {'task_id': 1, 'plan_id': '9f67b8db-...', 'package_id': 1, 'status': 'pending'}
+== 5) 旧 plans 接口（矩阵发布存草稿走这条）==
+   status: 200 {"result":{"success":true,"plan_id":1}}   ← 修复前是 no such table: plans
+```
+
+浏览器侧复验：构建器页控制台此前的 `Query data cannot be undefined` 报错消失，「关联计划」正确显示计划名与备注，任务包名称自动带出。
+
+### 8.4 P2-5 `/analytics/trends` 是重定向壳，侧边栏「趋势分析」点进去等于回到「数据中心」
+
+- 现象：`/analytics/trends` 只做 `redirect("/analytics")`，而趋势图表其实就在 `/analytics` 页内（播放/点赞/评论/收藏四指标可切换）。两个菜单项指向同一页，入口名不副实。
+- 修法：`/analytics` 的趋势卡片加 `id="trend"`，`/analytics/trends` 改为 `redirect("/analytics#trend")` —— 点「趋势分析」直接落到趋势图表那一段。
+- 证据：浏览器访问 `/analytics/trends` → 最终 URL = `http://127.0.0.1:3000/analytics#trend`（锚点在服务端 redirect 中被完整保留）。
+- 遗留：趋势图表本身需要先在 `/analytics` 选中账号才渲染（本地库无账号数据，无法验证图表本体渲染）；这是 `/analytics` 既有交互，本轮未改。
+
+### 8.5 二审最终口径
+
+```
+前端路由 = 51
+  sidebar        44   侧边栏直达
+  in-app-link     2   站内跳转（/campaigns/[id]、/campaigns/[id]/new）
+  dynamic-parent  1   /analytics/videos/[platform] 由 7 个平台页覆盖
+  redirect        3   /publish/distribution、/analytics/trends、/analytics/videos
+  skip-login      1   /login
+  ORPHAN          0   ← 首轮是 2
+```

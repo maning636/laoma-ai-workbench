@@ -4,7 +4,7 @@ Task Packages 路由
 """
 
 from fastapi import APIRouter, HTTPException
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
 from pydantic import BaseModel
 # 尝试直接导入 campaign_manager，假设项目根目录已在 sys.path 中
 try:
@@ -22,7 +22,9 @@ router = APIRouter(prefix="/task-packages", tags=["任务包管理"])
 # ========== Request Models ==========
 
 class TaskPackageCreateRequest(BaseModel):
-    plan_id: int
+    # plan_id 有两个来源：旧 plans API 的整数 ID，以及营销活动（campaigns）的 UUID，
+    # 两者都会落到 task_packages.plan_id，因此这里必须同时接受 int 和 str。
+    plan_id: Union[int, str]
     name: str
     platform: str
     account_ids: List[str] = []
@@ -57,6 +59,13 @@ async def create_task_package(request: TaskPackageCreateRequest):
         "created_by": request.created_by,
     }
     result = campaign_manager.create_task_package(data)
+    if not result.get("success"):
+        # 历史上这里总是返回 HTTP 200 + success=False，前端据此判定「已创建」，
+        # 导致建包失败却被报成功；这里改为显式 500，调用方必须感知失败。
+        raise HTTPException(
+            status_code=500,
+            detail=result.get("error") or "创建任务包失败",
+        )
     return {"status": "success", "result": result}
 
 
@@ -96,4 +105,9 @@ async def delete_task_package(package_id: int):
 async def generate_tasks(package_id: int):
     """从任务包生成任务"""
     result = campaign_manager.generate_tasks_from_package(package_id)
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=500,
+            detail=result.get("error") or "生成任务失败",
+        )
     return {"status": "success", "result": result}

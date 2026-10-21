@@ -165,6 +165,53 @@ def ensure_main_db_schema(conn: sqlite3.Connection) -> None:
         """
     )
 
+    # --- plans（投放计划，旧版 plans API 使用） ---
+    # 矩阵发布「存草稿」与任务包构建器都要往这里写；
+    # 历史实现只在 db/create_campaign_tables.py 里建过，主库从未执行，
+    # 导致 /api/v1/plans 建计划静默失败（no such table: plans）。
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS plans (
+            plan_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            platforms TEXT,
+            start_date TEXT,
+            end_date TEXT,
+            goal_type TEXT DEFAULT 'other',
+            remark TEXT,
+            status TEXT DEFAULT 'draft',
+            created_by TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
+    # --- task_packages（任务包 / 波次） ---
+    # plan_id 兼容两种来源：
+    #   1) 旧 plans API 写入的整数 plan_id；
+    #   2) 营销活动（campaigns）写入的 UUID —— SQLite INTEGER 亲和列遇到
+    #      非数字文本会按 TEXT 存储，因此同一个字段可以同时容纳两者。
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS task_packages (
+            package_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            plan_id INTEGER,
+            name TEXT NOT NULL,
+            platform TEXT NOT NULL,
+            account_ids_scope TEXT,
+            material_ids_scope TEXT,
+            dispatch_mode TEXT DEFAULT 'random',
+            time_strategy TEXT,
+            generated_task_count INTEGER DEFAULT 0,
+            status TEXT DEFAULT 'draft',
+            created_by TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
     # --- ai_model_configs ---
     cursor.execute(
         """
