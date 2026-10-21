@@ -27,7 +27,8 @@ dependencies = [
   "python-dotenv>=1.0.1",
   "pytz>=2024.2",
   "qrcode[pil]>=8.0",
-  "redis>=5.0",
+  # redis-py>=5 走 RESP3（发 HELLO 3），与内置 Redis 5.0.14 不兼容，故固定 <5，与 requirements.txt 对齐
+  "redis<5",
   "requests>=2.32.3",
   "segno>=1.6.6",
   "sqlalchemy>=2.0.52",
