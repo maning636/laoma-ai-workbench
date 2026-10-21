@@ -1,20 +1,23 @@
 const { app, BrowserWindow, ipcMain, Menu, Tray, dialog, safeStorage } = require('electron');
+const path = require('path');
 
-// 开发模式(!app.isPackaged):把 userData / sessionData 重定向到项目内 D 盘,
+// 开发模式(!app.isPackaged):把 userData / sessionData 重定向到项目内,
 // 避免往 C:\Users\...\AppData\Roaming\laoma-ai-workbench 写数据。
 // 必须在 app.whenReady() 之前调用 app.setPath 才生效。
 // 打包模式(isPackaged === true)不进入此分支,安装机仍用默认 %APPDATA%。
 // 必须放在 app.requestSingleInstanceLock() 与 electron-log 文件路径配置之前,
 // 否则单实例锁文件与首条日志仍可能落到旧的 C 盘 userData。
 if (!app.isPackaged) {
-  const devUserDataRoot = 'D:\\dim开发\\Prism-Fusion\\_electron_userdata';
+  // 基于 __dirname 推导项目根:本文件位于 desktop-electron/src/main/,
+  // 上溯 3 层即仓库根目录,保证任意机器从源码运行都落到本项目内,
+  // 不硬编码开发者本机绝对路径(旧版曾写死 D:\dim开发\Prism-Fusion)。
+  const devUserDataRoot = path.resolve(__dirname, '..', '..', '..', '_electron_userdata');
   // userData: 控制 config / data / hermes / logs 等
   app.setPath('userData', devUserDataRoot);
   // sessionData: 控制 Cache / Code Cache / GPUCache / Local Storage 等
   app.setPath('sessionData', devUserDataRoot);
 }
 
-const path = require('path');
 const { nativeTheme } = require('electron');
 const { spawn, spawnSync, execSync } = require('child_process');
 const net = require('net');
