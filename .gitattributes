@@ -1,0 +1,69 @@
+# =============================================================================
+# Prism-Fusion .gitattributes
+#
+# 目的：
+#   1) 让 `git archive` 产出的归档里所有文本统一为 LF（`#!/usr/bin/env bash`
+#      shebang 在 Linux 上可执行），不受本机 `core.autocrlf` 影响。
+#   2) 防止 Windows 开发者用 CRLF 提交污染仓库历史。
+#   3) Windows 专属脚本（.bat / .cmd / .ps1）保留 CRLF，避免被误转为 LF。
+#   4) 二进制/资源文件显式标记，避免 auto-detect 误判。
+#   5) `prism_backend/reverse_api/signing/vendor/bdms-1.0.1.16.js` 这个
+#      第三方 vendored blob 本身含 CRLF；加 `-text` 让 git 不转换，避免
+#      `git status` 因行尾差异把该文件报为 modified。
+#
+# 生效说明：
+#   - 新增/修改 .gitattributes 后，`git status` 会重新评估工作区文件与 blob
+#     的匹配关系。本仓库除 `bdms-1.0.1.16.js` 外所有 blob 均为 LF，因此
+#     `* text=auto eol=lf` 不会引入假 diff。
+#   - 不要执行 `git add --renormalize .`（会批量改写 blob，属重写历史，风险高）。
+# =============================================================================
+
+# 默认：自动识别文本/二进制；文本统一存 LF，工作区 checkout 也用 LF。
+# Windows 上 `.bat/.cmd/.ps1` 由下面的规则覆盖回 CRLF。
+* text=auto eol=lf
+
+# Unix shell 脚本：强制 LF（`git archive` 归档里的 shebang 才能被 Linux 识别）。
+*.sh    text eol=lf
+*.bash  text eol=lf
+
+# Windows 脚本：强制 CRLF（cmd.exe / PowerShell 期望 CRLF）。
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
+
+# 二进制 / 资源：显式标记，避免 auto-detect 误判。
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.bmp   binary
+*.webp  binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+*.mp3   binary
+*.wav   binary
+*.mp4   binary
+*.mkv   binary
+*.mov   binary
+*.webm  binary
+*.gif   binary
+*.exe   binary
+*.dll   binary
+*.so    binary
+*.dylib binary
+*.zip   binary
+*.tar   binary
+*.tar.gz binary
+*.tgz   binary
+*.7z    binary
+*.rar   binary
+*.pyc   binary
+*.pyd   binary
+*.whl   binary
+
+# 第三方 vendored 代码：blob 本身含 CRLF，git 不得做行尾转换。
+# 只精确匹配这一条，避免整个 vendor/ 目录被误标为二进制影响可读性。
+prism_backend/reverse_api/signing/vendor/bdms-1.0.1.16.js -text
