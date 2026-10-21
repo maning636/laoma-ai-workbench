@@ -186,18 +186,23 @@ GitHub 下载 → 3 账号试玩 → 想更多 → 注册 → 2000 免费积分
 
 ---
 
-## 9. 文档索引（25 份 dev-reports）
+## 9. 文档索引（39 份 dev-reports）
 
-用 `glob docs/dev-reports/2026-10-16-*.md` 校验，实际共 **25 份**（任务描述"17 份"的清单遗漏了 8 份；`feature-flag-client.md` 未单独成文）。按主题聚类：
+`docs/dev-reports/` 下共 **39 份 .md 报告**（另有 1 份 `nsis-build-raw.log` 原始日志）：`2026-10-16-*` 30 份、`2026-10-13-*` 7 份、`2026-10-14-*` 1 份、`2026-10-15-*` 1 份。
 
-### 战略与调研（3）
+> 2026-10-21 核实修正：本节原写"25 份"，是用 `glob docs/dev-reports/2026-10-16-*.md` 当时的快照统计的；该日期前缀下实际已有 **30 份**，且有 9 份其它日期的报告未列入索引。下表已补全。
+
+按主题聚类：
+
+### 战略与调研（4）
 | 报告 | 一句话说明 |
 |------|-----------|
 | [open-core-strategy](./dev-reports/2026-10-16-open-core-strategy.md) | Open Core 商业化分层（8 竞品对标 + Community/Pro 定价 + Phase 1-3 路线） |
 | [github-reference-audit](./dev-reports/2026-10-16-github-reference-audit.md) | 5 模块开源方案调研（ComfyUI / promptfoo / Flexprice / Trigger.dev / Unlayer） |
 | [lantyou-api-audit](./dev-reports/2026-10-16-lantyou-api-audit.md) | 澜途AI API 逆向（积分制 / 计费契约 / 5 模块复刻参考） |
+| [opensource-platform-research](./dev-reports/2026-10-16-opensource-platform-research.md) | 开源AI平台调研（LLM 接入方式 / 用户控制 / Open Core 分层） |
 
-### 方案与实现（7）
+### 方案与实现（8）
 | 报告 | 一句话说明 |
 |------|-----------|
 | [module-replication-plan](./dev-reports/2026-10-16-module-replication-plan.md) | 5 模块复刻总方案（22-24 人日估算 + 技术选型 + 目录约定） |
@@ -207,6 +212,7 @@ GitHub 下载 → 3 账号试玩 → 想更多 → 注册 → 2000 免费积分
 | [m3-implementation](./dev-reports/2026-10-16-m3-implementation.md) | M3 积分账本（3 张表 + 5 档预设，51/51 PASS） |
 | [m4-implementation](./dev-reports/2026-10-16-m4-implementation.md) | M4 场景向导（4 卡 Wizard + URL 同步，46 用例） |
 | [m5-implementation](./dev-reports/2026-10-16-m5-implementation.md) | M5 图片编辑器（fabric + react-image-crop，13 用例） |
+| [m4-steps-fill](./dev-reports/2026-10-16-m4-steps-fill.md) | M4 场景引导 Wizard 步骤骨架填充（13 步可交互草稿流程） |
 
 ### 健壮性（4）
 | 报告 | 一句话说明 |
@@ -216,17 +222,19 @@ GitHub 下载 → 3 账号试玩 → 想更多 → 注册 → 2000 免费积分
 | [m2m4-hardening](./dev-reports/2026-10-16-m2m4-hardening.md) | M2 JWT 强制 + M4 Suspense + Agent 选择步骤接入 |
 | [medium-hardening](./dev-reports/2026-10-16-medium-hardening.md) | 6 项中危修复（幂等原子化 / prompt 上限 / CORS 白名单 / 限流） |
 
-### Open Core 落地（3）
+### Open Core 落地（4）
 | 报告 | 一句话说明 |
 |------|-----------|
 | [open-core-implementation](./dev-reports/2026-10-16-open-core-implementation.md) | AGPL-3.0 + feature_gate（10 flag）+ 3 只读端点实现 |
 | [community-packaging](./dev-reports/2026-10-16-community-packaging.md) | Community 独立打包配置（AppId 隔离 / Hermes 剔除 / 8 步脚本） |
 | [community-build-verify](./dev-reports/2026-10-16-community-build-verify.md) | 打包端到端验证（standalone 45.49 MB / dir 1.61 GB / 30.7 s） |
+| [nsis-full-build](./dev-reports/2026-10-16-nsis-full-build.md) | Community 版 NSIS 完整打包报告（安装包生成与校验） |
 
-### 前端体验（1）
+### 前端体验与测试（2）
 | 报告 | 一句话说明 |
 |------|-----------|
 | [frontend-badge-m4-agent](./dev-reports/2026-10-16-frontend-badge-m4-agent.md) | PlanBadge + AgentPickerStep 打通（282/282 PASS + 27 新用例） |
+| [dom-tests](./dev-reports/2026-10-16-dom-tests.md) | 前端 DOM 交互测试报告（jsdom 环境隔离方案） |
 
 ### 治理与开源发布（3）
 | 报告 | 一句话说明 |
@@ -235,13 +243,26 @@ GitHub 下载 → 3 账号试玩 → 想更多 → 注册 → 2000 免费积分
 | [authorization-vs-registration](./dev-reports/2026-10-16-authorization-vs-registration.md) | 授权制 vs 注册制取舍（bidmaster Ed25519 vs Prism-Fusion 纯 SaaS） |
 | [rea-capability-assessment](./dev-reports/2026-10-16-rea-capability-assessment.md) | REA 6.5.0 能力评估（确认 Web/JS 工具链可用，非原生二进制工具不配置） |
 
-### 部署与早期探查（4）
+### 部署与早期探查（5）
 | 报告 | 一句话说明 |
 |------|-----------|
 | [server-access-and-deploy-prep](./dev-reports/2026-10-16-server-access-and-deploy-prep.md) | 服务器访问与部署准备 |
 | [startup-residual-optimization](./dev-reports/2026-10-16-startup-residual-optimization.md) | 启动残余优化 |
 | [celery-consumption-probe](./dev-reports/2026-10-16-celery-consumption-probe.md) | Celery 消费路径早期探查 |
 | [plan-numbering-glossary](./dev-reports/2026-10-16-plan-numbering-glossary.md) | 计划编号口径说明（P0-P7 / A-D 类 / C1-C21 编号关系） |
+| [e2e-assembly-verify](./dev-reports/2026-10-16-e2e-assembly-verify.md) | E2E 端到端组装验证 |
+
+### 早期阶段与其他日期（9）
+| 报告 | 一句话说明 |
+|------|-----------|
+| [2026-10-13-overall-assessment](./dev-reports/2026-10-13-overall-assessment.md) | 项目整体评估 |
+| [2026-10-13-deployment-guide](./dev-reports/2026-10-13-deployment-guide.md) | 部署指南（生产环境变量、迁移、运维） |
+| [2026-10-13-saas-decision-guide](./dev-reports/2026-10-13-saas-decision-guide.md) | SaaS 化决策指南 |
+| [2026-10-13-saas-c-class-design](./dev-reports/2026-10-13-saas-c-class-design.md) | SaaS C 类服务设计 |
+| [2026-10-13-phase-A-progress](./dev-reports/2026-10-13-phase-A-progress.md) / [phase-A-verification](./dev-reports/2026-10-13-phase-A-verification.md) | Phase A 进展与验证 |
+| [2026-10-13-project-handover](./dev-reports/2026-10-13-project-handover.md) | 早期项目交接文档 |
+| [2026-10-14-master-plan](./dev-reports/2026-10-14-master-plan.md) | **产品化收尾 + SaaS 化改造主计划**（原 `_plan_productization_saas.md`，2026-10-21 纳入版本管理） |
+| [2026-10-15-remaining-dev-worklist](./dev-reports/2026-10-15-remaining-dev-worklist.md) | 剩余开发工作清单（不含 API/外部依赖部分） |
 
 > **注**：任务清单中提到的 `feature-flag-client.md` 未单独成文——前端消费 10 flag 的能力已并入 [open-core-implementation](./dev-reports/2026-10-16-open-core-implementation.md) 与 [frontend-badge-m4-agent](./dev-reports/2026-10-16-frontend-badge-m4-agent.md)。`celery-consumption-probe.md` 与 `server-access-and-deploy-prep.md` 为早期探查，未列入原任务清单但实际存在。
 
