@@ -218,7 +218,7 @@ files → publish/batch(file_ids) → task_id → review/auto-check(task_id + co
 
 ### P2-2 侧边栏全量化 + 两个「找不到页面」的体验问题
 
-- **`sidebar-new.tsx`** 重排为 **10 个分组**：概览 / 资源 / 内容 / 生成 / 分发 / 数据 / 智能 / AI-Fusion / 开发者工具 / 系统，覆盖除 `/login` 外**全部 49 个路由**（`/dashboard-demo` 归「开发者工具」，动态段由父级入口覆盖）。
+- **`sidebar-new.tsx`** 重排为 **11 个分组**：扩展 / 概览 / 资源 / 内容 / 生成 / 分发 / 数据 / 智能 / AI-Fusion / 开发者工具 / 系统，共 **53 个唯一链接**，覆盖除 `/login` 外**全部 49 个具体路由**（`/dashboard-demo` 归「开发者工具」，7 个平台视频页展开成独立入口，动态段由父级入口覆盖）。
 - **返回键不可见**（用户原话：「返回键非常不明显，也没有颜色啊，没有边框，这样的话找不到」）→ `scenario-guide.tsx` 的返回键 ghost 改为 outline + 边框。
 - **新建 `/guide`「快速开始」页**，作为侧边栏第一个落地页。
 - **M4 写稿向导全 Mock**（`scenarios.tsx` 零 fetch，4 个场景全假数据，picsum 占位图）→ 卡片描述改为「演示流程」并注明未接真实 API；对应测试断言同步更新。
@@ -275,7 +275,7 @@ value: accountTotal ? `${accountTotal}` : "—",   // ← 0 是 falsy，被渲�
 | `app/video-pipeline/page.tsx` | 对齐真实视频流水线后端 |
 | `components/publish/publish-otp-dialog.tsx` | OTP 端点对齐 + 启用被注释的轮询 |
 | `components/layout/app-shell.tsx` | 删硬编码 iframe |
-| `components/layout/sidebar-new.tsx` | 10 分组全量化 |
+| `components/layout/sidebar-new.tsx` | 11 分组 / 53 链接全量化 |
 | `app/ai-agent/components/HermesChatPage.tsx` | 新增「官方 WebUI」按钮 |
 | `app/ai-agent/components/HermesWebuiPanel.tsx` | **新建**：官方 WebUI 运行时探测面板 |
 | `app/review/page.tsx` | **新建**：审核队列 3 Tab |
@@ -338,7 +338,7 @@ tmp/verify_chains.py   →  28 项，28 通过，0 失败
 
 - `/review`：渲染 3 个 Tab，Network 里 `review/queue` 200、`review/stats` 200、`content-variants/variants/` 200、`content-variants/reviews/` 200、`sensitive-words` 200。
 - `/hermes-chat`：原生 SSE 面板渲染，输入目标后事件流实时到达。
-- 侧边栏：10 分组全覆盖渲染，51 个路由无一是死页。
+- 侧边栏：11 分组 / 53 链接全覆盖渲染，51 个路由无一缺入口（二审后孤儿为 0）。
 
 ---
 
