@@ -92,8 +92,16 @@ print(unquote(p.username))
 PY
 }
 
-creds="$(parse_credential)"
-read -r DB_HOST DB_PORT DB_PASSWORD DB_USER <<<"${creds}"
+# parse_credential 输出 4 行(host / port / password / user)。
+# 注意:不能用 `read -r A B C D <<<"$creds"` —— here-string 只会喂给 read 一行,
+# 后面三个变量会全为空,导致 "empty DB port parsed from CLOUD_DB_URL"。
+# 这里用 mapfile 按行读满 4 行再按下标赋值。
+mapfile -t CRED_LINES < <(parse_credential)
+[[ "${#CRED_LINES[@]}" -eq 4 ]] || fail "expected 4 credential lines from CLOUD_DB_URL, got ${#CRED_LINES[@]}"
+DB_HOST="${CRED_LINES[0]}"
+DB_PORT="${CRED_LINES[1]}"
+DB_PASSWORD="${CRED_LINES[2]}"
+DB_USER="${CRED_LINES[3]}"
 
 [[ -n "${DB_HOST}"      ]] || fail "empty DB host parsed from CLOUD_DB_URL"
 [[ -n "${DB_PORT}"      ]] || fail "empty DB port parsed from CLOUD_DB_URL"
