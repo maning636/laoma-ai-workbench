@@ -13,7 +13,7 @@
 ⑥ 用 3 账号 / 3 平台免费体验   →  ⑦ 点"升级 Pro" → 云端 AI + 无限账号
 ```
 
-**Community Edition** 是 GitHub 开源的免费版本，AGPL-3.0 协议；**Pro Edition** 是订阅制云端服务，本仓库不包含。详见下文 [Community vs Pro](#community-vs-pro)。
+**Community Edition** 是 GitHub 开源的免费版本，AGPL-3.0 协议；**Pro Edition** 是订阅制云端服务。**本仓库开源了服务端实现 `cloud_service/`（同为 AGPL-3.0），但 Pro 依赖的云端资源（模型 Key、用户数据、指纹画像、代理 IP 池）不随代码分发**，需由官方托管或自建。详见下文 [Community vs Pro](#community-vs-pro)。
 
 完整部署指南见 [部署开始](#部署开始)；矩阵投放 SOP 见 [矩阵投放流程](#矩阵投放流程sop)；参与开发请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
@@ -43,6 +43,8 @@
 
 > **一句话区分**：Community = "能用但不够爽"的开源壳；Pro = "很爽但不可抄"的付费核（云端 prompt / Hermes / 数据 / 指纹 / 代理）。
 > fork 竞品拿到什么？—— 拿到客户端代码，但拿不到云端 prompt / key / 数据服务 → AI 不够聪明 → 用户还是会回来付费。
+
+> ⚠️ **Open Core 边界现状（2026-10-21 核实）**：上表"云端 prompt（防逆向）"一行与当前代码状态存在偏差 —— prompt 模板（`cloud_service/llm_proxy/prompts.py`）已随 AGPL-3.0 代码入库开源，**未开源**的是服务端实例上的 prompt 数据、模型 Key、用户数据、指纹画像与代理池。若要维持"prompt 不可抄"的差异化定位，需要在 GitHub 正式发布前把 prompt 内容移出开源树。该项属商业决策，未擅自改动，详见 `PROJECT_DEVELOPMENT_HISTORY.md` 第十二章 12.5。
 
 ### 定价
 
