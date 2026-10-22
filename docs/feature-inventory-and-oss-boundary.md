@@ -397,7 +397,7 @@
 
 | 批次 | 内容 | 依赖 | 状态 |
 |---|---|---|---|
-| B1 | 注册码模块：签发端（Ed25519）+ 客户端输入入口（系统设置页）+ license 签名/校验 + 离线宽限 + 到期只读 | D1–D4 | ✅ **已完成**（2026-10-23，后端见 §7.9；前端入口见下） |
+| B1 | 注册码模块：签发端（Ed25519）+ 客户端输入入口（系统设置页）+ license 签名/校验 + 离线宽限 + 到期只读 | D1–D4 | ✅ **已完成**（2026-10-23，后端见 §7.9、前端见 §7.10） |
 | B2 | `cloud_service/llm_proxy/prompts.py` 移出开源树，改 import 链与打包配置 | D6 | ✅ **已完成**（2026-10-23，方案 R2=A，见 §7.7） |
 | B3 | README / 前端文案去掉写死的「8 平台」 | D5 | ✅ **已完成**（2026-10-22） |
 | B4 | 两个安装器重打包 + 干净 VM 验证 | 待办 1、2 | 待执行（干净 VM 未勾） |
@@ -558,6 +558,30 @@ flag→条目映射以**矩阵 §1「Flag 真源表」为准**（`max_platforms`
 `test_rules_match_real_routes` 会在路由改名/删除而规则没跟上时直接红。
 
 紧急停用开关：环境变量 `PRISM_LICENSE_READONLY_GUARD=0` 关闭整个守卫。
+
+### 7.10 B1 前端入口（2026-10-23）：系统设置页「本地注册码」卡片
+
+后端有接口、用户没有入口 = 等于没做。本轮补上**唯一注册码入口**。
+
+| 文件 | 状态 | 说明 |
+|---|---|---|
+| `prism_frontend/src/lib/license.ts` | 新 | 类型 + 12 个 flag 名 + 6 个条目中文名 + 状态标签/色调 + `mergeLicenseFlags` |
+| `prism_frontend/src/components/settings/license-card.tsx` | 新 | React Query + shadcn/ui 卡片，走 `/api/v1/license/*` |
+| `prism_frontend/src/app/settings/page.tsx` | 改 | 插入位置：云端订阅卡**之后**、运行概览之前 |
+| `prism_frontend/src/lib/__tests__/license.test.ts` | 新 | 19 个用例 |
+
+**交互**：输入注册码 → `POST /activate` → 验签不过返 400 且**不落盘**，
+后端的中文 `detail` 原样 toast 展示；卡片显示授权状态 / 到期时间 / 6 个条目徽标；
+只读态（`readOnly=true`）顶部红色横幅「能看不能新增」。
+
+**双轨的分工**（前端不重复做交集）：后端 `/effective-flags` 已算出
+「注册码 ∩ 云端配额」的最终交集，前端只做**后端结果优先**的合并展示；
+无有效注册码（missing / invalid / not_yet_valid）时保持云端原值。
+
+**前端不做写拦截**：D4 的实际拦截在后端（403），前端只做视觉强提示 ——
+前端拦截需要全站点改造，且容易与后端判定不一致，反而误伤。
+
+**回归**：tsc `0` 错 ｜ vitest `355/355`（基线 336 → +19）。
 
 ---
 

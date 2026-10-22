@@ -43,6 +43,7 @@ import { EnvironmentInstallCard } from "./components/environment-install-card"
 import { PendingChannelCard } from "./components/pending-channel-card"
 import { TranscribeCard } from "./components/transcribe-card"
 import { CloudSubscriptionCard } from "@/components/settings/cloud-subscription-card"
+import { LicenseCard } from "@/components/settings/license-card"
 import {
   type PlatformBrowserChoice,
   type PlatformBrowserKey,
@@ -1143,9 +1144,19 @@ export default function SettingsPage() {
     </div>
   )
 
+  // 注册码 = 本地授权条目（离线可用）；语义上紧跟订阅卡（订阅=云端配额）。
+  // 两者耦合：最终生效 = 注册码 ∩ 云端配额（D1=C 双轨）。
+  const renderLicense = () => (
+    <div className="space-y-2">
+      <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">本地注册码</div>
+      <LicenseCard />
+    </div>
+  )
+
   const renderMoreSettings = () => (
     <div className="space-y-8">
       {renderSubscription()}
+      {renderLicense()}
 
       <div className="space-y-2">
         <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">运行概览</div>
