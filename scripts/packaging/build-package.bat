@@ -2,12 +2,18 @@
 chcp 65001 >nul 2>&1
 setlocal enabledelayedexpansion
 
-:: ============================================
-::   老马AI工作台 Package Script
-:: ============================================
+rem ============================================
+rem   Laoma AI Workbench Package Script
+rem ---------------------------------------------------------------
+rem NOTE: keep this file ASCII-only. cmd.exe reads batch files with the
+rem console ANSI codepage, and a "chcp 65001" in the middle of the file
+rem is NOT reliable for non-ASCII content -- Chinese comment lines here
+rem get executed as commands ("... is not recognized as an internal or
+rem external command"). 2026-10-23 hit exactly that on the 1.1.4 build.
+rem ============================================
 echo.
 echo ============================================
-echo   老马AI工作台 Package Script
+echo   Laoma AI Workbench Package Script
 echo ============================================
 echo.
 
@@ -592,7 +598,8 @@ echo ============================================
 echo Stage 2: build installer ^(NSIS^)
 echo ============================================
 echo.
-:: 1) 清掉上一轮残留,避免把旧版本的安装包/blockmap 一起搬进输出目录
+rem 1) Remove leftovers from the previous round so an old installer/blockmap
+rem    never gets carried into the output directory
 if exist "%ELECTRON_DIST%\*.exe" del /q "%ELECTRON_DIST%\*.exe"
 if exist "%ELECTRON_DIST%\*.exe.blockmap" del /q "%ELECTRON_DIST%\*.exe.blockmap"
 if exist "%ELECTRON_DIST%\latest.yml" del /q "%ELECTRON_DIST%\latest.yml"
@@ -622,21 +629,24 @@ if exist "%ELECTRON_DIST%\win-unpacked\resources\prism_backend\.env.local" (
     pause
     exit /b 1
 )
-:: ------------------------------------------------------------
-:: 归档产物 + 自动更新元数据(electron-updater generic feed)
-:: ------------------------------------------------------------
-:: ⚠️ 1.1.3 的线上事故:electron-builder 写出的 latest.yml 里 path 是
-::    `laoma-ai-workbench-setup-1.1.3.exe`(纯 ASCII),而磁盘上的真实文件叫
-::    `老马AI工作台-1.1.3-setup.exe` —— 名字对不上,自动更新链路直接失效。
-::    根因:electron-builder 的 computeSafeArtifactNameIfNeeded() 只接受 ASCII
-::    文件名(含中文就回退成 `${name}-setup-${version}.exe`)。
-::    修法:build.artifactName 改成 ASCII(LaomaAI-${version}-setup.${ext})。
-::
-:: ⚠️ 这里还必须把 .blockmap 跟 .exe 一起搬走 —— 历史上只搬了 .exe,
-::    blockmap 与 latest.yml 留在 dist-build,产物就此分裂。
-::    最后用 finalize + verify 两个脚本把「名字/大小/sha512 与磁盘一致」钉死。
+rem ------------------------------------------------------------
+rem Archive artifacts + auto-update metadata (electron-updater generic feed)
+rem ------------------------------------------------------------
+rem 1.1.3 PRODUCTION INCIDENT: electron-builder wrote latest.yml with
+rem    path "laoma-ai-workbench-setup-1.1.3.exe" while the file actually on
+rem    disk had a Chinese name. The two names did not match, so the whole
+rem    auto-update channel was dead.
+rem    Root cause: electron-builder computeSafeArtifactNameIfNeeded() only
+rem    accepts ASCII artifact names; a non-ASCII name falls back to
+rem    "${name}-setup-${version}.exe".
+rem    Fix: build.artifactName is now ASCII (LaomaAI-${version}-setup.${ext}).
+rem
+rem The .blockmap MUST be moved together with the .exe -- historically only
+rem    the .exe was moved, leaving .blockmap and latest.yml behind in
+rem    dist-build, so the artifacts split across two directories.
+rem    finalize + verify then pin "name/size/sha512 match the disk".
 
-:: 2) 安装包 + blockmap 一起归档到输出目录
+rem 2) Archive the installer + blockmap together into the output dir
 if not exist "%ELECTRON_DIST%\*.exe" (
     echo ERROR: NSIS installer not found in %ELECTRON_DIST%
     pause
@@ -662,11 +672,11 @@ if exist "%ELECTRON_DIST%\*.exe.blockmap" (
     exit /b 1
 )
 
-:: 3) electron-builder 自带那份 latest.yml 的名字可能不对(历史遗留),删掉;
-::    第 4 步会用磁盘真实名重写
+rem 3) Drop the latest.yml electron-builder wrote (legacy wrong name);
+rem    step 4 rewrites it from the real file on disk
 if exist "%ELECTRON_DIST%\latest.yml" del /q "%ELECTRON_DIST%\latest.yml"
 
-:: 4) 以磁盘真实文件为准重写 latest.yml
+rem 4) Rewrite latest.yml from the real file on disk
 powershell -NoProfile -Command "Set-Location -LiteralPath '%CD%'; node 'scripts/finalize-windows-release.mjs' '%OUTPUT_DIR%' '%CURRENT_VERSION%'"
 if errorlevel 1 (
     echo ERROR: finalize-windows-release.mjs failed ^(latest.yml generation^)
@@ -674,7 +684,8 @@ if errorlevel 1 (
     exit /b 1
 )
 
-:: 5) 构建期守卫:产物齐全 + latest.yml 的 path/size/sha512 与磁盘安装包一致
+rem 5) Build-time guard: all assets present + latest.yml path/size/sha512
+rem    match the installer on disk
 powershell -NoProfile -Command "Set-Location -LiteralPath '%CD%'; node 'scripts/verify-release-assets.mjs' '%OUTPUT_DIR%' '%CURRENT_VERSION%'"
 if errorlevel 1 (
     echo ERROR: release asset verification failed
