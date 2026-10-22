@@ -80,23 +80,24 @@ sudo chmod 600 /opt/prism-fusion/.db_credentials/.env
   同时也是线下人工充值管理端 `/cloud/admin/*` 的鉴权凭据 —— 未设置则这三个端点一律 503,fail-closed)
 - `CLOUD_HMAC_SECRET` — **必填**(用于 `/cloud/prompts-export` 签名)
 
-**线上支付开关（线下人工充值模式,2026-10-22)**
-- `CLOUD_ONLINE_PAYMENT_ENABLED` — 默认 `false`。**当前生产保持 false**:
-  网站备案 / ICP 许可证未落地,线上收款不具备合规前提,商业闭环改为
-  「加产品方微信 → 人工收款 → 签发注册码 → 用户填入客户端」。
-  关闭时 `/cloud/payment/*` 与 `/cloud/points/recharge` 统一返回 `403`
-  (`reason=online_payment_disabled` + 人工充值指引),且不启动订单超时 / 对账后台任务。
-  **备案到位后设成 `true` 即完整恢复线上支付,不需要重写任何代码。**
+**商业闭环:人工充值（平台支付已彻底删除,2026-10-23)**
+唯一收款路径:**加产品方微信 → 人工转账 → 人工签发注册码 → 用户填入客户端**。
+平台支付（支付宝 / 微信支付）的代码、端点、订单表、后台任务**已全部删除**,
+`/cloud/payment/*` 与 `POST /cloud/points/recharge` 一律 **404**（能力不存在）。
+因此**没有任何线上支付相关的 env 需要配置**。
+
 - 人工充值管理端(`X-Admin-Token` header + `CLOUD_ADMIN_TOKEN`):
   - `GET  /cloud/admin/users` — 用户列表(含积分余额 / 套餐 / 到期时间)
   - `POST /cloud/admin/points/adjust` — 调整账户积分(`mode=add|set`,可加可减可设定,写流水)
   - `POST /cloud/admin/subscription/extend` — 人工续期
 - 注册码激活:`POST /cloud/license/activate` —— 用注册码开通订阅 + 注入注册码携带的积分额度
   (幂等键 = `license_id`,重复激活不会重复加积分)。桌面端对应入口是「设置 → 本地注册码 → 同步到云端」。
+- 充值档位与赠送规则(人工收款时对账用):`GET /cloud/points/recharge/options`
+  → 返回 5 档预设(积分数 / 金额 / 赠送积分)+ `channels=["manual_wechat"]` + 人工充值说明 `notice`。
 
-**公网入口(当前唯一未打通的一环)**
+**公网入口（已打通,2026-10-23)**
 云端服务本身只监听 `127.0.0.1:8091`,**必须**经 nginx 对外暴露,否则桌面端的
-「同步到云端」与前端的云端账号/订阅/积分都打不到云端。仓库已备好反代模板:
+→「同步到云端」与前端的云端账号/订阅/积分都打不到云端。仓库已备好反代模板:
 
 ```bash
 # 1) 先在域名服务商加 A 记录:fusion.maning789link.top -> 服务器公网 IP
@@ -118,30 +119,22 @@ nginx -t && systemctl reload nginx
 **CORS**
 - `CLOUD_CORS_ORIGINS` — 例:`https://fusion.maning789link.top,https://<frontend-domain>`
 
-**分布式锁 / 调度后台**
-- `CLOUD_REDIS_URL` — 默认 `redis://localhost:6379/0`(`cloud_service/payment/task_guard.py` 读取,
-  用于订单超时扫描、对账等后台任务的分布式锁;Redis 不可达时会 fail-open 降级为 lock-free,
+**Redis**
+- `CLOUD_REDIS_URL` — 默认 `redis://localhost:6379/0`(`cloud_service/task_guard.py` 读取,
+  用于多 worker 场景下后台任务的分布式锁;Redis 不可达时会 fail-open 降级为 lock-free,
   生产建议按第 1 节装 Redis 并收敛到 `127.0.0.1`)
-
-**调度开关**
-- `CLOUD_ORDER_TIMEOUT_ENABLED` — 默认 `true`(默认开启,每小时跑一次)
-- `CLOUD_ORDER_TIMEOUT_INTERVAL_SECONDS` — 默认 `3600`
-- `CLOUD_ORDER_TIMEOUT_HOURS` — 默认 `24`
-- `CLOUD_RECONCILE_ENABLED` — 默认 `false`(接入真实商户 adapter 前保持关闭)
-- `CLOUD_RECONCILE_INTERVAL_SECONDS` — 默认 `86400`
-- `CLOUD_RECONCILE_LOOKBACK_HOURS` — 默认 `24`
 
 **计费额度**
 - `CLOUD_FREE_QUOTA` — 默认 `20`
 - `CLOUD_PRO_QUOTA` — 默认 `-1`(无限)
 
-**支付(可选,视业务是否启用 C19)**
-- `CLOUD_PAYMENT_PRICES` — 例:`{"pro_30":99.0,"pro_365":799.0,"free":0.0}`
-- `CLOUD_PAYMENT_NOTIFY_URL` — 例:`/cloud/payment/callback/alipay`
-- `CLOUD_PAYMENT_RETURN_URL` — 例:`/payment/success`
-- `CLOUD_ALIPAY_SANDBOX` / `CLOUD_ALIPAY_APP_ID` / `CLOUD_ALIPAY_APP_PUBLIC_KEY` / `CLOUD_ALIPAY_SECRET`
-- `CLOUD_WECHAT_SANDBOX` / `CLOUD_WECHAT_APP_ID` / `CLOUD_WECHAT_MCHID` / `CLOUD_WECHAT_API_V3_KEY` / `CLOUD_WECHAT_API_SECRET`
-
+> **已移除的 env(2026-10-23,平台支付彻底删除,不再被任何代码读取)**
+> `CLOUD_ONLINE_PAYMENT_ENABLED` / `CLOUD_ONLINE_PAYMENT_CONTACT_HINT` /
+> `CLOUD_PAYMENT_PRICES` / `CLOUD_PAYMENT_NOTIFY_URL` / `CLOUD_PAYMENT_RETURN_URL` /
+> `CLOUD_ALIPAY_*` / `CLOUD_WECHAT_*` /
+> `CLOUD_ORDER_TIMEOUT_*` / `CLOUD_RECONCILE_*` / `CLOUD_TASK_LOCK_*`
+>
+> 残留在服务器 `.env.cloud` 里无害(读不到),但建议清理以免误导。
 `chmod 600 /opt/prism-fusion/.env.cloud`
 
 ### 2.4 TLS 证书

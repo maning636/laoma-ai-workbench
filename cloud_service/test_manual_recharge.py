@@ -1,9 +1,11 @@
 """线下人工充值模式 · 端到端验收测试。
 
-覆盖「线上支付下线后,商业闭环仍然完整」这条主线:
+覆盖「平台支付彻底删除后,商业闭环仍然完整」这条主线:
 
-  1. 线上支付关闭 → `/cloud/payment/*` 统一 403 + 人工充值指引(而不是 404);
-  2. 线上支付关闭 → `/cloud/points/recharge`(创建充值订单)同样 403;
+  1. **平台支付端点已不存在** → `/cloud/payment/*` 与 `POST /cloud/points/recharge`
+     一律 404(不是 403:能力被删除,而非被开关关闭);
+  2. `GET /cloud/points/recharge/options` 保留为**人工充值对账用**的档位与赠送规则,
+     渠道恒为 `manual_wechat`,且不再有 `paymentChannels` 字段;
   3. 「模拟激活订阅」端点生产默认关闭(否则任何人注册即得 Pro);
   4. **注册码激活仍能开通订阅 + 注入积分额度**(积分入账不依赖支付通道);
   5. 注册码重复同步 → 积分**不重复注入**(按 license_id 幂等);
@@ -32,7 +34,8 @@ os.environ["CLOUD_FREE_QUOTA"] = "5"
 os.environ["CLOUD_PRO_QUOTA"] = "-1"
 os.environ["CLOUD_ADMIN_TOKEN"] = "test-admin-token"
 
-# ⚠️ 本测试**专门验证线上支付关闭**后的行为,所以保持关闭(默认值即为关闭)。
+# ⚠️ 2026-10-23:平台支付已**彻底删除**,不再有 CLOUD_ONLINE_PAYMENT_ENABLED 开关。
+# 这里显式清掉它,防止外部环境残留变量影响「端点不存在」这一断言。
 os.environ.pop("CLOUD_ONLINE_PAYMENT_ENABLED", None)
 # 「模拟激活订阅」端点也应保持关闭 —— 它正是要验证被拦住的那个。
 os.environ.pop("CLOUD_DEV_ALLOW_SUBSCRIPTION_ACTIVATE", None)
@@ -98,27 +101,27 @@ def run() -> int:
     init_db()
 
     # ──────────────────────────────────────────────────────────
-    # 1) 线上支付关闭 → 支付端点 403 + 指引
+    # 1) 平台支付已彻底删除 → 支付端点全部 404(能力不存在)
     # ──────────────────────────────────────────────────────────
     with TestClient(app) as client:
-        r = client.post(
-            "/cloud/payment/create_order",
-            json={"plan": "pro", "days": 30, "channel": "alipay"},
-        )
-        check(
-            "POST /cloud/payment/create_order → 403(线上支付已下线)",
-            r.status_code == 403,
-            f"status={r.status_code} body={r.text[:120]}",
-        )
-        detail = r.json().get("detail") if r.status_code == 403 else {}
-        check(
-            "403 响应带 reason=online_payment_disabled",
-            isinstance(detail, dict) and detail.get("reason") == "online_payment_disabled",
-            str(detail)[:120],
-        )
+        for method, path, payload in (
+            ("POST", "/cloud/payment/create_order",
+             {"plan": "pro", "days": 30, "channel": "alipay"}),
+            ("POST", "/cloud/payment/callback/alipay",
+             {"out_trade_no": "PF-X", "total_amount": "99.00", "sign": "x"}),
+            ("GET", "/cloud/payment/order/PF-X", None),
+            ("POST", "/cloud/payment/refund", {"order_no": "PF-X"}),
+        ):
+            fn = client.post if method == "POST" else client.get
+            r = fn(path, json=payload) if payload is not None else fn(path)
+            check(
+                f"{method} {path} → 404(平台支付已删除)",
+                r.status_code == 404,
+                f"status={r.status_code} body={r.text[:120]}",
+            )
 
         # ──────────────────────────────────────────────────────
-        # 2) 线上支付关闭 → 积分充值订单端点 403
+        # 2) 在线充值订单端点也已删除;档位端点保留给人工充值对账
         # ──────────────────────────────────────────────────────
         reg = client.post(
             "/cloud/auth/register",
@@ -138,10 +141,40 @@ def run() -> int:
 
         r = client.post("/cloud/points/recharge", headers=H, json={"points": 3000, "channel": "alipay"})
         check(
-            "POST /cloud/points/recharge → 403(线上支付已下线)",
-            r.status_code == 403,
+            "POST /cloud/points/recharge → 404(在线充值已删除)",
+            r.status_code == 404,
             f"status={r.status_code} body={r.text[:120]}",
         )
+
+        # 档位与赠送规则仍在(运营侧人工收款 / 签发注册码时对账用)
+        r = client.get("/cloud/points/recharge/options", headers=H)
+        check(
+            "GET /cloud/points/recharge/options → 200(保留档位与赠送规则)",
+            r.status_code == 200,
+            f"status={r.status_code} body={r.text[:160]}",
+        )
+        if r.status_code == 200:
+            opts = r.json()
+            check(
+                "options.channels == ['manual_wechat']",
+                opts.get("channels") == ["manual_wechat"],
+                f"got={opts.get('channels')}",
+            )
+            check(
+                "options 不再有 paymentChannels 字段",
+                "paymentChannels" not in opts,
+                f"keys={sorted(opts)}",
+            )
+            check(
+                "options 有 5 档预设",
+                len(opts.get("presets", [])) == 5,
+                f"presets={opts.get('presets')}",
+            )
+            check(
+                "options.notice 非空(人工充值说明)",
+                bool(opts.get("notice")),
+                f"notice={opts.get('notice')!r}",
+            )
 
         # ──────────────────────────────────────────────────────
         # 3) 「模拟激活订阅」端点被拦住(否则注册即得 Pro)

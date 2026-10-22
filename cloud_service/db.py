@@ -62,7 +62,6 @@ def init_db() -> None:
     from .billing import points as _billing_points  # noqa: F401
     from .llm_proxy import models as _llm_models  # noqa: F401
     from .llm_proxy import prompts as _llm_prompts  # noqa: F401
-    from .payment import models as _payment_models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
 

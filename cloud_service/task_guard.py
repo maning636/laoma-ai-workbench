@@ -1,5 +1,11 @@
 """跨 worker 任务互斥 + 每日计数限流(C-D / C-E)。
 
+> **位置说明(2026-10-23)**:本模块原先位于 `cloud_service/payment/task_guard.py`。
+> 平台支付彻底删除时,`payment/` 整包被移除,但本模块是**与支付无关的通用
+> Redis 分布式锁工具**(原供「订单超时清理」与「日终对账」两个后台任务使用),
+> 因此平移到 `cloud_service/task_guard.py` 保留,供后续任何多 worker 后台任务使用。
+> 当前**没有调用方**,属于预留基础设施。
+
 背景
 ----
 `uvicorn --workers > 1` 时,每个 worker 的 lifespan 各起一份后台任务。清理任务

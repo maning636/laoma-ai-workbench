@@ -5,21 +5,25 @@
 
 端点:
   GET  /points/account                   → 积分账户
-  GET  /points/recharge/options          → 充值选项(5 档预设 + 自定义 + 赠送规则)
+  GET  /points/recharge/options          → 充值档位与赠送规则(5 档预设 + 自定义)
   GET  /points/history                   → 积分历史(分页)
   GET  /points/pricing                   → AI 价目表
-  POST /points/recharge                  → 创建积分充值订单(复用 payment 通道)
   POST /points/freeze                    → 冻结(生成前预扣)
   POST /points/consume                   → 实扣(frozen→consumed)
   POST /points/rollback                  → 回滚(frozen→available)
   POST /points/consume_by_pricing        → 一次性按 pricing_key 扣积分
   POST /points/refund                    → 管理员手动退积分
 
+⚠️ **2026-10-23:平台支付彻底删除** —— `POST /points/recharge`(创建充值订单)
+已移除,本模块不再有任何「下单 / 支付」动作。积分的**入账**只有两条路径:
+  - `POST /cloud/license/activate`   —— 注册码激活时注入注册码携带的积分额度;
+  - `POST /cloud/admin/points/adjust` —— 管理端人工增减账户积分。
+`/points/recharge/options` 只保留**档位与赠送规则**,供运营侧人工收款、
+按规则人工签发注册码时对账用。
+
 复用:
   - `..auth.router.get_current_user`      JWT 依赖
   - `..db.get_db`                         SQLAlchemy session
-  - `..payment.adapter.get_adapter`       支付参数生成(避免重复造支付)
-  - `..payment.models.Order`              充值订单落库(plan='credit')
   - `billing/points.py`                   积分核心逻辑
 """
 
@@ -62,8 +66,6 @@ from .schemas import (
     PointsLedgerItem,
     PointsPricingItem,
     PointsPricingResponse,
-    PointsRechargeCreateRequest,
-    PointsRechargeCreateResponse,
     PointsRechargeOptionsResponse,
     PointsRechargePreset,
     PointsRefundAdminRequest,
@@ -165,21 +167,6 @@ def _credit_config() -> dict[str, Any]:
     }
 
 
-def _compute_bonus(points: Decimal, cfg: dict[str, Any]) -> Decimal:
-    """按澜途规则:积分 >= bonus_threshold 时,赠送 floor((points - threshold) * bonus_rate)。
-
-    澜途样例:1000→0, 3000→1000, 5000→2000。
-    验证:(1000-1000)*0.5=0, (3000-1000)*0.5=1000, (5000-1000)*0.5=2000 ✓
-    """
-    p = _dec(points)
-    threshold = _dec(cfg["bonus_threshold"])
-    rate = _dec(cfg["bonus_rate"])
-    if p <= threshold:
-        return _ZERO
-    bonus = ((p - threshold) * rate).to_integral_value(rounding="ROUND_FLOOR")
-    return bonus if bonus > 0 else _ZERO
-
-
 def _serialize_pricing(row) -> dict[str, Any]:
     return {
         "pricingKey": row.pricing_key,
@@ -218,13 +205,17 @@ def points_recharge_options(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> PointsRechargeOptionsResponse:
-    """充值选项(参考澜途:5 档预设 + 自定义 + 赠送规则)。
+    """充值档位与赠送规则(参考澜途:5 档预设 + 自定义 + 赠送规则)。
+
+    ⚠️ **2026-10-23 起不再有在线充值** —— 平台支付手段已彻底删除,本端点
+    只保留**档位与赠送规则**,供运营侧按规则人工收款、人工签发注册码
+    (注册码携带的 `cr` 积分额度即按这里的赠送规则算好)。
 
     预设项语义(2026-10-16 M3 硬化):
       - `points`:档位主积分(**积分数**,单位=积分,非元);
       - `yuan = points / points_per_yuan`;
       - `bonusPoints`:档位显式配置的赠送积分数(澜途对齐);
-      - 与用户任意 points 的赠送计算 `_compute_bonus` 保持公式一致。
+      - 与 `_credit_config()` 里对数值型档位的赠送推导保持同一公式。
     """
     cfg = _credit_config()
     presets: list[PointsRechargePreset] = []
@@ -247,7 +238,12 @@ def points_recharge_options(
         defaultPoints=cfg["default_points"],
         customEnabled=cfg["custom_enabled"],
         presets=presets,
-        paymentChannels=["alipay", "wechat"],
+        channels=["manual_wechat"],
+        notice=(
+            "本产品仅支持个人微信人工收款,不提供平台在线支付。"
+            "客户端「设置 → 联系我们」可获取产品方微信;转账后由产品方"
+            "按上表规则人工签发注册码。"
+        ),
     )
 
 
@@ -313,110 +309,6 @@ def points_pricing(
     rows = list_pricing(db)
     items = [PointsPricingItem(**_serialize_pricing(r)) for r in rows]
     return PointsPricingResponse(pricingVersion="2026-10-v1", items=items)
-
-
-@router.post(
-    "/points/recharge",
-    response_model=PointsRechargeCreateResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-def points_create_recharge(
-    payload: PointsRechargeCreateRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> PointsRechargeCreateResponse:
-    """创建积分充值订单(复用 payment 通道,不重复造支付)。
-
-    本端点**不直接落积分**,仅在支付回调时由 payment.router 触发
-    `recharge_credit()` 落积分。见 `payment/router.py` 的回调分支。
-
-    ⚠️ **2026-10-22 起线上支付默认下线**,本端点随之关闭(返回 403 + 人工充值指引)。
-    积分的入账路径现在是:
-      - `POST /cloud/license/activate` —— 注册码激活时注入注册码携带的积分额度;
-      - `POST /cloud/admin/points/adjust` —— 管理端人工增减账户积分。
-    两者都不依赖支付通道,积分系统不会因为支付下线而失去入账能力。
-    """
-    cfg = _credit_config()
-    if not cfg["enabled"]:
-        raise HTTPException(status_code=400, detail="points recharge disabled")
-
-    payment_cfg = get_settings().get("online_payment", {})
-    if not payment_cfg.get("enabled", False):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={
-                "reason": "online_payment_disabled",
-                "message": payment_cfg.get(
-                    "contact_hint", "线上充值已下线,请联系产品方人工充值"
-                ),
-                "channel": "manual_recharge",
-            },
-        )
-
-    pts = _dec(payload.points)
-    if pts < _dec(cfg["min_points"]) or pts > _dec(cfg["max_points"]):
-        raise HTTPException(
-            status_code=422,
-            detail=f"points must be between {cfg['min_points']} and {cfg['max_points']}",
-        )
-
-    bonus = _compute_bonus(pts, cfg)
-    amount = round(float(pts) / cfg["points_per_yuan"], 2)
-    total_points = pts + bonus
-
-    # 复用 payment 通道:直接落 Order(plan='credit'),避免依赖外部 create_order 端点
-    from ..payment.adapter import get_adapter
-    from ..payment.models import Order, STATUS_CREATED, SUPPORTED_CHANNELS
-    from ..payment.router import _generate_order_no
-
-    if payload.channel not in SUPPORTED_CHANNELS:
-        raise HTTPException(
-            status_code=422,
-            detail=f"channel must be one of {sorted(SUPPORTED_CHANNELS)}",
-        )
-    order_no = _generate_order_no()
-    # M3 硬化:
-    #   - `days=None` 表达"积分永久有效"(不再借用 days=0 的模糊语义);
-    #   - `credit_points` 落主积分 + 赠送积分,便于审计与回调幂等追溯。
-    order = Order(
-        user_id=current_user.id,
-        order_no=order_no,
-        amount=amount,
-        plan="credit",
-        days=None,
-        credit_points=float(total_points),
-        status=STATUS_CREATED,
-        channel=payload.channel,
-    )
-    db.add(order)
-    db.commit()
-    db.refresh(order)
-
-    adapter = get_adapter(payload.channel)
-    if adapter is None:
-        db.delete(order)
-        db.commit()
-        raise HTTPException(status_code=400, detail=f"unsupported channel: {payload.channel}")
-
-    # 支付适配器仍需要 days 参数;plan='credit' 时传 0 让渠道层不扩展订阅(内部无副作用)
-    pay_params = adapter.create_payment(
-        order_no=order_no,
-        amount=amount,
-        plan="credit",
-        days=0,
-        notify_url=f"/cloud/payment/callback/{payload.channel}",
-        return_url="/payment/success",
-    )
-
-    return PointsRechargeCreateResponse(
-        orderNo=order_no,
-        amount=amount,
-        points=float(pts),
-        bonusPoints=float(bonus),
-        totalPoints=float(total_points),
-        channel=payload.channel,
-        payParams=pay_params,
-    )
 
 
 @router.post("/points/freeze", response_model=PointsFreezeResponse)

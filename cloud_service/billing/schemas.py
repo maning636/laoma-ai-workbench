@@ -179,7 +179,12 @@ class PointsRechargePreset(BaseModel):
 
 
 class PointsRechargeOptionsResponse(BaseModel):
-    """`GET /cloud/points/recharge/options` 响应(对齐澜途)。"""
+    """`GET /cloud/points/recharge/options` 响应。
+
+    ⚠️ **2026-10-23:平台支付彻底删除** —— 本端点不再用于「在线下单」,
+    只返回**档位与赠送规则**,供运营侧人工收款、人工签发注册码时对账。
+    `channels` 恒为 `["manual_wechat"]`(唯一渠道:个人微信人工转账)。
+    """
 
     enabled: bool
     pointsPerYuan: float
@@ -190,42 +195,8 @@ class PointsRechargeOptionsResponse(BaseModel):
     defaultPoints: float
     customEnabled: bool
     presets: list[PointsRechargePreset]
-    paymentChannels: list[str]
-
-    model_config = {"extra": "forbid"}
-
-
-class PointsRechargeCreateRequest(BaseModel):
-    """`POST /cloud/points/recharge` 请求体。
-
-    - `points`:要充值的积分数量(>=min,<=max,允许小数)。
-    - `channel`:支付渠道(alipay | wechat),与 payment 通道保持一致。
-    - `preset`:可选,预设档位;若不传,按 `points` 计算。
-    """
-
-    points: float = Field(..., gt=0, description="要充值的积分数量")
-    channel: str = Field("alipay", description="支付渠道: alipay | wechat")
-    preset: Optional[float] = Field(None, description="预设档位(可选)")
-
-    @model_validator(mode="after")
-    def _check_channel(self) -> "PointsRechargeCreateRequest":
-        if self.channel not in {"alipay", "wechat"}:
-            raise ValueError("channel must be 'alipay' or 'wechat'")
-        return self
-
-    model_config = {"extra": "forbid"}
-
-
-class PointsRechargeCreateResponse(BaseModel):
-    """`POST /cloud/points/recharge` 响应(不直接落积分,等待支付回调)。"""
-
-    orderNo: str
-    amount: float  # 实际支付金额(元)
-    points: float  # 主积分
-    bonusPoints: float  # 赠送积分
-    totalPoints: float  # 主 + 赠送
-    channel: str
-    payParams: dict[str, Any]
+    channels: list[str]
+    notice: str
 
     model_config = {"extra": "forbid"}
 

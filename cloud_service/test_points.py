@@ -1,7 +1,8 @@
 """M3 · 积分制 TestClient 集成测试(不启动服务器,不落仓库文件)。
 
 覆盖:
-  1. 充值流程:create_order → mock callback → 积分到账(含赠送)
+  1. **人工充值链路**:管理端加积分 → 账户余额 / 累计充值到账
+     (2026-10-23 起平台支付已彻底删除,在线充值订单端点不存在)
   2. 冻结/实扣/回滚:AI 生成场景三步
   3. 赠送规则计算:1000 档无赠送, 3000 档赠 1000, 5000 档赠 2000
   4. 乐观锁/并发:余额不足 402 + 冻结终态幂等
@@ -34,12 +35,12 @@ os.environ["CLOUD_POINTS_PER_YUAN"] = "10"
 os.environ["CLOUD_POINTS_BONUS_THRESHOLD"] = "1000"
 os.environ["CLOUD_POINTS_BONUS_RATE"] = "0.5"
 
-# 支付回调 URL(mock 签名 payload 对齐)
-os.environ["CLOUD_PAYMENT_NOTIFY_URL"] = "/cloud/payment/callback/alipay"
-os.environ["CLOUD_PAYMENT_RETURN_URL"] = "/payment/success"
+# 管理端 token(人工充值 / 人工加积分用)
 os.environ["CLOUD_ADMIN_TOKEN"] = "test-admin-token"
-# 线上支付默认下线(2026-10-22);测试要覆盖支付代码路径,显式打开开关。
-os.environ["CLOUD_ONLINE_PAYMENT_ENABLED"] = "true"
+# 2026-10-23:平台支付已彻底删除,清掉残留开关变量,避免误导。
+os.environ.pop("CLOUD_ONLINE_PAYMENT_ENABLED", None)
+os.environ.pop("CLOUD_PAYMENT_NOTIFY_URL", None)
+os.environ.pop("CLOUD_PAYMENT_RETURN_URL", None)
 
 # 确保能导入仓库根
 _repo_root = Path(__file__).resolve().parent.parent
@@ -47,31 +48,14 @@ if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
 
-def _mk_alipay_callback(order_no: str, trade_no: str, amount: float,
-                        plan: str = "pro", days: int = 30) -> dict:
-    """构造一份合法的支付宝回调 body(带 mock 签名)。"""
-    from cloud_service.payment import alipay
-    adapter = alipay.AlipayAdapter()
-    payload = {
-        "out_trade_no": order_no,
-        "total_amount": f"{amount:.2f}",
-        "plan": plan,
-        "days": str(days),
-        "notify_url": os.environ["CLOUD_PAYMENT_NOTIFY_URL"],
-        "return_url": os.environ["CLOUD_PAYMENT_RETURN_URL"],
-    }
-    sign = alipay._mock_sign(adapter._sign_secret, payload)
-    return {
-        "out_trade_no": order_no,
-        "trade_no": trade_no,
-        "total_amount": f"{amount:.2f}",
-        "trade_status": "TRADE_SUCCESS",
-        "plan": plan,
-        "days": str(days),
-        "notify_url": os.environ["CLOUD_PAYMENT_NOTIFY_URL"],
-        "return_url": os.environ["CLOUD_PAYMENT_RETURN_URL"],
-        "sign": sign,
-    }
+def _admin_recharge(client, user_id: int, points: float, note: str) -> dict:
+    """走管理端人工加积分(= 人工充值到账的唯一路径)。"""
+    r = client.post(
+        "/cloud/admin/points/adjust",
+        headers={"X-Admin-Token": "test-admin-token"},
+        json={"user_id": user_id, "amount": points, "note": note},
+    )
+    return r.json() if r.status_code == 200 else {}
 
 
 def run() -> int:
@@ -154,68 +138,36 @@ def run() -> int:
               preset_map.get(5000.0) == 2000,
               f"got={preset_map.get(5000.0)}")
 
-        # ── 4. 创建 3000 积分充值订单(¥300,应赠 1000) ─
+        # ── 4. 在线充值订单端点已删除(平台支付彻底删除) ──
         r = client.post("/cloud/points/recharge", headers=H, json={
             "points": 3000,
             "channel": "alipay",
         })
-        check("POST /cloud/points/recharge 3000", r.status_code == 201,
-              f"status={r.status_code} body={r.text[:300]}")
-        order = r.json()
-        check("order.amount == 300", order.get("amount") == 300,
-              f"got={order.get('amount')}")
-        check("order.points == 3000", order.get("points") == 3000,
-              f"got={order.get('points')}")
-        check("order.bonusPoints == 1000", order.get("bonusPoints") == 1000,
-              f"got={order.get('bonusPoints')}")
-        check("order.totalPoints == 4000", order.get("totalPoints") == 4000,
-              f"got={order.get('totalPoints')}")
-        order_no = order["orderNo"]
+        check("POST /cloud/points/recharge → 404(在线充值已删除)", r.status_code == 404,
+              f"status={r.status_code} body={r.text[:200]}")
 
-        # 此时积分账户**还没变化**(等回调)
-        r = client.get("/cloud/points/account", headers=H)
-        check("account unchanged before callback",
-              r.json().get("availablePoints") == 0,
-              f"body={r.json()}")
-
-        # ── 5. Mock 支付宝回调 → 积分到账 ──────────────
-        r = client.post(
-            "/cloud/payment/callback/alipay",
-            json=_mk_alipay_callback(
-                order_no, trade_no="MOCK_TRADE_001",
-                amount=300.0, plan="credit", days=0,
-            ),
-        )
-        check("POST /cloud/payment/callback/alipay", r.status_code == 200,
-              f"status={r.status_code} body={r.text[:300]}")
-        cb = r.json()
-        check("callback.ok == True", cb.get("ok") is True, f"cb={cb}")
-        check("callback.activated == True",
-              cb.get("activated") is True, f"cb={cb}")
+        # ── 5. 人工充值到账:管理端加积分(3000 主 + 1000 赠 = 4000) ──
+        my_uid = client.get("/cloud/points/account", headers=H).json()["primaryAccountId"]
+        adj = _admin_recharge(client, my_uid, 4000, "微信充值 3000 积分 + 赠送 1000")
+        check("管理端加积分 → 4000 到账",
+              abs(float(adj.get("points", {}).get("availablePoints", 0)) - 4000.0) < 0.001,
+              f"adj={adj}")
 
         r = client.get("/cloud/points/account", headers=H)
         acct = r.json()
-        check("after callback availablePoints == 4000",
+        check("after manual recharge availablePoints == 4000",
               acct.get("availablePoints") == 4000,
               f"body={acct}")
-        check("after callback totalRecharged == 4000",
+        check("after manual recharge totalRecharged == 4000",
               acct.get("totalRecharged") == 4000,
               f"body={acct}")
 
-        # ── 6. 幂等:重复回调不重复入账 ─────────────────
-        r = client.post(
-            "/cloud/payment/callback/alipay",
-            json=_mk_alipay_callback(
-                order_no, trade_no="MOCK_TRADE_001",
-                amount=300.0, plan="credit", days=0,
-            ),
-        )
-        check("idempotent callback status==200", r.status_code == 200,
-              f"status={r.status_code} body={r.text[:200]}")
-        r = client.get("/cloud/points/account", headers=H)
-        check("after duplicate callback still 4000",
-              r.json().get("availablePoints") == 4000,
-              f"body={r.json()}")
+        # ── 6. 人工充值会写流水(可审计) ─────────────────
+        r = client.get("/cloud/points/history?tx_type=RECHARGE", headers=H)
+        hist_r = r.json()
+        check("RECHARGE 流水至少 1 条",
+              hist_r.get("total", 0) >= 1,
+              f"total={hist_r.get('total')}")
 
         # ── 7. 冻结 → 实扣:AI 生图场景 ─────────────────
         r = client.post("/cloud/points/freeze", headers=H, json={
@@ -388,14 +340,8 @@ def run() -> int:
               f"status={r.status_code}")
 
         # ════════════════════════════════════════════════════
-        # ── 15. M3 硬化专项:预设/plan schema/days/credit_points ──
-        # 修复 M3 遗留 §9 中 4 个问题,新增断言不改动原有 51 项。
+        # ── 15. M3 硬化专项:预设数值 / 支付代码移除 / 人工充值可审计 ──
         # ════════════════════════════════════════════════════
-        from cloud_service.payment.models import Order as _Order
-        from cloud_service.payment.schemas import (
-            CreateOrderRequest as _COR,
-            CreateOrderResponse as _CORes,
-        )
 
         # ── 问题1 · 预设数值对齐澜途(points/yuan/bonusPoints) ──
         # 前面 options 已经取到 opts,这里再取一次以便读 yuan 字段
@@ -430,108 +376,48 @@ def run() -> int:
               preset_full[1000.0]["bonusPoints"] == 0,
               f"bonus={preset_full[1000.0]['bonusPoints']}")
 
-        # ── 问题2 · CreateOrderRequest schema 允许 plan='credit' ──
-        try:
-            _COR(plan="credit", days=None, channel="alipay")
-            check("CreateOrderRequest plan='credit' days=None 通过校验", True)
-        except Exception as e:
-            check("CreateOrderRequest plan='credit' days=None 通过校验",
-                  False, f"err={e}")
-        try:
-            _COR(plan="credit", days=0, channel="alipay")
-            check("CreateOrderRequest plan='credit' days=0 兼容归一为 None", True)
-        except Exception as e:
-            check("CreateOrderRequest plan='credit' days=0 兼容归一为 None",
-                  False, f"err={e}")
-        # 订阅端点 pro/free 的 days 必填仍强制
-        try:
-            _COR(plan="pro", days=None, channel="alipay")
-            check("CreateOrderRequest plan='pro' days=None 应拒绝", False,
-                  "意外通过")
-        except Exception:
-            check("CreateOrderRequest plan='pro' days=None 应拒绝", True)
-        # 非法 plan 仍拒绝
-        try:
-            _COR(plan="vip", days=30, channel="alipay")
-            check("CreateOrderRequest plan='vip' 应拒绝", False, "意外通过")
-        except Exception:
-            check("CreateOrderRequest plan='vip' 应拒绝", True)
+        # ── 问题2 · 支付代码与支付 schema 已彻底移除 ──
+        import importlib.util as _ilu
+        check("cloud_service.payment 包已不存在",
+              _ilu.find_spec("cloud_service.payment") is None,
+              "包仍在(平台支付未删干净)")
+        from cloud_service.billing import schemas as _billing_schemas
+        check("PointsRechargeCreateRequest schema 已移除",
+              not hasattr(_billing_schemas, "PointsRechargeCreateRequest"))
+        check("PointsRechargeCreateResponse schema 已移除",
+              not hasattr(_billing_schemas, "PointsRechargeCreateResponse"))
 
-        # ── 问题3 & 问题4 · 直接查 Order 表验证落库 ──
-        # 用当前 TestClient 上下文,直接从 cloud_service.db 拿 session
+        # ── 问题3 & 问题4 · 人工充值到账可审计(流水 + 余额) ──
+        from cloud_service.billing.models import CreditLedger, TX_RECHARGE
         from cloud_service.db import SessionLocal
         db_sess = SessionLocal()
         try:
-            credit_orders = (
-                db_sess.query(_Order)
-                .filter(_Order.plan == "credit")
+            recharge_ledgers = (
+                db_sess.query(CreditLedger)
+                .filter(CreditLedger.tx_type == TX_RECHARGE)
                 .all()
             )
-            check("Order 表存在 plan='credit' 记录",
-                  len(credit_orders) >= 1,
-                  f"count={len(credit_orders)}")
-            o = credit_orders[-1]  # 最新一条 = 步骤 4 里创建的 3000 积分订单
-            check("积分订单 days == None (语义:积分永久有效)",
-                  o.days is None,
-                  f"days={o.days}")
-            check("积分订单 credit_points == 4000 (3000 主 + 1000 赠)",
-                  o.credit_points is not None
-                  and abs(float(o.credit_points) - 4000.0) < 1e-6,
-                  f"credit_points={o.credit_points}")
-            check("积分订单 amount == 300 (元)",
-                  abs(float(o.amount) - 300.0) < 1e-6,
-                  f"amount={o.amount}")
-            check("积分订单 status == 'paid'", o.status == "paid",
-                  f"status={o.status}")
+            check("人工充值写入 RECHARGE 流水",
+                  len(recharge_ledgers) >= 1,
+                  f"count={len(recharge_ledgers)}")
+            led = recharge_ledgers[-1]
+            check("人工充值流水金额 == 4000 (3000 主 + 1000 赠)",
+                  led.amount is not None and abs(float(led.amount) - 4000.0) < 1e-6,
+                  f"amount={led.amount}")
+            check("人工充值流水 use_function == 'recharge'",
+                  led.use_function == "recharge",
+                  f"use_function={led.use_function}")
+            check("人工充值流水有 note(可审计:备注写明微信充值档位)",
+                  bool(led.note),
+                  f"note={led.note!r}")
         finally:
             db_sess.close()
 
-        # ── 问题4 附加 · 通过 /payment/order 端点回读 credit_points ──
-        r = client.get(f"/cloud/payment/order/{order_no}", headers=H)
-        check("GET /cloud/payment/order/{order_no} → 200",
-              r.status_code == 200,
-              f"status={r.status_code} body={r.text[:200]}")
-        if r.status_code == 200:
-            oresp = r.json()
-            check("OrderResponse.plan == 'credit'",
-                  oresp.get("plan") == "credit",
-                  f"body={oresp}")
-            check("OrderResponse.days is None",
-                  oresp.get("days") is None,
-                  f"days={oresp.get('days')}")
-            check("OrderResponse.credit_points == 4000",
-                  oresp.get("credit_points") == 4000,
-                  f"credit_points={oresp.get('credit_points')}")
-
-        # ── 问题4 加固 · 充值 100 积分(无赠送)验证到账 = 100 ──
-        r = client.post("/cloud/points/recharge", headers=H, json={
-            "points": 100,
-            "channel": "alipay",
-        })
-        check("POST /cloud/points/recharge 100 积分",
-              r.status_code == 201,
-              f"status={r.status_code} body={r.text[:200]}")
-        order2 = r.json()
-        check("100 积分订单 amount == 10 元",
-              abs(order2.get("amount", 0) - 10.0) < 0.01,
-              f"amount={order2.get('amount')}")
-        check("100 积分订单 totalPoints == 100 (无赠送)",
-              order2.get("totalPoints") == 100,
-              f"totalPoints={order2.get('totalPoints')}")
-        r = client.post(
-            "/cloud/payment/callback/alipay",
-            json=_mk_alipay_callback(
-                order2["orderNo"], trade_no="MOCK_TRADE_100",
-                amount=10.0, plan="credit", days=0,
-            ),
-        )
-        check("100 积分订单回调 ok", r.status_code == 200,
-              f"status={r.status_code} body={r.text[:200]}")
-        r = client.get("/cloud/points/account", headers=H)
-        # 上一步余额 3898.4 + 100(100 积分订单赠 0)= 3998.4
-        check("回调后余额增加 100 (无赠送) → 3998.4",
-              abs(r.json().get("availablePoints", 0) - 3998.4) < 0.1,
-              f"body={r.json()}")
+        # ── 问题4 加固 · 再人工加 100 积分(无赠送档)验证到账 = 100 ──
+        adj2 = _admin_recharge(client, my_uid, 100, "微信充值 100 积分")
+        check("第二次人工充值 +100 后余额 3998.4",
+              abs(float(adj2.get("points", {}).get("availablePoints", 0)) - 3998.4) < 0.1,
+              f"adj2={adj2}")
 
     # ── 汇总 ─────────────────────────────────────────
     print()

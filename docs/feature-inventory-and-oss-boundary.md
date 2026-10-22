@@ -672,6 +672,9 @@ B1/D4/P0 这批改动，**装出来就是老侧边栏 + 无注册码入口 + P0 
 
 #### 7.13.2 线上支付「下线不删」
 
+> ⚠️ **本节已被 §7.14 取代（2026-10-23）** —— 平台支付已**彻底删除**（不再是开关下线）。
+> 原文保留以备追溯，**当前口径请看 §7.14**。
+
 不是删除，是**开关下线**。理由：支付宝正式商户凭证马哥「后期会给」，
 所以线上支付是**待启用**而非永久废弃 —— 备案到位后改一个环境变量即可完全恢复，零重写成本。
 
@@ -860,6 +863,78 @@ DNS 生效后，剩下三步由本机完成（不改 `fde.conf`、不动既有�
 
 之后在桌面端构建时设 `CLOUD_URL` / `NEXT_PUBLIC_CLOUD_URL` = `https://fusion.maning789link.top`，
 云端链路即打通。
+
+---
+
+---
+
+## 7.14 平台支付彻底删除（2026-10-23）
+
+> 本节**取代** §7.13.2「线上支付『下线不删』」。§7.13.2 记录的是 2026-10-22 的
+> 阶段性决策（开关下线、保留代码），原文保留以备追溯；**当前口径以本节为准**。
+
+### 7.14.1 决策
+
+马哥明确：不再需要支付宝商户号，**一切走个人微信收款** —— 用户加产品方微信 → 转账 →
+平台给注册码。**一切平台支付手段都不要了。**
+
+与 §7.13.2 的差别不是「开关关掉」，而是**能力删除**：
+
+| 项 | §7.13.2（2026-10-22，已取代） | 本节（2026-10-23，当前口径） |
+|---|---|---|
+| 支付宝 / 微信支付代码 | 保留，只用开关关 | **整包删除**（`cloud_service/payment/` 9 个文件） |
+| 支付端点 | 存在，关闭时 403 + 指引 | **不存在，404** |
+| `orders` 表 | 保留 | **不再建表**（旧库里已存在的空表留着无害） |
+| 订单超时 / 日终对账后台任务 | 保留代码，关闭时不启动 | **任务与配置一并删除** |
+| 相关 env | 保留可恢复 | **不再被任何代码读取** |
+
+### 7.14.2 删除清单
+
+| 类别 | 文件 / 位置 |
+|---|---|
+| 支付包（整包删除） | `cloud_service/payment/{__init__,router,models,schemas,adapter,alipay,wechat,reconciliation,scheduler}.py` |
+| 支付测试（删除） | `cloud_service/test_payment.py` / `test_payment_alipay_real.py` / `test_payment_form_callback.py` / `test_payment_leftover.py` / `test_payment_wechat_real.py` / `test_billing_refund_semantics.py` |
+| 保留并平移 | `cloud_service/payment/task_guard.py` → `cloud_service/task_guard.py`（通用 Redis 分布式锁，与支付无关） |
+| `main.py` | 去掉 payment router 挂载、`close_expired_orders_task` / `reconcile_task` 两个后台任务、`online_payment_enabled` 分支 |
+| `settings.py` | 删掉 `online_payment` / `order_timeout` / `reconcile` / `task_lock` 四段配置 |
+| `db.py` | 删掉 `from .payment import models`（不再建 `orders` 表） |
+| `billing/points_endpoints.py` | 删掉 `POST /cloud/points/recharge`（创建充值订单）；`GET /cloud/points/recharge/options` 保留为**人工充值对账用**的档位与赠送规则 |
+| `billing/schemas.py` | 删掉 `PointsRechargeCreateRequest` / `PointsRechargeCreateResponse`；`PointsRechargeOptionsResponse` 的 `paymentChannels` → `channels`（恒为 `["manual_wechat"]`）+ 新增 `notice` |
+| `deploy/README.md` | 删掉线上支付开关与全部支付 env 的说明 |
+
+### 7.14.3 保留的人工充值链路
+
+商业闭环只剩一条，且**不需要任何云端配置**：
+
+```
+用户加产品方微信 → 人工转账 → 人工签发注册码 → 客户端输入注册码 → POST /cloud/license/activate
+```
+
+| 环节 | 端点 | 备注 |
+|---|---|---|
+| 加微信 / 收款 / 发码 | 运营侧人工 | 客户端入口「设置 → 联系我们」（`prism_frontend/src/lib/contact.ts`，统一指向 `/settings#contact`） |
+| 注册码开通订阅 + 注入积分 | `POST /cloud/license/activate` | 幂等键 = `license_id` |
+| 人工加 / 减 / 设定积分 | `POST /cloud/admin/points/adjust` | 写 `credit_ledger`，可审计 |
+| 人工续期 | `POST /cloud/admin/subscription/extend` | |
+| 档位与赠送规则（对账用） | `GET /cloud/points/recharge/options` | 5 档预设 + `channels=["manual_wechat"]` + `notice` |
+
+**客户端零改动**：前端本来就不调任何支付端点（`prism_frontend/src` 里
+`payment|alipay|create_order|recharge` 全无命中），人工充值入口早就指向设置页的「联系我们」。
+
+### 7.14.4 验收
+
+| 项 | 结果 |
+|---|---|
+| 云端路由数 | **32 条**（4 个 `/cloud/payment/*` 全消失，`POST /cloud/points/recharge` 也没了） |
+| `/cloud/payment/create_order` 等 4 个端点 | **404**（能力不存在，不是被开关拦） |
+| `POST /cloud/points/recharge` | **404** |
+| `GET /cloud/points/recharge/options` | 200，`channels == ["manual_wechat"]`，无 `paymentChannels` 字段，`notice` 非空 |
+| 云端测试 | 8 个测试文件全 PASS（`test_manual_recharge.py` / `test_points.py` / `test_billing.py` / `test_e2e.py` / `test_feature_gate_plan.py` / `test_license_verify.py` / `test_llm.py` / `test_prompts_oss_boundary.py`） |
+| 全仓残留引用 | `cloud_service/` 内只剩注释与反向断言，无活代码；前端 / `prism_backend` **零命中** |
+
+> 注：`docs/dev-reports/2026-10-13-deployment-guide.md` 里的支付章节是**历史部署报告**，
+> 原文保留不改；实际部署口径以 `deploy/README.md` 为准。
+
 
 ---
 

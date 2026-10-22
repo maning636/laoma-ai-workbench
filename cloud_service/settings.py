@@ -112,85 +112,27 @@ def get_settings():
             "custom_enabled": _get_str("CLOUD_POINTS_CUSTOM_ENABLED", "true").lower()
                 in {"1", "true", "yes"},
         },
-        # ── 线上支付(2026-10-22 下线)────────────────────────
-        # 商业闭环已改为「线下人工充值」:用户加产品方微信 → 人工收款 →
-        # 签发注册码(含授权条目 / 期限 / 积分额度)→ 用户填入客户端并同步云端。
-        # 原因:网站备案与 ICP 许可证未落地,线上收款通道不具备合规前提。
+        # ── 商业闭环:人工充值(2026-10-23 起取代线上支付)────────
+        # **平台支付手段已彻底删除**(2026-10-23):
+        #   - 删掉了整个 `cloud_service/payment/` 包(支付宝 / 微信支付 adapter、
+        #     Order 表、create_order / callback / 订单查询 / 退款 4 个端点);
+        #   - 删掉了 `POST /cloud/points/recharge`(创建充值订单);
+        #   - 删掉了订单超时清理与日终对账两个后台任务;
+        #   - 因此下面几段配置(`online_payment` / `order_timeout` /
+        #     `reconcile` / `task_lock`)随之移除,对应的 env 也不再被读取。
         #
-        # 代码**保留不删**(备案到位后把开关打开即可恢复),但默认关闭:
-        #   - 关闭时 `/cloud/payment/*` 统一返回 403 + 人工充值指引;
-        #   - 支付相关的后台任务(订单超时清理 / 日终对账)不启动;
-        #   - `/cloud/points/recharge`(创建充值订单)返回同样的指引。
+        # 现在的唯一收款路径(**不需要任何云端配置**):
+        #   1. 用户在客户端「设置 → 联系我们」加产品方微信(二维码在包内);
+        #   2. 微信转账并备注用户名;
+        #   3. 产品方核对到账 → 人工签发注册码(含授权条目 / 期限 / 积分额度);
+        #   4. 用户把注册码填进客户端 → `POST /cloud/license/activate` 开通。
         #
-        # 注意:积分的**入账**路径不在这里 —— 它由注册码激活
-        # (`POST /cloud/license/activate`)和管理端调整
-        # (`POST /cloud/admin/points/adjust`)承担,两者都不依赖支付通道。
-        "online_payment": {
-            "enabled": _get_str("CLOUD_ONLINE_PAYMENT_ENABLED", "false").lower()
-            in {"1", "true", "yes"},
-            # 关闭时返回给调用方的指引文案(前端也会用同一口径)
-            "contact_hint": _get_str(
-                "CLOUD_ONLINE_PAYMENT_CONTACT_HINT",
-                "线上充值已下线,请通过微信联系产品方人工充值(充值后获取注册码)",
-            ),
-        },
-        # ── 订单超时任务(P4)───────────────────────────
-        # 只影响 `status='created'` 的订单;不影响 paid / refunded / closed。
-        # 多 worker 部署下每个 worker 都会跑一份,注意幂等性(按 id 列表关闭)。
-        "order_timeout": {
-            "enabled": _get_str("CLOUD_ORDER_TIMEOUT_ENABLED", "true").lower()
-            in {"1", "true", "yes"},
-            "interval_seconds": _get_int("CLOUD_ORDER_TIMEOUT_INTERVAL_SECONDS", 3600),
-            "hours": _get_int("CLOUD_ORDER_TIMEOUT_HOURS", 24),
-        },
-        # ── 日终对账调度(P6)───────────────────────────────
-        # 默认 **关闭**:因为 `reconcile_day(platform_bills=None)` 会遍历已注册
-        # adapter 调 `adapter.fetch_bill()`,一旦接入真实商户 adapter 就是外部调用。
-        # 生产上线前必须显式确认开关,并配合日志告警;真实 adapter 上线时务必
-        # 检查 fetch_bill 的限流与重试策略,避免每天全量拉账单触发商户配额。
-        "reconcile": {
-            "enabled": _get_str("CLOUD_RECONCILE_ENABLED", "false").lower()
-            in {"1", "true", "yes"},
-            "interval_seconds": _get_int("CLOUD_RECONCILE_INTERVAL_SECONDS", 86400),
-            # 起始窗口(相对本次执行时间往前多少小时):默认 24h,覆盖"昨日"日切。
-            "lookback_hours": _get_int("CLOUD_RECONCILE_LOOKBACK_HOURS", 24),
-            # C-E: 单次 fetch_bill 的 wall-clock 超时。超时后本轮该 adapter 视为
-            # 失败,不影响其它 adapter 与下一轮。默认 30s。
-            "fetch_timeout_seconds": _get_float(
-                "CLOUD_RECONCILE_FETCH_TIMEOUT_SECONDS", 30.0,
-            ),
-            # C-E: 指数退避(base 秒)。第 n 次失败后等 base * (2 ** (n-1)),
-            # 封顶 max。默认 300s(5min),封顶 3600s(1h)。
-            "backoff_base_seconds": _get_float(
-                "CLOUD_RECONCILE_BACKOFF_BASE_SECONDS", 300.0,
-            ),
-            "backoff_max_seconds": _get_float(
-                "CLOUD_RECONCILE_BACKOFF_MAX_SECONDS", 3600.0,
-            ),
-            # C-E: 每日调用次数上限(所有 worker 累计)。0 = 关闭限流;
-            # 默认 10(约每小时 1 次);超限后本轮跳过并 warn。
-            "daily_limit": _get_int("CLOUD_RECONCILE_DAILY_LIMIT", 10),
-            # C-E: 每日限流 key 前缀(不同环境可隔离)
-            "daily_limit_base_key": _get_str(
-                "CLOUD_RECONCILE_DAILY_LIMIT_KEY",
-                "cloud:payment:reconcile",
-            ),
-        },
-        # ── 后台任务分布式锁(C-D)────────────────────────
-        # `uvicorn --workers > 1` 时每个 worker 都会跑一份 lifespan;
-        # 该开关控制是否用 Redis SET NX PX 抢锁,只有抢到锁的 worker 才执行
-        # 本轮任务,避免:1) 重复调用商户 fetch_bill;2) 日志重复。
+        # 积分的**入账**同理有两条,都不依赖支付通道:
+        #   - `POST /cloud/license/activate`   —— 注册码激活时注入注册码携带的积分;
+        #   - `POST /cloud/admin/points/adjust` —— 管理端人工增减账户积分。
         #
-        # 默认 **true**:Redis 挂时自动降级为"无锁模式"(打 warning 但照常
-        # 执行),既不会因 Redis 抖动停摆,也在正常路径下避免重复外部调用。
-        # 单 worker 部署(开发)可关闭以避免一次 RTT。
-        "task_lock": {
-            "enabled": _get_str("CLOUD_TASK_LOCK_ENABLED", "true").lower()
-            in {"1", "true", "yes"},
-            # 锁 TTL 秒;0 = 按 2 * 任务间隔 自动推导。默认 0 让调用方按任务间隔
-            # 动态算 TTL,通常 > 单轮任务最长执行时间,防止死锁。
-            "ttl_seconds": _get_int("CLOUD_TASK_LOCK_TTL_SECONDS", 0),
-        },
+        # 客户端侧的人工充值入口见 `prism_frontend/src/lib/contact.ts`
+        # 与 `components/settings/contact-card.tsx`(统一指向 `/settings#contact`)。
         # ── CORS(浏览器直连)───────────────────────────
         # 由 main.py 的 CORSMiddleware 使用;逗号分隔的 origin 列表。
         # 默认覆盖本地前端开发(3000 端口);生产通过 env 覆盖为真实前端域名。
