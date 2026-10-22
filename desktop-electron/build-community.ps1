@@ -401,7 +401,15 @@ $nsisInstallers = Get-ChildItem -LiteralPath $electronOutputDir -Filter *.exe -F
 if (-not $nsisInstallers -or $nsisInstallers.Count -eq 0) {
     throw "NSIS 安装包未生成"
 }
-$installerFile = $nsisInstallers | Select-Object -First 1
+# 只取**当前版本**的安装包。electron-builder 的输出目录可能残留旧版本 exe,
+# 原先这里用 `Select -First 1` 按字典序取,遇到 "1.1.2" < "1.1.3" 就会**静默挑中旧包**
+# 并把它当成新版本分发。改为按版本号精确匹配,匹配不到就报错。
+$installerFile = $nsisInstallers | Where-Object { $_.Name -like "*$semanticVersion-setup.exe" } | Select-Object -First 1
+if (-not $installerFile) {
+    Write-Host "  输出目录里的 exe:" -ForegroundColor Yellow
+    $nsisInstallers | ForEach-Object { Write-Host "    $($_.Name)" }
+    throw "未找到当前版本的安装包: *${semanticVersion}-setup.exe（输出目录里有旧版本残留）"
+}
 Write-Host "  [OK] NSIS 安装包: $($installerFile.Name) ($([math]::Round($installerFile.Length / 1MB, 2)) MB)"
 
 # ---------------------------------------------------------------
