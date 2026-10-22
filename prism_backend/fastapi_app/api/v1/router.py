@@ -49,6 +49,7 @@ from .review.router import router as review_router  # 审核队列（Phase 3.3�
 from .artifacts.router import router as artifacts_router  # 统一产物总线（生图/素材/视频/审核/发布串通用）
 from .dedup.router import router as dedup_router  # 去重查重（Phase 4.3）
 from .insight.router import router as insight_router  # 数据洞察（Phase 4.2）
+from .license.router import router as license_router  # 注册码(license)本地管理 + 双轨判定
 
 # 导入平台路由
 from .platforms.douyin.router import router as douyin_router
@@ -132,6 +133,7 @@ api_router.include_router(review_router)  # /review 审核队列（Phase 3.3）
 api_router.include_router(artifacts_router)  # /artifacts 统一产物总线
 api_router.include_router(dedup_router)  # /dedup 去重查重（Phase 4.3）
 api_router.include_router(insight_router)  # /insights 数据洞察（Phase 4.2）
+api_router.include_router(license_router, prefix="/license", tags=["注册码"])  # /license
 
 # 注册平台路由
 api_router.include_router(douyin_router)  # router 已自带 /platforms/douyin 前缀
