@@ -25,7 +25,6 @@ import {
 
 import { API_ENDPOINTS } from "@/lib/env"
 import { cloudAuth } from "@/lib/cloud-auth"
-import { gatewayRequest } from "@/lib/client-gateway"
 import {
   buildPlanBadgeView,
   normalizeFlags,
@@ -34,6 +33,8 @@ import {
 
 const AGENTS_LIST_URL = `${API_ENDPOINTS.base}/api/v1/ai-design/agents`
 const AGENTS_QUOTA_URL = `${AGENTS_LIST_URL}/quota`
+/** 最终生效 flag（注册码 ∩ 云端订阅）——本地后端算好 */
+const FLAGS_URL = `${API_ENDPOINTS.base}/api/v1/license/effective-flags`
 
 export const NO_AGENT_VALUE = "__none__"
 
@@ -112,26 +113,24 @@ export function AgentPickerStep() {
     }
   }, [])
 
-  // 并行拉取 Open Core feature flags（用于判断 agent_quota=0 显示升级提示）
-  // 云端不可达 / 未登录 → 默认 Community + agent_quota=0（不阻断 UI）
+  // 并行拉取最终生效的 feature flags（用于判断 agent_quota=0 显示升级提示）
+  // 读**本地后端**的 `/api/v1/license/effective-flags`（= 注册码 ∩ 云端订阅 的最终交集），
+  // 而不是直接读云端 —— 否则有注册码但未同步云端的用户会被误判为限制功能版。
+  // 本地后端不可达 / 未登录 → 默认 Community + agent_quota=0（不阻断 UI）
   useEffect(() => {
     let cancelled = false
     async function loadFlags() {
       try {
         const token = await cloudAuth.getAccessToken()
-        const r = await gatewayRequest<FeatureFlagsResponse>({
-          feature: "billing",
-          path: "billing/feature-flags",
-          method: "GET",
-          needToken: Boolean(token),
-          token: token || "",
-          timeoutMs: 5000,
-        })
+        const headers = new Headers()
+        if (token) headers.set("Authorization", `Bearer ${token}`)
+        const r = await fetch(FLAGS_URL, { headers, cache: "no-store" })
         if (cancelled) return
-        if (r.ok && r.data) {
-          setFlags(normalizeFlags(r.data))
+        if (r.ok) {
+          const data = (await r.json()) as FeatureFlagsResponse
+          setFlags(normalizeFlags(data))
         } else {
-          // 云端不可达/未登录：回落 Community + agent_quota=0
+          // 本地后端不可达/未登录：回落 Community + agent_quota=0
           setFlags(normalizeFlags({ plan: "community", flags: {} }))
         }
       } catch (e) {
@@ -241,11 +240,11 @@ export function AgentPickerStep() {
           <div className="flex items-center gap-2 text-xs text-primary">
             <Crown className="h-3.5 w-3.5 shrink-0" />
             <span className="font-medium">
-              当前为 Community 免费版，智能体风格训练为 Pro 会员功能。
+              当前为限制功能版，智能体风格训练为完整版功能。
             </span>
           </div>
           <div className="text-xs text-muted-foreground">
-            Community 版智能体配额为 0，无法创建或使用风格智能体。加微信开通可解锁
+            限制功能版智能体配额为 0，无法创建或使用风格智能体。加微信开通可解锁
             {view ? ` ${view.agentLabel} 个智能体 ` : " 更多智能体 "}
             并支持云端 LLM 风格训练。
           </div>

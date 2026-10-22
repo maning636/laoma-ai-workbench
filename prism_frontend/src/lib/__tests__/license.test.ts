@@ -214,9 +214,11 @@ function makeEffective(
   flags: Record<string, number | boolean | string>,
 ): LicenseEffectiveFlagsResponse {
   return {
+    plan: "community",
     flags,
     license: makeLicense(license.status, license),
     readOnly: license.readOnly ?? false,
     cloudAvailable: true,
+    upgrade_url: "/settings#contact",
   }
 }

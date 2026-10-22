@@ -6,6 +6,8 @@
   - `POST   /sync-cloud`       把本地注册码同步到云端(开通订阅 + 注入积分额度)
   - `DELETE /`                 清除本地注册码
   - `GET    /effective-flags`  **双轨交集**后的最终 flag(注册码 ∩ 云端订阅)
+                             响应形状与云端 `/cloud/feature-flags` 对齐:
+                             `{plan, flags, upgrade_url, license, readOnly, cloudAvailable}`
 
 设计:
   - 注册码是**本地**的,不依赖云端;云端只管订阅配额。
@@ -30,6 +32,7 @@ from fastapi_app.core.license import (
     STATUS_INVALID,
     LicenseState,
     clear_license,
+    derive_plan,
     effective_flags,
     license_cap,
     load_license,
@@ -39,6 +42,10 @@ from fastapi_app.core.license import (
 from fastapi_app.core.license_keys import FLAG_CAPACITY
 
 router = APIRouter(tags=["注册码"])
+
+#: 升级入口:线上支付已下线,统一指向设置页的「联系我们」区块(加微信人工办理)。
+#: 与前端 `prism_frontend/src/lib/plan-flags.ts` 的 `DEFAULT_UPGRADE_URL` 保持一致。
+UPGRADE_URL = "/settings#contact"
 
 
 class LicenseActivateRequest(BaseModel):
@@ -136,15 +143,27 @@ def license_effective_flags(request: Request) -> dict[str, Any]:
     """双轨交集后的最终 flag:注册码授权条目 ∩ 云端订阅配额。
 
     云端不可达时按 Community 兜底(离线也能跑)。
+
+    响应结构与云端 `GET /cloud/feature-flags` **对齐**(都是 `{plan, flags, upgrade_url}`),
+    前端因此只需要认一种形状,不必再区分「云端 flag」和「本地交集 flag」两套解析。
+
+    - `plan`   : "community" | "pro" —— 由最终 flag 派生(见 `derive_plan`)
+    - `flags`  : 12 个 flag 的最终生效值
+    - `license`: 当前注册码状态(脱敏)
+    - `readOnly`: 是否只读(注册码过期且宽限期满)
+    - `cloudAvailable`: 本次是否成功拉到云端 flag
+    - `upgrade_url`: 升级入口(统一指向设置页「联系我们」,走人工开通)
     """
     state = load_license()
     cloud = _cloud_flags(request)
     final = effective_flags(state, cloud)
     return {
+        "plan": derive_plan(final),
         "flags": final,
         "license": state.to_dict(),
         "readOnly": state.read_only,
         "cloudAvailable": bool(cloud),
+        "upgrade_url": UPGRADE_URL,
     }
 
 

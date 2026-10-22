@@ -6,6 +6,9 @@
  *   - POST   `/api/v1/license/activate`        → LicenseStatusResponse + ok
  *   - DELETE `/api/v1/license/`                → LicenseStatusResponse + ok + cleared
  *   - GET    `/api/v1/license/effective-flags` → LicenseEffectiveFlagsResponse
+ *                                             （2026-10-24 起响应形状与云端
+ *                                               `/cloud/feature-flags` 对齐：
+ *                                               `{plan, flags, upgrade_url, ...}`）
  *
  * 说明：
  *   - `license` 对象的字段是**snake_case / camelCase 混搭**
@@ -74,6 +77,11 @@ export interface LicenseStatusResponse {
 
 /** `GET /api/v1/license/effective-flags` 响应（**后端已完成交集运算**） */
 export interface LicenseEffectiveFlagsResponse {
+  /**
+   * 档位（"community" | "pro"）—— 由后端从最终交集 flag 派生。
+   * 与云端 `GET /cloud/feature-flags` 的 `plan` 同义。
+   */
+  plan: "community" | "pro"
   /** 双轨交集后的最终 flag */
   flags: LicenseFlagMap
   /** 当前注册码状态 */
@@ -82,6 +90,8 @@ export interface LicenseEffectiveFlagsResponse {
   readOnly: boolean
   /** 本次请求是否成功拉到云端 feature flags */
   cloudAvailable: boolean
+  /** 升级入口（线上支付已下线 → 指向设置页「联系我们」） */
+  upgrade_url?: string | null
 }
 
 /** 12 个 flag 名（与后端 `FLAG_CAPACITY` 完全一致） */

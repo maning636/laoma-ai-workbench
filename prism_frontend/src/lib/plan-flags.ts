@@ -5,17 +5,23 @@
  *   - `GET /cloud/feature-flags` 返回 `{plan, flags}`；
  *   - 云端不可达 / 未登录 / 401 → 前端一律回落 Community（不阻断 UI）。
  *
- * 本文件只做纯逻辑：
- *   1. 类型定义与 flag 常量（`FEATURE_NAMES`）
- *   2. 默认 Community flags 快照（云端不可达时使用）
- *   3. `normalizeFlags` / `buildPlanBadgeView` / `formatLimit` 派生函数
+ * ⚠️ 2026-10-24 起，客户端统一以**本地后端**的
+ * `GET /api/v1/license/effective-flags` 为准 —— 那是「注册码 ∩ 云端订阅」
+ * 的最终交集（后端已经算好），响应形状与云端一致（`{plan, flags, upgrade_url}`）。
+ * 直接读云端会漏掉本地注册码这一轨，导致有码但未同步云端的用户被误判为 Community。
  *
- * UI 层（`plan-badge.tsx`）与云端 API 调用逻辑都基于本文件。
+ * 本文件只做纯逻辑：
+ *   1. 类型定义与 flag 常量（`FEATURE_NAMES`，12 项）
+ *   2. 默认 Community flags 快照（云端不可达时使用）
+ *   3. Pro 档容量快照（用于派生「完整版 / 限制功能版」）
+ *   4. `normalizeFlags` / `buildPlanBadgeView` / `formatLimit` 派生函数
+ *
+ * UI 层（`plan-badge.tsx`）与 flag 拉取逻辑都基于本文件。
  */
 
 export type PlanName = "community" | "pro"
 
-/** Open Core 全量 feature 名（与 feature_gate.FEATURE_NAMES 保持一致） */
+/** Open Core 全量 feature 名（与 feature_gate.FEATURE_NAMES / 后端 FLAG_CAPACITY 保持一致，12 项） */
 export const FEATURE_NAMES = [
   "max_accounts",
   "max_platforms",
@@ -27,6 +33,8 @@ export const FEATURE_NAMES = [
   "proxy_management",
   "stream_chat",
   "team_members",
+  "cloud_prompt",
+  "campaign_orchestration",
 ] as const
 
 export type FeatureName = (typeof FEATURE_NAMES)[number]
@@ -34,7 +42,10 @@ export type FeatureName = (typeof FEATURE_NAMES)[number]
 /** 允许 `Any` 值：数值/布尔/字符串（"cloud" | "local_key"）共存。 */
 export type FeatureFlags = Partial<Record<FeatureName, number | boolean | string>>
 
-/** `GET /cloud/feature-flags` 响应。 */
+/**
+ * flag 响应。形状与云端 `GET /cloud/feature-flags` 一致，
+ * 因此本地 `GET /api/v1/license/effective-flags` 的响应可直接喂给 `normalizeFlags`。
+ */
 export interface FeatureFlagsResponse {
   plan: PlanName
   flags: FeatureFlags
@@ -46,6 +57,15 @@ export interface PlanBadgeView {
   plan: PlanName
   /** 是否 Pro */
   isPro: boolean
+  /**
+   * 客户端版本口径（马哥口径：客户端内只体现两档）。
+   *   - "完整版"   : Pro 客户，且 12 项 flag 全部达到 Pro 档
+   *   - "部分开通" : Pro 客户，但有 flag 还停在 Community 档（部分授权注册码）
+   *   - "限制功能版": 非 Pro 客户（未激活 / 过期 / 云端未开通）
+   */
+  editionLabel: string
+  /** 是否「完整版」 */
+  isFullEdition: boolean
   /** 账号上限（-1 = 无限，0 = 明确禁止） */
   maxAccounts: number
   /** 平台上限 */
@@ -76,7 +96,38 @@ export const DEFAULT_COMMUNITY_FLAGS: FeatureFlags = {
   proxy_management: false,
   stream_chat: false,
   team_members: 1,
+  cloud_prompt: false,
+  campaign_orchestration: false,
 }
+
+/**
+ * Pro 档容量快照（与后端 `license_keys.FLAG_CAPACITY` 的第三列一一对应）。
+ *
+ * 用途：派生「完整版 / 部分开通」。`data_recovery`（两档都是 true）与
+ * `team_members`（两档都是 1）两档相同，**不作判据**。
+ */
+export const PRO_FLAG_VALUES: FeatureFlags = {
+  max_accounts: -1,
+  max_platforms: 8,
+  ai_mode: "cloud",
+  image_gen: "cloud",
+  agent_quota: 2,
+  data_recovery: true,
+  persona: true,
+  proxy_management: true,
+  stream_chat: true,
+  team_members: 1,
+  cloud_prompt: true,
+  campaign_orchestration: true,
+}
+
+/**
+ * 「决定性 flag」= Community 与 Pro 取值不同的那些。
+ * 只有这些 flag 参与「完整版 vs 限制功能版」的判定。
+ */
+export const DECISIVE_FEATURE_NAMES: readonly FeatureName[] = FEATURE_NAMES.filter(
+  (name) => DEFAULT_COMMUNITY_FLAGS[name] !== PRO_FLAG_VALUES[name],
+)
 
 /**
  * 默认升级 URL。
@@ -141,6 +192,34 @@ export function normalizeFlags(
 }
 
 /**
+ * 派生客户端版本口径（「完整版 / 部分开通 / 限制功能版」）。
+ *
+ * 规则：
+ *   - `plan !== "pro"` → 「限制功能版」（未激活 / 过期 / 云端未开通）
+ *   - `plan === "pro"` 且 12 项决定性 flag **全部**达到 Pro 档 → 「完整版」
+ *   - `plan === "pro"` 但仍有决定性 flag 停在 Community 档 → 「部分开通」
+ *     （部分授权注册码：比如只买了 `campaign` 条目）
+ *
+ * 注意：`plan` 本身由**后端**从最终交集 flag 派生（`derive_plan`），
+ * 前端这里只做「完整度」的第二层判定。
+ */
+export function buildEditionLabel(flags: FeatureFlagsResponse): {
+  label: string
+  isFullEdition: boolean
+} {
+  if (flags.plan !== "pro") {
+    return { label: "限制功能版", isFullEdition: false }
+  }
+  const allPro = DECISIVE_FEATURE_NAMES.every(
+    (name) => flags.flags[name] === PRO_FLAG_VALUES[name],
+  )
+  return {
+    label: allPro ? "完整版" : "部分开通",
+    isFullEdition: allPro,
+  }
+}
+
+/**
  * 从 FeatureFlags 派生 UI 视图。
  *
  * 设计说明：
@@ -159,10 +238,13 @@ export function buildPlanBadgeView(
   const agentQuota = Number(f.agent_quota ?? DEFAULT_COMMUNITY_FLAGS.agent_quota)
 
   const upgradeUrl = opts.upgradeUrl || flags.upgrade_url || DEFAULT_UPGRADE_URL
+  const edition = buildEditionLabel(flags)
 
   return {
     plan: flags.plan,
     isPro: flags.plan === "pro",
+    editionLabel: edition.label,
+    isFullEdition: edition.isFullEdition,
     maxAccounts,
     maxPlatforms,
     agentQuota,

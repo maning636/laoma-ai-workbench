@@ -1,20 +1,22 @@
 /**
- * Open Core · Plan Badge（Community / Pro 套餐徽标）。
+ * Open Core · Plan Badge（完整版 / 限制功能版 徽标）。
  *
  * 位置：侧边栏底部（`sidebar-new.tsx`）。
  *
  * 行为：
- *   1. 挂载时调用 `GET /cloud/feature-flags`（复用 `gatewayRequest`，自动注入 JWT）；
- *   2. 云端不可达 / 未登录 / 401 / 网络错误 → **默认显示 Community**（不阻断 UI）；
- *   3. 组件提供 4 秒轮询（低频，不干扰用户），失败静默。
+ *   1. 挂载时调用**本地后端** `GET /api/v1/license/effective-flags`
+ *      —— 那是「注册码 ∩ 云端订阅」的最终交集，后端已算好；
+ *      直接读云端会漏掉本地注册码这一轨（有码但未同步云端的用户会被误判为限制功能版）；
+ *   2. 本地后端不可达 / 未登录 / 401 / 网络错误 → **默认显示限制功能版**（不阻断 UI）；
+ *   3. 组件提供 4 分钟轮询（低频，不干扰用户），失败静默。
  *
  * 视觉：
- *   - Community：灰色 badge + "3 账号 / 3 平台" + "加微信开通" 按钮
- *   - Pro：金色/primary badge + "无限账号 / 多平台" + "续费联系" 按钮
+ *   - 限制功能版：灰色 badge + "3 账号 / 3 平台" + "加微信开通" 按钮
+ *   - 完整版：金色/primary badge + "无限账号 / 多平台" + "续费联系" 按钮
  *
  * 复用：
  *   - `@/components/ui/badge` / `@/components/ui/button` / `@/components/ui/progress`
- *   - `@/lib/gatewayRequest`（feature="billing" 走云端）
+ *   - `@/lib/env`（`API_ENDPOINTS.base` = 本地后端 127.0.0.1:7000）
  *   - `@/lib/plan-flags` 纯逻辑（`normalizeFlags` / `buildPlanBadgeView`）
  */
 "use client"
@@ -31,7 +33,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { cloudAuth } from "@/lib/cloud-auth"
-import { gatewayRequest } from "@/lib/client-gateway"
+import { API_ENDPOINTS } from "@/lib/env"
 import {
   buildPlanBadgeView,
   normalizeFlags,
@@ -39,7 +41,8 @@ import {
   type PlanBadgeView,
 } from "@/lib/plan-flags"
 
-const FLAGS_PATH = "billing/feature-flags"
+/** 本地后端的「注册码 ∩ 云端订阅」最终交集端点 */
+const FLAGS_URL = `${API_ENDPOINTS.base}/api/v1/license/effective-flags`
 const POLL_INTERVAL_MS = 4 * 60 * 1000
 
 interface PlanBadgeProps {
@@ -51,27 +54,26 @@ interface PlanBadgeProps {
 }
 
 /**
- * 拉取 feature flags 并归一化；任何失败都返回 `DEFAULT_COMMUNITY_FLAGS`，
- * 保证云端不可达时 UI 不阻断。
+ * 拉取最终生效的 feature flags 并归一化；任何失败都返回 Community 默认，
+ * 保证本地后端不可达时 UI 不阻断。
+ *
+ * 带上云端 access token：本地后端会把它透传给云端，
+ * 这样云端订阅那一轨才能取到真实配额（未登录则云端回落 Community）。
  */
 async function fetchFlags(): Promise<FeatureFlagsResponse> {
   try {
     const token = await cloudAuth.getAccessToken()
-    const r = await gatewayRequest<FeatureFlagsResponse>({
-      feature: "billing",
-      path: FLAGS_PATH,
-      method: "GET",
-      needToken: Boolean(token),
-      token: token || "",
-      timeoutMs: 5000,
-    })
-    if (r.ok && r.data) {
-      return normalizeFlags(r.data)
+    const headers = new Headers()
+    if (token) headers.set("Authorization", `Bearer ${token}`)
+    const r = await fetch(FLAGS_URL, { headers, cache: "no-store" })
+    if (r.ok) {
+      const data = (await r.json()) as FeatureFlagsResponse
+      return normalizeFlags(data)
     }
   } catch (e) {
     // 网络/JSON/超时/未登录 —— 全部静默回落到 Community
     if (process.env.NODE_ENV === "development") {
-      console.warn("[PlanBadge] feature-flags fetch failed, fallback community:", e)
+      console.warn("[PlanBadge] effective-flags fetch failed, fallback community:", e)
     }
   }
   return normalizeFlags({ plan: "community", flags: {} })
@@ -172,8 +174,8 @@ export function PlanBadge({
             ? "border-primary/40 bg-primary/15 text-primary"
             : "border-border/60 bg-background/40 text-foreground/70 hover:bg-accent"
         }`}
-        title={view.isPro ? "Pro 会员" : "Community 免费版，点击加微信开通"}
-        aria-label={view.isPro ? "Pro 会员" : "Community 免费版，加微信开通"}
+        title={view.isPro ? `${view.editionLabel}` : "限制功能版，点击加微信开通"}
+        aria-label={view.isPro ? view.editionLabel : "限制功能版，加微信开通"}
       >
         {view.isPro ? (
           <Crown className="h-4 w-4" />
@@ -192,7 +194,7 @@ export function PlanBadge({
           : "border-border/60 bg-background/40"
       } ${className || ""}`}
       role="group"
-      aria-label={view.isPro ? "Pro 会员" : "Community 免费版"}
+      aria-label={view.editionLabel}
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 min-w-0">
@@ -209,7 +211,7 @@ export function PlanBadge({
                 : "border-border/60 bg-muted/40 text-foreground/70 hover:bg-muted/70"
             }`}
           >
-            {view.isPro ? "Pro" : "Community"}
+            {view.editionLabel}
           </Badge>
         </div>
         <Button

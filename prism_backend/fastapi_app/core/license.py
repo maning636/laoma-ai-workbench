@@ -552,6 +552,33 @@ def effective_flags(
     return out
 
 
+def derive_plan(final_flags: dict[str, Any]) -> str:
+    """从最终生效的 flag 派生档位("community" | "pro")。
+
+    判定规则:**任一「决定性 flag」达到 Pro 档即视为 pro**。
+    「决定性 flag」= community 与 pro 取值不同的那些;
+    `data_recovery`(两档都是 True)与 `team_members`(两档都是 1)不作判据。
+
+    为什么这样判:
+      - `effective_flags()` 已经把「注册码授权条目 ∩ 云端订阅配额」算完;
+        某个 flag 能到 Pro 档,说明**注册码有对应条目 且 云端订阅是 Pro**,
+        两边都到位了 —— 这正是「这个客户是付费客户」的判据;
+      - 云端不可达时 flag 会落到 Community 档 → 判 community(保守),
+        不会因为本地有 Pro 注册码就擅自开云端能力;
+      - 部分授权的注册码(例如只带 `campaign`)同样算 pro 客户,
+        但具体开了哪些能力由每个 flag 的数值如实呈现,前端据此显示配额。
+
+    口径与云端 `cloud_service/billing/feature_gate.py` 的 `_resolve_plan` 对齐
+    (都是 "community" / "pro" 两档)。
+    """
+    for flag, (_typ, community, pro) in FLAG_CAPACITY.items():
+        if community == pro:
+            continue  # 两档相同,不作判据
+        if final_flags.get(flag) == pro:
+            return "pro"
+    return "community"
+
+
 def feature_allowed(
     flag: str,
     license_state: LicenseState,
@@ -595,5 +622,6 @@ __all__ = [
     "license_file_path",
     "license_cap",
     "effective_flags",
+    "derive_plan",
     "feature_allowed",
 ]

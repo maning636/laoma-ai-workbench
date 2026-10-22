@@ -3,6 +3,9 @@ import {
   FEATURE_NAMES,
   DEFAULT_COMMUNITY_FLAGS,
   DEFAULT_UPGRADE_URL,
+  PRO_FLAG_VALUES,
+  DECISIVE_FEATURE_NAMES,
+  buildEditionLabel,
   buildPlanBadgeView,
   formatLimit,
   isFeatureAllowed,
@@ -11,14 +14,20 @@ import {
 } from "../plan-flags"
 
 describe("FEATURE_NAMES", () => {
-  it("包含 Open Core 报告的 10 项 flag", () => {
-    expect(FEATURE_NAMES).toHaveLength(10)
+  it("包含 Open Core 报告的 12 项 flag", () => {
+    expect(FEATURE_NAMES).toHaveLength(12)
   })
 
   it("包含关键 4 个数值型 feature", () => {
     for (const name of ["max_accounts", "max_platforms", "agent_quota", "team_members"]) {
       expect(FEATURE_NAMES).toContain(name)
     }
+  })
+
+  it("包含云端已补齐的两项（cloud_prompt / campaign_orchestration）", () => {
+    // 这两项历史上只在桌面端注册码表里存在,云端字典漏了 → 前端镜像也漏了 → 永远开不了。
+    expect(FEATURE_NAMES).toContain("cloud_prompt")
+    expect(FEATURE_NAMES).toContain("campaign_orchestration")
   })
 
   it("无重复", () => {
@@ -37,6 +46,22 @@ describe("DEFAULT_COMMUNITY_FLAGS", () => {
     expect(DEFAULT_COMMUNITY_FLAGS.max_accounts).toBe(3)
     expect(DEFAULT_COMMUNITY_FLAGS.max_platforms).toBe(3)
     expect(DEFAULT_COMMUNITY_FLAGS.agent_quota).toBe(0)
+  })
+
+  it("Community 默认：两项补齐的 flag 都是 false", () => {
+    expect(DEFAULT_COMMUNITY_FLAGS.cloud_prompt).toBe(false)
+    expect(DEFAULT_COMMUNITY_FLAGS.campaign_orchestration).toBe(false)
+  })
+})
+
+describe("DECISIVE_FEATURE_NAMES", () => {
+  it("排除两档相同的 data_recovery / team_members", () => {
+    expect(DECISIVE_FEATURE_NAMES).not.toContain("data_recovery")
+    expect(DECISIVE_FEATURE_NAMES).not.toContain("team_members")
+  })
+
+  it("覆盖其余 10 项", () => {
+    expect(DECISIVE_FEATURE_NAMES).toHaveLength(10)
   })
 })
 
@@ -166,6 +191,40 @@ describe("buildPlanBadgeView", () => {
     expect(v.maxAccounts).toBe(3)
     expect(v.maxPlatforms).toBe(3)
     expect(v.agentQuota).toBe(0)
+  })
+})
+
+describe("buildEditionLabel（客户端两档口径）", () => {
+  const fullPro: FeatureFlagsResponse = {
+    plan: "pro",
+    flags: { ...PRO_FLAG_VALUES } as FeatureFlagsResponse["flags"],
+  }
+
+  it("非 Pro → 限制功能版", () => {
+    const v = buildEditionLabel({ plan: "community", flags: {} })
+    expect(v.label).toBe("限制功能版")
+    expect(v.isFullEdition).toBe(false)
+  })
+
+  it("Pro 且 12 项 flag 全到 Pro 档 → 完整版", () => {
+    const v = buildEditionLabel(fullPro)
+    expect(v.label).toBe("完整版")
+    expect(v.isFullEdition).toBe(true)
+  })
+
+  it("Pro 但部分 flag 停在 Community 档 → 部分开通", () => {
+    const v = buildEditionLabel({
+      plan: "pro",
+      flags: { ...(PRO_FLAG_VALUES as Record<string, unknown>), agent_quota: 0 } as never,
+    })
+    expect(v.label).toBe("部分开通")
+    expect(v.isFullEdition).toBe(false)
+  })
+
+  it("badge 视图带出版本口径", () => {
+    const v = buildPlanBadgeView(fullPro)
+    expect(v.editionLabel).toBe("完整版")
+    expect(v.isFullEdition).toBe(true)
   })
 })
 
