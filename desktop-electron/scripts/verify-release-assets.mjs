@@ -123,6 +123,13 @@ async function verifyRelease(releaseDir, version) {
   if (!installerName) {
     errors.push('latest.yml: 缺少 path 字段');
   } else {
+    // 1.1.3 的线上事故:electron-builder 因安装包名含中文,回退成
+    // `${name}-setup-${version}.exe` 写进 latest.yml,与磁盘真实文件名对不上,
+    // 自动更新链路直接失效。这里把「path 必须等于约定的产物名」钉死。
+    const expectedInstaller = `LaomaAI-${version}-setup.exe`;
+    if (installerName !== expectedInstaller) {
+      errors.push(`latest.yml path 指向 ${installerName},应为 ${expectedInstaller}`);
+    }
     const installerPath = join(releaseDir, installerName);
     if (!entries.some((entry) => entry.isFile() && entry.name === installerName)) {
       errors.push(`latest.yml 引用的安装包不存在: ${installerName}`);
@@ -136,6 +143,11 @@ async function verifyRelease(releaseDir, version) {
       const declaredSize = installerEntry ? Number(installerEntry.size) : Number(yml.size);
       if (Number.isFinite(declaredSize) && declaredSize !== info.size) {
         errors.push(`latest.yml size(${declaredSize}) 与安装包(${info.size})不一致`);
+      }
+      // blockmap 必须与安装包同名同目录(差分更新必需)
+      const blockmapPath = `${installerPath}.blockmap`;
+      if (!entries.some((entry) => entry.isFile() && entry.name === `${installerName}.blockmap`)) {
+        errors.push(`blockmap 缺失: ${installerName}.blockmap`);
       }
     }
   }

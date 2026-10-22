@@ -592,6 +592,11 @@ echo ============================================
 echo Stage 2: build installer ^(NSIS^)
 echo ============================================
 echo.
+:: 1) 清掉上一轮残留,避免把旧版本的安装包/blockmap 一起搬进输出目录
+if exist "%ELECTRON_DIST%\*.exe" del /q "%ELECTRON_DIST%\*.exe"
+if exist "%ELECTRON_DIST%\*.exe.blockmap" del /q "%ELECTRON_DIST%\*.exe.blockmap"
+if exist "%ELECTRON_DIST%\latest.yml" del /q "%ELECTRON_DIST%\latest.yml"
+
 set "EB_CLI=%CD%\node_modules\electron-builder\cli.js"
 if exist "!EB_CLI!" (
     powershell -NoProfile -Command "Set-Location -LiteralPath '%CD%'; node '!EB_CLI!' --win --x64 --config.extraMetadata.version=%CURRENT_VERSION% --config.buildVersion=%FULL_VERSION%"
@@ -617,18 +622,67 @@ if exist "%ELECTRON_DIST%\win-unpacked\resources\prism_backend\.env.local" (
     pause
     exit /b 1
 )
-if exist "%ELECTRON_DIST%\*.exe" (
-    move "%ELECTRON_DIST%\*.exe" "%OUTPUT_DIR%\" >nul
-    if errorlevel 1 (
-        echo ERROR: failed to move NSIS installer
-        pause
-        exit /b 1
-    )
-) else (
+:: ------------------------------------------------------------
+:: 归档产物 + 自动更新元数据(electron-updater generic feed)
+:: ------------------------------------------------------------
+:: ⚠️ 1.1.3 的线上事故:electron-builder 写出的 latest.yml 里 path 是
+::    `laoma-ai-workbench-setup-1.1.3.exe`(纯 ASCII),而磁盘上的真实文件叫
+::    `老马AI工作台-1.1.3-setup.exe` —— 名字对不上,自动更新链路直接失效。
+::    根因:electron-builder 的 computeSafeArtifactNameIfNeeded() 只接受 ASCII
+::    文件名(含中文就回退成 `${name}-setup-${version}.exe`)。
+::    修法:build.artifactName 改成 ASCII(LaomaAI-${version}-setup.${ext})。
+::
+:: ⚠️ 这里还必须把 .blockmap 跟 .exe 一起搬走 —— 历史上只搬了 .exe,
+::    blockmap 与 latest.yml 留在 dist-build,产物就此分裂。
+::    最后用 finalize + verify 两个脚本把「名字/大小/sha512 与磁盘一致」钉死。
+
+:: 2) 安装包 + blockmap 一起归档到输出目录
+if not exist "%ELECTRON_DIST%\*.exe" (
     echo ERROR: NSIS installer not found in %ELECTRON_DIST%
     pause
     exit /b 1
 )
+move "%ELECTRON_DIST%\*.exe" "%OUTPUT_DIR%\" >nul
+if errorlevel 1 (
+    echo ERROR: failed to move NSIS installer
+    pause
+    exit /b 1
+)
+if exist "%ELECTRON_DIST%\*.exe.blockmap" (
+    move "%ELECTRON_DIST%\*.exe.blockmap" "%OUTPUT_DIR%\" >nul
+    if errorlevel 1 (
+        echo ERROR: failed to move NSIS blockmap
+        pause
+        exit /b 1
+    )
+) else (
+    echo ERROR: NSIS blockmap not found in %ELECTRON_DIST%
+    echo        The installer and its .blockmap must stay in the same directory.
+    pause
+    exit /b 1
+)
+
+:: 3) electron-builder 自带那份 latest.yml 的名字可能不对(历史遗留),删掉;
+::    第 4 步会用磁盘真实名重写
+if exist "%ELECTRON_DIST%\latest.yml" del /q "%ELECTRON_DIST%\latest.yml"
+
+:: 4) 以磁盘真实文件为准重写 latest.yml
+powershell -NoProfile -Command "Set-Location -LiteralPath '%CD%'; node 'scripts/finalize-windows-release.mjs' '%OUTPUT_DIR%' '%CURRENT_VERSION%'"
+if errorlevel 1 (
+    echo ERROR: finalize-windows-release.mjs failed ^(latest.yml generation^)
+    pause
+    exit /b 1
+)
+
+:: 5) 构建期守卫:产物齐全 + latest.yml 的 path/size/sha512 与磁盘安装包一致
+powershell -NoProfile -Command "Set-Location -LiteralPath '%CD%'; node 'scripts/verify-release-assets.mjs' '%OUTPUT_DIR%' '%CURRENT_VERSION%'"
+if errorlevel 1 (
+    echo ERROR: release asset verification failed
+    pause
+    exit /b 1
+)
+
+echo OK: release assets verified ^(installer + blockmap + latest.yml^)
 goto :DONE
 
 echo ERROR: invalid packaging type: !PACKAGE_TYPE!

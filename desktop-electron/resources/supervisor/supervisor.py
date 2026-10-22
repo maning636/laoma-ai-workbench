@@ -191,6 +191,102 @@ SERVICE_REGISTRY: Dict[str, Dict[str, object]] = {
     },
 }
 
+# =============================================================================
+# 注册码能力门禁 —— 限制功能版不启动 Hermes sidecar
+# =============================================================================
+# 客户端合并成单一安装器后,同一个安装包要同时服务「完整版」和「限制功能版」。
+# Hermes 三个进程(dashboard / webui / gateway)属于 **agent 能力**(Pro 档
+# `agent_quota=2`,Community 档 `agent_quota=0`),限制功能版用户用不了它们 ——
+# 白白占着内存与端口(9119 / 9131),体验上还会看到一堆用不了的入口。
+#
+# 判据:**本地注册码**是否带 `agent` 授权条目。
+#   - 只看本地注册码、不看云端订阅:Hermes 是**本地**运行时,不需要联网;
+#     云端不可达时也不该把付费用户降级(云端那一轨管的是 AI 额度,不是本地 agent)。
+#   - 必须验签(Ed25519 公钥来自 prism_backend 的 license_keys.py):
+#     否则用户改一下 license.json 就能白嫖 agent 能力。
+#   - 逃生门:env `LAOMA_HERMES_SKIP_ENTITLEMENT_GATE=1` 可整体关闭门禁
+#     (开发态由 Electron 主进程在 dev 分支自动设置,免得本地调试没码也起不了 Hermes)。
+# =============================================================================
+
+#: 受门禁管控的服务(全部是 Hermes sidecar)
+HERMES_SERVICES = ("hermes-dashboard", "hermes-webui", "hermes-gateway")
+
+#: 授权条目名:与 prism_backend/fastapi_app/core/license_keys.py 的 ENTITLEMENTS 一致
+AGENT_ENTITLEMENT = "agent"
+
+#: 注册码 token 前缀(与 core/license.py 的 TOKEN_PREFIX 一致)
+LICENSE_TOKEN_PREFIX = "PRISM1"
+
+#: 门禁总开关的逃生 env
+HERMES_GATE_SKIP_ENV = "LAOMA_HERMES_SKIP_ENTITLEMENT_GATE"
+
+
+def _b64u_decode(value: str) -> bytes:
+    """base64url 解码(容忍缺省 padding)。"""
+    import base64
+
+    pad = "=" * (-len(value) % 4)
+    return base64.urlsafe_b64decode(value + pad)
+
+
+def load_license_public_key(backend_dir: Path) -> Optional[str]:
+    """从 prism_backend 的 license_keys.py 读 Ed25519 公钥(hex)。
+
+    用 importlib **按文件路径**加载,不走 `import fastapi_app...` ——
+    `fastapi_app/core/__init__.py` 会连带 import config/logger/exceptions,
+    supervisor 只是引导进程,不该被这些副作用拖住。
+
+    读不到返回 None(调用方按「没有授权」处理)。
+    """
+    module_path = backend_dir / "fastapi_app" / "core" / "license_keys.py"
+    if not module_path.is_file():
+        return None
+    try:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("_prism_license_keys", module_path)
+        if spec is None or spec.loader is None:
+            return None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        value = getattr(module, "PUBLIC_KEY_HEX", None)
+        return str(value) if value else None
+    except Exception as exc:  # noqa: BLE001 - 引导进程不能因读公钥失败而崩
+        logger.warning("Failed to load license public key: %s", exc)
+        return None
+
+
+def verify_license_token(token: str, public_key_hex: str) -> Optional[frozenset]:
+    """验签注册码并返回授权条目集合;验签失败/格式错/异常 → None。
+
+    签名对象是 payload 的 base64url 文本(与 core/license.py::verify_license 一致),
+    这里只取 `ent` 字段,不看有效期 —— 有效期判定归后端,supervisor 只管「有没有 agent 能力」。
+    """
+    parts = (token or "").strip().split(".")
+    if len(parts) != 3 or parts[0] != LICENSE_TOKEN_PREFIX:
+        return None
+    _, body_b64, sig_b64 = parts
+    try:
+        from cryptography.exceptions import InvalidSignature
+        from cryptography.hazmat.primitives.asymmetric import ed25519
+
+        public_key = ed25519.Ed25519PublicKey.from_public_bytes(
+            bytes.fromhex(public_key_hex)
+        )
+        public_key.verify(_b64u_decode(sig_b64), body_b64.encode("ascii"))
+        raw = json.loads(_b64u_decode(body_b64).decode("utf-8"))
+    except (InvalidSignature, ValueError, TypeError, KeyError):
+        return None
+    except Exception as exc:  # noqa: BLE001 - cryptography 缺失等一律按「无授权」
+        logger.warning("License signature verification failed: %s", exc)
+        return None
+    if not isinstance(raw, dict):
+        return None
+    entitlements = raw.get("ent") or []
+    if not isinstance(entitlements, list):
+        return None
+    return frozenset(str(item) for item in entitlements)
+
 
 class ProcessManager:
     def __init__(self) -> None:
@@ -1489,7 +1585,47 @@ class Supervisor:
                     payload[extra_key] = base_url
         return payload
 
+    def _license_entitlements(self) -> Optional[frozenset]:
+        """读取本地注册码的授权条目(已验签);没有注册码 / 验签失败 → None。
+
+        注册码文件位置与后端一致:由 Electron 主进程注入 `LAOMA_DATA_DIR`,
+        文件名固定 `license.json`(core/license.py::LICENSE_FILE_NAME)。
+        """
+        data_dir = (os.environ.get("LAOMA_DATA_DIR") or "").strip()
+        if not data_dir:
+            return None
+        license_path = Path(data_dir) / "license.json"
+        if not license_path.is_file():
+            return None
+        try:
+            payload = json.loads(license_path.read_text(encoding="utf-8"))
+        except Exception as exc:  # noqa: BLE001 - 文件坏了按「无授权」
+            logger.warning("Failed to read local license file: %s", exc)
+            return None
+        if not isinstance(payload, dict):
+            return None
+        public_key_hex = load_license_public_key(self.backend_dir)
+        if not public_key_hex:
+            logger.warning("License public key unavailable; agent capability disabled")
+            return None
+        return verify_license_token(str(payload.get("token") or ""), public_key_hex)
+
+    def agent_capability_enabled(self) -> bool:
+        """本地注册码是否带 `agent` 授权条目(决定要不要起 Hermes sidecar)。"""
+        if (os.environ.get(HERMES_GATE_SKIP_ENV) or "").strip() in {"1", "true", "yes", "on"}:
+            return True
+        entitlements = self._license_entitlements()
+        return bool(entitlements and AGENT_ENTITLEMENT in entitlements)
+
     def can_start_service(self, name: str) -> bool:
+        if name in HERMES_SERVICES and not self.agent_capability_enabled():
+            logger.info(
+                "Skipping %s startup: local license has no '%s' entitlement "
+                "(limited-feature edition)",
+                name,
+                AGENT_ENTITLEMENT,
+            )
+            return False
         if name == "hermes-gateway":
             gateway_platform_status = self._get_gateway_platform_status()
             if not gateway_platform_status["configured"]:
@@ -1618,6 +1754,26 @@ class Supervisor:
         logger.info("All services started")
         logger.info("=" * 60)
 
+    def _maybe_start_hermes_when_entitled(self, env: Dict[str, str]) -> None:
+        """运行中拿到 agent 授权后补起 Hermes sidecar(每 15 秒检查一次)。
+
+        场景:用户在设置页输入注册码 → 后端落盘 `license.json` →
+        supervisor 下一轮检查发现多了 `agent` 条目 → 把启动时被门禁拦下的
+        Hermes 三个进程补起来,不用重启客户端。
+        """
+        now = time.time()
+        last_check = getattr(self, "_last_hermes_gate_check", 0.0)
+        if now - last_check < 15.0:
+            return
+        self._last_hermes_gate_check = now
+        if not self.agent_capability_enabled():
+            return
+        for name in HERMES_SERVICES:
+            if name in self.manager.processes:
+                continue
+            if self.start_named_service(name, env):
+                logger.info("Hermes %s started after license upgrade", name)
+
     def monitor_loop(self) -> None:
         logger.info("Starting supervisor monitor loop...")
         env = self.build_env()
@@ -1654,6 +1810,8 @@ class Supervisor:
             while not self.manager.should_stop:
                 time.sleep(3)
                 now = time.time()
+                # 动态解锁:用户在运行中输入了带 agent 条目的注册码 → 补起 Hermes
+                self._maybe_start_hermes_when_entitled(env)
                 for name, proc in list(self.manager.processes.items()):
                     if proc.poll() is None:
                         last_alive_at[name] = now

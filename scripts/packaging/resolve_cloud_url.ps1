@@ -2,8 +2,8 @@
   Resolve the cloud SaaS base URL (single source of truth).
 
   The value lives in the electron-builder config:
-    - Pro        : desktop-electron\package.json            -> laomaCloudUrl
-    - Community  : desktop-electron\package.community.json  -> extraMetadata.laomaCloudUrl
+    - 单一客户端  : desktop-electron\package.json            -> laomaCloudUrl
+    （2026-10-24 起只有一套打包配置，社区版独立配置已删除）
 
   Both the frontend build (NEXT_PUBLIC_CLOUD_URL, baked into the browser bundle)
   and the Electron runtime (CLOUD_URL / LAOMA_CLOUD_BASE_URL, read from the

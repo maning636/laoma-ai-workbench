@@ -1817,6 +1817,12 @@ class PrismApp {
         log.info('  - LAOMA_DATA_DIR:', dataDir);
       }
     }
+    // 开发态跳过 Hermes 能力门禁：本地通常没有注册码，
+    // 否则 supervisor 会把 dashboard / webui / gateway 全拦掉，没法调试。
+    // 打包态不设这个变量 → 限制功能版用户不会启动 Hermes sidecar。
+    if (this.isDev) {
+      env.LAOMA_HERMES_SKIP_ENTITLEMENT_GATE = '1';
+    }
     if (!env.PLAYWRIGHT_AUTO_INSTALL) {
       env.PLAYWRIGHT_AUTO_INSTALL = this.isDev ? '1' : '0';
     }

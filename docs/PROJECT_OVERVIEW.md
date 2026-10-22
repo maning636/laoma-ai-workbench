@@ -86,9 +86,9 @@
 ### 实现要点
 
 - **许可**：`LICENSE` = AGPL-3.0（Network Clause 是 Open Core 唯一护城河）
-- **Feature Gate**：`cloud_service/billing/feature_gate.py` 提供 10 个 flag（`max_accounts` / `max_platforms` / `ai_mode` / `image_gen` / `agent_quota` / `data_recovery` / `persona` / `proxy_management` / `stream_chat` / `team_members`），端点 `/billing/flags` `/billing/feature/{name}` `/billing/quota/{feature}`
-- **前端消费**：`plan-badge.tsx` + `plan-flags.ts` 消费 `/cloud/billing/feature-flags`，未登录/401/5xx 全降级为 Community 默认（详见 [frontend-badge-m4-agent](./dev-reports/2026-10-16-frontend-badge-m4-agent.md)）
-- **打包隔离**：Community 独立 `package.community.json` + `installer-community.iss` + `build-community.ps1`，AppId 不同可与 Pro 共存（详见 [community-packaging](./dev-reports/2026-10-16-community-packaging.md) + [community-build-verify](./dev-reports/2026-10-16-community-build-verify.md)）
+- **Feature Gate**：`cloud_service/billing/feature_gate.py` 提供 12 个 flag（`max_accounts` / `max_platforms` / `ai_mode` / `image_gen` / `agent_quota` / `data_recovery` / `persona` / `proxy_management` / `stream_chat` / `team_members` / `cloud_prompt` / `campaign_orchestration`），端点 `/billing/flags` `/billing/feature/{name}` `/billing/quota/{feature}`
+- **前端消费**：`plan-badge.tsx` + `plan-flags.ts` 消费**本地后端** `/api/v1/license/effective-flags`（= 注册码 ∩ 云端订阅 的最终交集，响应形状与 `/cloud/feature-flags` 对齐），未登录/401/5xx 全降级为限制功能版默认（详见 [frontend-badge-m4-agent](./dev-reports/2026-10-16-frontend-badge-m4-agent.md)）
+- **打包形态（2026-10-24 起）**：**单一客户端** —— 只有一套 `package.json` / `installer.iss` / `build-package.bat`，官网只挂一个下载入口；客户端内按注册码/订阅状态体现「完整版 / 限制功能版」。原 Community 独立打包（`package.community.json` / `installer-community.iss` / `build-community.ps1`）已删除（详见 [community-packaging](./dev-reports/2026-10-16-community-packaging.md) + [community-build-verify](./dev-reports/2026-10-16-community-build-verify.md)）
 
 ---
 
@@ -180,9 +180,9 @@ GitHub 下载 → 3 账号试玩 → 想更多 → 注册 → 2000 免费积分
 | 前端 standalone | ✅ 45.49 MB | 29 routes 已 prerendered |
 | Pro 版打包 | ⏸️ 未受影响 | `package.json` / `installer.iss` 未改动 |
 | GitHub CI | ✅ 就绪 | 6 硬门 job 并行，预计 8-12 分钟 |
-| Open Core 前端 flags | ✅ 消费完成 | 10 flag + Badge + Agent 下拉，282/282 PASS |
+| Open Core 前端 flags | ✅ 消费完成 | 12 flag + Badge（完整版/限制功能版）+ Agent 下拉 |
 
-**关键路径产物**：`desktop-electron/package.community.json`（本次已从 package.json 风格**重构为扁平 build 配置**，元信息迁入 `extraMetadata`）· `desktop-electron/build-community.ps1`（8 参数齐全）· `desktop-electron/installer-community.iss`（AppId 独立）。
+**关键路径产物（历史）**：`desktop-electron/package.community.json` · `desktop-electron/build-community.ps1` · `desktop-electron/installer-community.iss` —— 三者已于 2026-10-24「合并为单一客户端」时删除，历史细节见 [community-packaging](./dev-reports/2026-10-16-community-packaging.md)。
 
 ---
 
