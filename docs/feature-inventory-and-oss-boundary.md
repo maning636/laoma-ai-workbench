@@ -400,8 +400,8 @@
 | B1 | 注册码模块：签发端（Ed25519）+ 客户端输入入口（系统设置页）+ license 签名/校验 + 离线宽限 + 到期只读 | D1–D4 | ✅ **已完成**（2026-10-22，后端见 §7.9、前端见 §7.10） |
 | B2 | `cloud_service/llm_proxy/prompts.py` 移出开源树，改 import 链与打包配置 | D6 | ✅ **已完成**（2026-10-22，方案 R2=A，见 §7.7） |
 | B3 | README / 前端文案去掉写死的「8 平台」 | D5 | ✅ **已完成**（2026-10-22） |
-| B4 | 两个安装器重打包 + 干净 VM 验证 | 待办 1、2 | 待执行（干净 VM 未勾） |
-| B5 | 服务器工作副本同步 | 待办 7 | 待执行 |
+| B4 | 两个安装器重打包 + 干净 VM 验证 | 待办 1、2 | 🟡 **重打包已完成**（2026-10-22，见 §7.12）；**干净 VM 验证仍未做**（本机无干净 Windows 环境） |
+| B5 | 服务器工作副本同步 | 待办 7 | ✅ **已完成**（2026-10-22，见 §7.11） |
 
 ### 7.5 本轮落地（2026-10-22）
 
@@ -612,6 +612,42 @@ flag→条目映射以**矩阵 §1「Flag 真源表」为准**（`max_platforms`
 > **active + pro 的为 0 条** —— 即 P0 缺陷（Pro 权限自 `ac8978e` 起未生效）
 > 尚未影响到任何真实付费用户，因此本轮**无需通知与补偿**。
 > 等真出现付费用户前，P0 已上线，不会再复发。
+
+### 7.12 B4 落地（2026-10-22）：两个安装器重打包到 1.1.1
+
+上一轮的两个安装器（Pro 建于 2026-10-16、Community 建于 2026-10-21 20:38）都早于
+B1/D4/P0 这批改动，**装出来就是老侧边栏 + 无注册码入口 + P0 未修**，必须重打。
+
+| 项 | 结论 |
+|---|---|
+| 版本号 | `1.1.0` → **`1.1.1`**（Community 语义版本 `1.1.1-community`），两个 `build-version*.json` 同步 |
+| 打包器 | 两者都走 **NSIS**。本机无 Inno Setup（`ISCC.exe` 未安装），`build-package.bat:559` 找不到会**自动回退 NSIS**，因此**无需安装任何系统软件** |
+| Community | `build-community.ps1 -SkipPrismenv -AutoYes` → `老马AI工作台-Community-1.1.1-community-setup.exe`（570,604,407 B） |
+| Pro | `build-package.bat`（`LAOMA_AUTO_YES=1`、`LAOMA_PACKAGE_TYPE=1`）→ `老马AI工作台-1.1.1-setup.exe`（639,310,750 B） |
+| 混淆 | Pro 构建的 C18 混淆阶段检测到 `pyarmor` 未安装 → **自动降级跳过**，源码未被就地改写 |
+| 缓存 | PyInstaller 缓存改到 `_caches/pyinstaller`（D 盘），不再写 C 盘 |
+
+**关键验证：license 模块真进了二进制**（不是只改了源码树）。直接跑 PyInstaller 产物
+`backend.exe`，用真实 HTTP 打接口：
+
+| 验证对象 | 判定 |
+|---|---|
+| `dist/services/backend/backend.exe`（构建产物） | **5/5 PASS** |
+| Pro 包内 `win-unpacked/resources/services/backend/backend.exe` | **5/5 PASS** |
+
+5 项断言：`license` 字段存在 ｜ `status == missing` ｜ `readOnly == False` ｜
+`licenseFlags` 恰好 12 个 ｜ `/effective-flags` 12 个 flag 全命中。
+返回的 Community 默认值也正确（`max_accounts=3`、`max_platforms=3`、
+`ai_mode=local_key`、`data_recovery=true`、`team_members=1`）。
+
+**包内容核对**：两个包都含 `prism_backend/.../core/license.py`、`license_keys.py`、
+`api/v1/license/router.py`、`guard.py`；Pro 包含 Hermes agent + WebUI，Community 包**不含**（符合设计）。
+
+**顺带修掉的既有缺陷**（不重打也能进公开仓，但本轮安装包里是旧字节，仅影响日志前缀与 echo 提示）：
+仓库里 4 个文件带 U+FFFD 乱码，源自 2026-10-16 提交 `e49a0a0c` 的编码损坏 ——
+`.gitignore` 2 行、`desktop-electron/scripts/test-build.bat` 23 行、
+两个 `uploader/main_refactored.py` 各 3 行 / 1 行。全部落在日志前缀与提示文案，
+**不影响任何业务逻辑**。修复后全仓 1427 个跟踪文件复扫，剩余 U+FFFD **0**。
 
 ---
 
