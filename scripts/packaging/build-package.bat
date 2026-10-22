@@ -37,7 +37,7 @@ if not defined NEXT_PUBLIC_CLOUD_URL (
     for /f "usebackq delims=" %%i in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%PROJECT_ROOT%scripts\packaging\resolve_cloud_url.ps1" -ConfigPath "%PROJECT_ROOT%desktop-electron\package.json"`) do set "NEXT_PUBLIC_CLOUD_URL=%%i"
 )
 if not defined NEXT_PUBLIC_CLOUD_URL (
-    echo ERROR: failed to resolve the cloud url (laomaCloudUrl)
+    echo ERROR: failed to resolve the cloud url - laomaCloudUrl
     pause
     exit /b 1
 )
