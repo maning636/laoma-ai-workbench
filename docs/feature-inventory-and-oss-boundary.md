@@ -429,6 +429,28 @@
 > 知乎 / 头条 / 西瓜，而后端适配器实际支持 抖音 / 快手 / 小红书 / B站 / 视频号 / TikTok / YouTube / 百家号。
 > D5 只处置了「对外承诺多少数量」，选择器与后端不一致属于功能缺陷，等接入稳定后统一（对应 §5 项 2）。
 
+### 7.6 第二轮待决表（4 处尾巴）
+
+第一张表（`docs/oss-boundary-decision-form.docx`）的 10 项总体决策 + 7 项运维待办已全部落地；
+剩下 4 处尾巴收进第二张表，马哥勾完即可开工。
+
+| 项 | 要你定什么 | 我的建议 | 现状 |
+|---|---|---|---|
+| R1 | D2 绑机器最终口径（第一张表勾了两个互斥项） | 先按「默认不绑」落地，绑定开关留一处常量 | 已按「默认不绑；若启用绑定则允许自助解绑」落地 |
+| R2 | D6 云端 prompt 怎么移出开源树 | **公开仓只留 stub，Pro 打包时注入真实文件** | 未实施 |
+| R3 | §1 55 项 + §2 54 项兜底结果要不要改 | 先按兜底，等 B1 界面出来看实际观感再调 | 已按兜底落地（**推断，非逐项确认**） |
+| R4 | 干净 Windows VM 验证 + 真实生产联调凭证 | 凭证放 D 盘目录，我按路径读（不打印、不入库、不进 git） | 未推进（运维 2、3 未勾） |
+
+| 文件 | 说明 |
+|---|---|
+| `docs/oss-boundary-round2-decision-form.docx` | 第二轮待决表本体（4 项，含一屏看完的速览表） |
+| `scripts/docs/build_pending_decision_form.py` | 生成脚本 |
+| `scripts/docs/read_pending_decision_form.py` | 回读脚本：读出勾选结果，**逐框**判定勾选状态（并列框互不干扰） |
+| `scripts/docs/test_pending_decision_form_roundtrip.py` | 往返测试：造填好的副本 → 回读 → 断言读出结果一致 |
+
+**实测**：zip 完整 / 14 个 XML 部件全解析 / 3 张表（4 + 3 + 5 行）/ 页脚 PAGE 域在位；
+往返测试全绿 —— 勾选、未勾互不干扰、选择行、批注、并列框拆分 均读得准。
+
 
 ---
 
@@ -437,6 +459,11 @@
 ```powershell
 # feature gate 矩阵（生成时自动回读代码做交叉校验）
 python scripts/docs/build_feature_gate_matrix.py
+
+# 第二轮待决表（生成 / 回读 / 往返测试）
+python scripts/docs/build_pending_decision_form.py
+python scripts/docs/read_pending_decision_form.py
+python scripts/docs/test_pending_decision_form_roundtrip.py
 
 # 后端端点真源
 & 'D:\dim开发\Prism-Fusion\prismenv\Scripts\python.exe' -c "import json,urllib.request; d=json.load(urllib.request.urlopen('http://127.0.0.1:7000/api/openapi.json',timeout=30)); print(len(d['paths']))"
