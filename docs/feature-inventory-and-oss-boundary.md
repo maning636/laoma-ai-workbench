@@ -489,6 +489,34 @@ Pro 部署时用注入脚本从该目录同步到目标树；`--check` 模式校
 > Pro 版安装包也还没重打包（见 B4）。在补上这两项之前，Pro 部署要靠人工拷贝资产文件。
 
 
+### 7.8 P0 修复（2026-10-23）：付费 Pro 用户被静默降级成 Community
+
+在推进 B2 过程中做代码勘察时发现的**独立于开源边界的商业级缺陷**，已修。
+
+**症状**：`cloud_service/billing/feature_gate.py` 的 `_resolve_plan()` 里用了
+`select(Subscription)`，但文件顶部**漏了 `from sqlalchemy import select`**。
+`NameError` 被该函数的 `except Exception` 静默吞掉，`plan` 永远回落 `"community"`。
+
+**影响**：`GET /cloud/feature-flags` 对**所有用户**下发 Community 档位 flag ——
+付费 Pro 用户拿到的 `persona=False`、`proxy_management=False`、`stream_chat=False`、
+`max_accounts=3`、`max_platforms=3`、`ai_mode="local_key"`、`agent_quota=0`。
+**且没有任何报错**（这正是它能潜伏这么久的原因）。
+
+**根因不是漏 import，而是异常边界太宽**：`except Exception` 把「编程错误」
+（NameError/TypeError/AttributeError）和「运行时故障」（云端 DB 抖动）混为一谈，
+于是 bug 被伪装成了"正常降级"。
+
+| 改动 | 内容 |
+|---|---|
+| `cloud_service/billing/feature_gate.py` | 补 `from sqlalchemy import select`；`except Exception` → `except SQLAlchemyError`（只吞真正的 DB 故障，并记 warning 日志），编程错误直接向上抛 |
+| `cloud_service/test_feature_gate_plan.py` | **新增**回归测试：Pro 订阅 → plan=pro 且 Pro flag 全部下发；过期/取消/free/无订阅 → community；**编程错误必须向上抛，不得伪装成降级** |
+
+**实测**：修复前 `resolve_plan(active pro) = 'community'`（Pro flag 全错）；
+修复后 `= 'pro'`，`persona=True / max_accounts=-1 / ai_mode=cloud / agent_quota=2` 全部正确。
+
+> ⚠️ **该缺陷从初始提交 `ac8978e` 起就存在**，与本次开源边界改造无关。
+> 若线上已有付费用户，其 Pro 权限一直未生效 —— 需要在部署修复后通知并补偿。
+
 ---
 
 ## 附：本文档的复现方式

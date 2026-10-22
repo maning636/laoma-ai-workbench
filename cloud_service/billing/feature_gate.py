@@ -45,12 +45,17 @@ Feature Flags 完整列表 (对齐 `open-core-strategy.md` §3.1/§3.2):
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
 from typing import Any, Literal, Optional
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -215,7 +220,13 @@ def _resolve_plan(
       - plan == 'pro'               → "pro"
       - 其他                        → "community"
 
-    任何 DB 异常都吞掉并回落 "community"(避免云端抖动阻断客户端)。
+    只有**真正的 DB 故障**(`SQLAlchemyError`)才回落 "community"(避免云端抖动阻断客户端)。
+
+    ⚠️ 不要把这里改回 `except Exception`:
+    历史上正因为 `except Exception` 把 `NameError`(漏 import `select`)伪装成
+    "回落 community",结果**付费 Pro 用户被静默降级成 Community**,
+    全部 Pro 权限(persona / proxy_management / stream_chat / 无限账号 /
+    云端 AI 模式)失效,且没有任何报错。编程错误必须向上抛,让测试能抓到。
     """
     if db is None or user_id is None:
         return "community"
@@ -229,8 +240,9 @@ def _resolve_plan(
         if sub.status != "active":
             return "community"
         return "pro" if sub.plan == "pro" else "community"
-    except Exception:
-        # 云端故障 → 回落 Community(不阻断离线体验)
+    except SQLAlchemyError:
+        # 云端 DB 故障 → 回落 Community(不阻断离线体验)
+        logger.warning("[feature_gate] 订阅查询失败,回落 community", exc_info=True)
         return "community"
 
 
