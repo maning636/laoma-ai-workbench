@@ -5,7 +5,8 @@
     "description": "老马AI工作台 Community (Open Core, AGPL-3.0)",
     "author": "Laihiujin",
     "license": "AGPL-3.0",
-    "main": "src/main/index.js"
+    "main": "src/main/index.js",
+    "laomaCloudUrl": "https://fusion.maning789link.top"
   },
   "appId": "com.laomai.workbench.community",
   "productName": "老马AI工作台 Community",
@@ -75,6 +76,8 @@
         "!**/db/*.sqlite-*",
         "!**/db/frontend_accounts_snapshot.json",
         "!**/backups/**",
+        "!**/.env",
+        "!**/.env.local",
         "!**/nul"
       ]
     },

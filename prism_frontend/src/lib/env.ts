@@ -92,15 +92,15 @@ export const API_ENDPOINTS = {
 
   // ── C16 云端 SaaS 端点(全部走 cloudBaseUrl)──
   // 认证 / 订阅 / 云端 LLM / license 校验
-  cloudAuthRegister: `${cloudBaseUrl}/auth/register`,
-  cloudAuthLogin: `${cloudBaseUrl}/auth/login`,
-  cloudAuthRefresh: `${cloudBaseUrl}/auth/refresh`,
-  cloudAuthMe: `${cloudBaseUrl}/auth/me`,
-  cloudSubscription: `${cloudBaseUrl}/subscription`,
-  cloudLicenseVerify: `${cloudBaseUrl}/license/verify`,
-  cloudLlmChat: `${cloudBaseUrl}/llm/chat`,
-  cloudLlmPrompts: `${cloudBaseUrl}/llm/prompts`,
-  cloudLlmHealth: `${cloudBaseUrl}/llm/health`,
+  cloudAuthRegister: `${cloudBaseUrl}/cloud/auth/register`,
+  cloudAuthLogin: `${cloudBaseUrl}/cloud/auth/login`,
+  cloudAuthRefresh: `${cloudBaseUrl}/cloud/auth/refresh`,
+  cloudAuthMe: `${cloudBaseUrl}/cloud/auth/me`,
+  cloudSubscription: `${cloudBaseUrl}/cloud/subscription`,
+  cloudLicenseVerify: `${cloudBaseUrl}/cloud/license/verify`,
+  cloudLlmChat: `${cloudBaseUrl}/cloud/llm/chat`,
+  cloudLlmPrompts: `${cloudBaseUrl}/cloud/llm/prompts`,
+  cloudLlmHealth: `${cloudBaseUrl}/cloud/llm/health`,
 }
 
 export const PLATFORM_CODES = {

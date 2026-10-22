@@ -3,6 +3,7 @@
   "version": "1.1.0",
   "description": "老马AI工作台",
   "main": "src/main/index.js",
+  "laomaCloudUrl": "https://fusion.maning789link.top",
   "author": "Laihiujin",
   "license": "Apache-2.0",
   "scripts": {

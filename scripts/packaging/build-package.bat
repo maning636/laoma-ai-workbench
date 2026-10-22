@@ -26,6 +26,24 @@ cd /d "%PROJECT_ROOT%desktop-electron"
 set "ELECTRON_DIST=dist-build"
 
 :: ============================================
+:: 0.0 Resolve cloud SaaS url (single source of truth)
+:: ============================================
+:: The frontend bakes NEXT_PUBLIC_CLOUD_URL into the browser bundle at build
+:: time; the backend reads the same value at runtime. Skipping this step
+:: hard-codes the developer local cloud_service address into the installer
+:: (that is exactly what 1.1.2 shipped). Export NEXT_PUBLIC_CLOUD_URL in the
+:: environment to override it (self-hosted build).
+if not defined NEXT_PUBLIC_CLOUD_URL (
+    for /f "usebackq delims=" %%i in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%PROJECT_ROOT%scripts\packaging\resolve_cloud_url.ps1" -ConfigPath "%PROJECT_ROOT%desktop-electron\package.json"`) do set "NEXT_PUBLIC_CLOUD_URL=%%i"
+)
+if not defined NEXT_PUBLIC_CLOUD_URL (
+    echo ERROR: failed to resolve the cloud url (laomaCloudUrl)
+    pause
+    exit /b 1
+)
+echo OK: NEXT_PUBLIC_CLOUD_URL=%NEXT_PUBLIC_CLOUD_URL%
+
+:: ============================================
 :: 0. Sanitize release workspace
 :: ============================================
 echo [0/7] Sanitize release workspace...

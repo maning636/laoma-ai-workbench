@@ -294,6 +294,17 @@ Write-Host "[5/8] 前端构建(Next.js standalone)..." -ForegroundColor Yellow
 $frontendDir = Join-Path $ProjectRoot "prism_frontend"
 $frontendStandalone = Join-Path $frontendDir ".next\standalone\server.js"
 
+# 云端 SaaS 地址(单一真值:desktop-electron\package.community.json 的 extraMetadata.laomaCloudUrl)
+# 前端在构建期把 NEXT_PUBLIC_CLOUD_URL 固化进浏览器 bundle;后端在运行期读同一个值。
+$cloudUrl = & (Join-Path $ProjectRoot 'scripts\packaging\resolve_cloud_url.ps1') `
+    -ConfigPath (Join-Path $ProjectRoot 'desktop-electron\package.community.json') `
+    -UseExtraMetadata
+if ($LASTEXITCODE -ne 0 -or -not $cloudUrl) {
+    throw "无法解析云端地址(laomaCloudUrl)"
+}
+$env:NEXT_PUBLIC_CLOUD_URL = $cloudUrl.Trim()
+Write-Host "  [OK] NEXT_PUBLIC_CLOUD_URL = $($env:NEXT_PUBLIC_CLOUD_URL)"
+
 if (-not $SkipFrontend) {
     if (-not (Test-Path -LiteralPath (Join-Path $frontendDir "package.json"))) {
         throw "prism_frontend 目录缺失: $frontendDir"
@@ -347,7 +358,8 @@ try {
         "--config.extraMetadata.main=$($meta.main)",
         "--config.extraMetadata.description=$($meta.description)",
         "--config.extraMetadata.author=$($meta.author)",
-        "--config.extraMetadata.license=$($meta.license)"
+        "--config.extraMetadata.license=$($meta.license)",
+        "--config.extraMetadata.laomaCloudUrl=$($meta.laomaCloudUrl)"
     )
 
     $buildArgs = @("--config", $PackageConfig, "--win", "--x64", "--dir") + $appMetaArgs + @("--config.buildVersion=$finalVersion")

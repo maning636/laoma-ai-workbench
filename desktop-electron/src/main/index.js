@@ -1705,6 +1705,39 @@ class PrismApp {
     return this.resolveFirstPath(candidates) || null;
   }
 
+  /**
+   * 云端 SaaS 根地址(不含 `/cloud` 前缀)。
+   *
+   * 优先级:
+   *   1. 进程环境变量 `CLOUD_URL` / `LAOMA_CLOUD_BASE_URL` —— 用户自建云端时用
+   *   2. 安装包内置值 `package.json` 的 `laomaCloudUrl` —— 官方云端,打包时写死
+   *
+   * 约定:后端(`cloud_gateway.py` / `billing_client.py` / `points_client.py`)与
+   * 前端(`client-gateway.ts`)都约定这里给的是**根地址**,`/cloud` 前缀由各自补,
+   * 所以这里不要带 `/cloud` 后缀。
+   */
+  getCloudBaseUrl() {
+    const fromEnv = String(process.env.CLOUD_URL || process.env.LAOMA_CLOUD_BASE_URL || '').trim();
+    if (fromEnv) {
+      return fromEnv.replace(/\/+$/, '');
+    }
+
+    let packaged = '';
+    try {
+      // 打包后指向 app.asar 内的 package.json(electron-builder 会把 extraMetadata 合并进去)
+      const pkg = require('../package.json');
+      packaged = String((pkg && pkg.laomaCloudUrl) || '').trim();
+    } catch (error) {
+      log.warn('Unable to read laomaCloudUrl from package.json:', error && error.message);
+    }
+
+    if (!packaged) {
+      log.warn('Cloud base URL is not configured; cloud features stay in local mode.');
+      return '';
+    }
+    return packaged.replace(/\/+$/, '');
+  }
+
   buildServiceEnv() {
     const browsersRoot = this.getBrowsersRoot();
     const backendUrl = this.getBackendBaseUrl();
@@ -1740,6 +1773,17 @@ class PrismApp {
       MANUS_API_BASE_URL: backendApiBaseUrl,
       AGENT_API_BASE_URL: backendApiBaseUrl
     };
+
+    // 云端 SaaS 地址注入后端运行时环境(后端自己拼 /cloud 前缀)
+    const cloudBaseUrl = this.getCloudBaseUrl();
+    if (cloudBaseUrl) {
+      env.CLOUD_URL = cloudBaseUrl;
+      env.LAOMA_CLOUD_BASE_URL = cloudBaseUrl;
+      log.info('  - Cloud Base URL:', cloudBaseUrl);
+    } else {
+      log.warn('  - Cloud Base URL: <not configured> (cloud features fall back to local mode)');
+    }
+
     const pythonEnv = this.buildPythonEnv(env);
     Object.assign(env, pythonEnv);
     this.applyPlatformBrowserPreferenceEnv(env, this.runtimeSettings.platformBrowserPreferences || {});
