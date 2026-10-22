@@ -397,7 +397,7 @@
 
 | 批次 | 内容 | 依赖 | 状态 |
 |---|---|---|---|
-| B1 | 注册码模块：签发端（Ed25519）+ 客户端输入入口（系统设置页）+ license 签名/校验 + 离线宽限 + 到期只读 | D1–D4 | 待执行 |
+| B1 | 注册码模块：签发端（Ed25519）+ 客户端输入入口（系统设置页）+ license 签名/校验 + 离线宽限 + 到期只读 | D1–D4 | ✅ **已完成**（2026-10-23，后端见 §7.9；前端入口见下） |
 | B2 | `cloud_service/llm_proxy/prompts.py` 移出开源树，改 import 链与打包配置 | D6 | ✅ **已完成**（2026-10-23，方案 R2=A，见 §7.7） |
 | B3 | README / 前端文案去掉写死的「8 平台」 | D5 | ✅ **已完成**（2026-10-22） |
 | B4 | 两个安装器重打包 + 干净 VM 验证 | 待办 1、2 | 待执行（干净 VM 未勾） |
@@ -516,6 +516,48 @@ Pro 部署时用注入脚本从该目录同步到目标树；`--check` 模式校
 
 > ⚠️ **该缺陷从初始提交 `ac8978e` 起就存在**，与本次开源边界改造无关。
 > 若线上已有付费用户，其 Pro 权限一直未生效 —— 需要在部署修复后通知并补偿。
+
+### 7.9 B1 落地（2026-10-23）：注册码模块 + D4 只读守卫**真正落地拦截**
+
+§7.4 的 B1 此前只有「机制」没有「拦截」——`require_write_allowed` 写好了却没挂到任何路由上。
+本轮把它变成**真拦截**，并补齐注册码签发端。
+
+**注册码链路（离线可用）**
+
+| 环节 | 文件 | 说明 |
+|---|---|---|
+| 签发端 | `scripts/license/keygen.py` | Ed25519 密钥对生成，**私钥默认落仓库外**，不入库、不进安装包 |
+| 签发端 | `scripts/license/issue_license.py` | 年/季/月卡（365/90/30 天）或指定到期日、授权条目、宽限天数、客户名 |
+| 客户端 | `prism_backend/fastapi_app/core/license_keys.py` | 公钥 + 6 个授权条目 + 12 个 flag 容量表 + flag→条目映射 |
+| 客户端 | `prism_backend/fastapi_app/core/license.py` | 验签、状态机、本地存储（原子写）、时钟回拨防护（24h 容差） |
+| API | `prism_backend/fastapi_app/api/v1/license/router.py` | `GET /status`、`POST /activate`、`DELETE /`、`GET /effective-flags` |
+
+token 格式：`PRISM1.<payload_b64url>.<sig_b64url>`；状态机
+`missing / active / grace / expired / invalid / not_yet_valid`。
+
+**D1=C 双轨交集**（`effective_flags`）：数值取小、布尔取与、模式两边都 `cloud` 才 `cloud`。
+flag→条目映射以**矩阵 §1「Flag 真源表」为准**（`max_platforms` → `multi_platform`，
+`core` 只覆盖 `max_accounts` / `data_recovery` / `team_members`）——§2 表历史上把
+`max_platforms` 也列进 `core`，与 §1 冲突，以 §1 为准。
+
+**D4 只读守卫（本轮从「机制」变「拦截」）**
+
+| 文件 | 内容 |
+|---|---|
+| `prism_backend/fastapi_app/api/v1/license/guard.py` | 拦截面表 `READ_ONLY_RULES`（唯一真源）+ `is_blocked_write()` + ASGI 中间件 `ReadOnlyWriteGuard` |
+| `prism_backend/fastapi_app/main.py` | 注册中间件 —— **必须早于**路径规范化中间件，否则 `/api/v1/v1/…` 形式匹配不上拦截表直接绕过 |
+| `prism_backend/tests/test_license_readonly_guard.py` | **48 passed**：拦截面表 / 中间件真实行为 / 真实 app 嵌套顺序 / 规则不腐烂 |
+
+**拦截原则（刻意不扩大）**：拦「能产出新内容 / 推进新状态」的写操作；
+**放行「管理、清理、导出、停止、登录、改配置」**——否则到期用户会被锁死在
+停不下正在跑的发布、删不掉自己的文件、导不出数据，甚至**没法输入新注册码**。
+因此 `/campaigns/{id}/pause`、`/tasks/cancel/*`、`/license/activate`、`/auth/*`、
+`/system/*`、`/data/*`、`/recovery/*` 一律**不在**拦截面内。
+
+拦截面以**真实路由表**（298 条写路由）为准逐条核对，不是凭印象列路径；
+`test_rules_match_real_routes` 会在路由改名/删除而规则没跟上时直接红。
+
+紧急停用开关：环境变量 `PRISM_LICENSE_READONLY_GUARD=0` 关闭整个守卫。
 
 ---
 

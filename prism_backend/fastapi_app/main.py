@@ -44,6 +44,22 @@ app = FastAPI(
     openapi_url="/api/openapi.json"
 )
 
+# D4 只读守卫(注册码过期且宽限期满 → 拦截"产出新内容"的写操作)。
+#
+# ⚠️ 注册位置很关键:Starlette 里 `add_middleware` 是「后注册 = 更外层」,
+# 而下面的 `_normalize_duplicated_api_prefix` 会把 `/api/v1/v1/...` 规范化成
+# `/api/v1/...`。本守卫必须**先注册**(即更内层),才能看到规范化后的路径 ——
+# 否则 rewrite 产生的 `/api/v1/v1/api/v1/...` 形式匹配不上拦截表,直接绕过。
+try:
+    from .api.v1.license.guard import ReadOnlyWriteGuard
+
+    app.add_middleware(ReadOnlyWriteGuard)
+except Exception as _ro_exc:  # pragma: no cover - defensive
+    from .core import logger as _ro_logger
+
+    _ro_logger.warning(f"[ReadOnlyGuard] install failed (skipping): {_ro_exc}")
+
+
 @app.middleware("http")
 async def _normalize_duplicated_api_prefix(request: Request, call_next):
     # Next.js rewrites may accidentally turn `/api/v1/...` into `/api/v1/v1/...`.

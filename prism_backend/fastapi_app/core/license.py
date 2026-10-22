@@ -387,10 +387,13 @@ def load_license(
     *,
     public_key_hex: str = PUBLIC_KEY_HEX,
     now: Optional[datetime] = None,
+    touch: bool = True,
 ) -> LicenseState:
     """读取本地注册码并验签。带**时钟回拨**防护。
 
     `public_key_hex` 可注入,便于测试用临时密钥对;生产路径一律用默认公钥。
+    `touch=False` 表示**只读不改**:不刷新 `lastSeenAt`(只读守卫每次拦截都
+    调本函数,回写磁盘没意义,还会白白多一次写)。
     """
     path = license_file_path()
     if not path.is_file():
@@ -429,7 +432,7 @@ def load_license(
             pass
 
     # 刷新 lastSeenAt(成功读到即视为"设备在正常时间线上")
-    if state.valid:
+    if state.valid and touch:
         try:
             data["lastSeenAt"] = (now or datetime.now(timezone.utc)).astimezone(
                 timezone.utc
