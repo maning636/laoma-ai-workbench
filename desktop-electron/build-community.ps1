@@ -397,6 +397,14 @@ try {
     Pop-Location
 }
 
+# Build-time guard: the dev .env must never end up inside the package.
+# package.community.json extraResources filter must exclude it.
+foreach ($leakName in @('.env', '.env.local')) {
+    $leakPath = Join-Path $electronOutputDir ("win-unpacked\resources\prism_backend\" + $leakName)
+    if (Test-Path -LiteralPath $leakPath) {
+        throw "打包守卫失败: $leakPath 出现在打包产物里,extraResources 过滤必须排除它"
+    }
+}
 $nsisInstallers = Get-ChildItem -LiteralPath $electronOutputDir -Filter *.exe -File -ErrorAction SilentlyContinue
 if (-not $nsisInstallers -or $nsisInstallers.Count -eq 0) {
     throw "NSIS 安装包未生成"

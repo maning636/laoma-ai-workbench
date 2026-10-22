@@ -603,6 +603,20 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
+:: Guard: the dev .env must never end up inside the package.
+:: extraResources in desktop-electron\package.json must exclude it.
+if exist "%ELECTRON_DIST%\win-unpacked\resources\prism_backend\.env" (
+    echo ERROR: prism_backend\.env was packaged into the build output
+    echo        Fix: desktop-electron\package.json extraResources filter must exclude .env
+    pause
+    exit /b 1
+)
+if exist "%ELECTRON_DIST%\win-unpacked\resources\prism_backend\.env.local" (
+    echo ERROR: prism_backend\.env.local was packaged into the build output
+    echo        Fix: desktop-electron\package.json extraResources filter must exclude .env.local
+    pause
+    exit /b 1
+)
 if exist "%ELECTRON_DIST%\*.exe" (
     move "%ELECTRON_DIST%\*.exe" "%OUTPUT_DIR%\" >nul
     if errorlevel 1 (
