@@ -1,10 +1,14 @@
-"""生成 Prism-Fusion 注册码签名密钥对(Ed25519)。
+r"""生成 Prism-Fusion 注册码签名密钥对(Ed25519)。
 
 ⚠️ **私钥绝不入库**。本脚本只负责生成,不负责保管。
 
 用法:
-    # 生成到指定路径(建议放在仓库外的 D 盘目录)
-    python scripts/license/keygen.py --out "D:\\Prism-Fusion-Backup\\license-keys\\prism_license_ed25519.pem"
+    # 生成到指定路径(建议放在仓库外的私有目录)
+    python scripts/license/keygen.py --out "<私钥目录>/prism_license_ed25519.pem"
+
+    # 用环境变量指定默认私钥目录(推荐,避免把本机绝对路径写进代码)
+    set PRISM_LICENSE_KEY_DIR=D:\some\private\dir
+    python scripts/license/keygen.py --print-public
 
     # 只打印公钥(用于填进 prism_backend/fastapi_app/core/license_keys.py)
     python scripts/license/keygen.py --out <私钥路径> --print-public
@@ -21,14 +25,29 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
+
+def _default_key_dir() -> Path:
+    """私钥默认目录。
+
+    优先读环境变量 PRISM_LICENSE_KEY_DIR(推荐,便于把私钥放在仓库外的受控目录);
+    未设置时回退到用户主目录下的 .prism-license-keys。
+    这里刻意不写死任何本机绝对路径——本脚本要进开源仓。
+    """
+    env = os.environ.get("PRISM_LICENSE_KEY_DIR")
+    if env:
+        return Path(env)
+    return Path.home() / ".prism-license-keys"
+
+
 #: 私钥文件的建议存放目录(仓库外)
-DEFAULT_KEY_DIR = Path(r"D:\Prism-Fusion-Backup\license-keys")
+DEFAULT_KEY_DIR = _default_key_dir()
 
 
 def main(argv: list[str] | None = None) -> int:

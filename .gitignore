@@ -284,12 +284,12 @@ prism_backend/_final_check.py
 prism_backend/_import_check.py
 prism_backend/check_syntax.py
 
-# �û�����/�ƻ�����(2026-10-12 ����� C �̴洢)
+# 方案草稿备份/产品化 SaaS 方案（2026-10-12 产品化 C 方案）
 /_plan_drafts_backup/
 /_plan_productization_saas.md
 
 /_appdata_electron/
-/_appdata_����AI����̨_backup/
+/_appdata_老马AI工作台_backup/
 
 /_caches/
 /_appdata_laoma_bid/

@@ -832,14 +832,14 @@ class DouYinVideo(DouYinBaseUploader):
                     break
             if not trigger:
                 return False
-            douyin_logger.info(_msg("��", f"检测到推荐封面弹窗: {trigger}"))
+            douyin_logger.info(_msg("📍", f"检测到推荐封面弹窗: {trigger}"))
             if want_portrait:
                 for t in ("设置竖封面", "设置竖版封面"):
                     b = page.get_by_text(t, exact=False).first
                     if await b.count() and await b.is_visible():
                         await b.click(timeout=3000)
                         await page.wait_for_timeout(1000)
-                        douyin_logger.info(_msg("��", "已点「设置竖封面」"))
+                        douyin_logger.info(_msg("✅", "已点「设置竖封面」"))
                         return True
             else:
                 for t in ("设置横封面", "设置横版封面"):
@@ -858,7 +858,7 @@ class DouYinVideo(DouYinBaseUploader):
                     douyin_logger.info(_msg("🖼️", f"已点「{t}」保留当前封面方向"))
                     return True
         except Exception as exc:
-            douyin_logger.debug(_msg("��", f"推荐封面处理跳过：{exc}"))
+            douyin_logger.debug(_msg("⚠️", f"推荐封面处理跳过：{exc}"))
         return False
 
     async def set_thumbnail(self, page: Page):

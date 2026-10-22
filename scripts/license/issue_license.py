@@ -5,7 +5,7 @@
 用法:
     # 年卡,含 core + ai_cloud + multi_platform
     python scripts/license/issue_license.py \
-        --key "D:\\Prism-Fusion-Backup\\license-keys\\prism_license_ed25519.pem" \
+        --key "<私钥目录>/prism_license_ed25519.pem" \
         --plan year --entitlements core,ai_cloud,multi_platform \
         --customer "马哥" --note "年卡"
 
@@ -52,8 +52,23 @@ from prism_backend.fastapi_app.core.license_keys import (  # noqa: E402
 #: D3 固定期限
 PLAN_DAYS = {"year": 365, "quarter": 90, "month": 30}
 
+def _default_key() -> Path:
+    """私钥文件默认位置。
+
+    优先 PRISM_LICENSE_KEY(完整文件路径)，其次 PRISM_LICENSE_KEY_DIR(目录 + 固定文件名)。
+    都没有时回退到用户主目录下的 .prism-license-keys。
+    刻意不写死本机绝对路径——本脚本要进开源仓。
+    """
+    env_file = os.getenv("PRISM_LICENSE_KEY")
+    if env_file:
+        return Path(env_file)
+    env_dir = os.getenv("PRISM_LICENSE_KEY_DIR")
+    base = Path(env_dir) if env_dir else (Path.home() / ".prism-license-keys")
+    return base / "prism_license_ed25519.pem"
+
+
 #: 私钥文件默认位置(仓库外)
-DEFAULT_KEY = Path(r"D:\Prism-Fusion-Backup\license-keys\prism_license_ed25519.pem")
+DEFAULT_KEY = _default_key()
 
 
 def load_private_key(path: Path):

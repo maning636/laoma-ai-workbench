@@ -650,7 +650,7 @@ class KSNote(KSBaseUploader):
         await page.keyboard.press("Enter")
 
         for index, tag in enumerate(self.tags[:3], start=1):
-            kuaishou_logger.info(_msg("��️", f"小人正在添加第 {index} 个话题: #{tag}"))
+            kuaishou_logger.info(_msg("🏷️", f"小人正在添加第 {index} 个话题: #{tag}"))
             await page.keyboard.type(f"#{tag} ")
             await asyncio.sleep(2)
 
