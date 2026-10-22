@@ -41,6 +41,8 @@ Feature Flags 完整列表 (对齐 `open-core-strategy.md` §3.1/§3.2):
   proxy_management   代理管理/IP 池         Community=false   Pro=true
   stream_chat        SSE 流式 AI 对话       Community=false   Pro=true
   team_members       团队座位数             Community=1       Pro=1(暂同;Team 档另行)
+  cloud_prompt       云端高级 Prompt        Community=false   Pro=true
+  campaign_orchestration 营销活动编排       Community=false   Pro=true
 """
 
 from __future__ import annotations
@@ -86,6 +88,13 @@ COMMUNITY_FLAGS: dict[str, Any] = {
     "proxy_management": False,
     "stream_chat": False,
     "team_members": 1,
+    # ⚠️ 以下两项历史上**只在桌面端注册码表里存在**,云端字典漏了。
+    #    漏的下场:客户端 D1=C 双轨交集时 `cloud_flags.get(flag, community)` 取到
+    #    community 档(False),再与本地取 AND → 这两项**永远 False**,Pro 用户也开不了。
+    #    云端字典必须与 `prism_backend/fastapi_app/core/license_keys.py` 的
+    #    FLAG_CAPACITY **同 12 项**,由 `cloud_service/test_license_verify.py` 钉死。
+    "cloud_prompt": False,
+    "campaign_orchestration": False,
 }
 
 PRO_FLAGS: dict[str, Any] = {
@@ -98,7 +107,10 @@ PRO_FLAGS: dict[str, Any] = {
     "persona": True,
     "proxy_management": True,
     "stream_chat": True,
-    "team_members": 1,          # Team 档位后续扩展
+    "team_members": 1,           # Team 档位后续扩展
+    # 与桌面端 FLAG_CAPACITY 对齐的补齐项(见 COMMUNITY_FLAGS 上方注释)
+    "cloud_prompt": True,
+    "campaign_orchestration": True,
 }
 
 
@@ -317,7 +329,10 @@ def check_feature(
     flags = get_flags_for_plan(plan)
     value = flags[feature_name]
 
-    if feature_name in {"data_recovery", "persona", "proxy_management", "stream_chat"}:
+    if feature_name in {
+        "data_recovery", "persona", "proxy_management", "stream_chat",
+        "cloud_prompt", "campaign_orchestration",
+    }:
         # 布尔型
         return FeatureCheckResult(
             allowed=bool(value),

@@ -5,7 +5,8 @@
   GET  /cloud/subscription           → 当前订阅 + 用量(懒创建 free 订阅)
   POST /cloud/usage/consume          → 消耗额度;超限返回 402
   POST /cloud/license/verify         → 客户端心跳:订阅有效性 + 剩余额度 + is_pro
-  POST /cloud/subscription/activate  → 模拟激活 pro(供 C19 支付接入前使用)
+  POST /cloud/license/activate       → **用注册码开通云端能力**(线下人工充值模式)
+  POST /cloud/subscription/activate  → 模拟激活 pro(仅开发用;生产已加保护)
   GET  /cloud/feature-flags          → Open Core feature gate 快照(2026-10-18 追加)
 
 复用:
@@ -13,10 +14,12 @@
   - `..auth.router.get_current_user`(C12 的 JWT 依赖)
   - `..settings.get_settings()["billing"]`(额度可配)
   - `..billing.feature_gate`(Open Core 功能分层,Community vs Pro)
+  - `..billing.license_activation`(注册码验签 → 订阅 + 积分注入)
 """
 
 from __future__ import annotations
 
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -29,11 +32,14 @@ from ..auth.router import get_current_user  # C12 的 JWT 依赖(复用,不重�
 from ..db import get_db
 from ..settings import get_settings
 from .feature_gate import get_user_feature_flags
+from .license_activation import LicenseActivationError, activate_with_license
 from .models import Subscription, Usage
 from .schemas import (
     ConsumeRequest,
     ConsumeResponse,
     FeatureFlagsResponse,
+    LicenseActivateRequest,
+    LicenseActivateResponse,
     LicenseVerifyResponse,
     SubscriptionActivateRequest,
     SubscriptionResponse,
@@ -45,6 +51,16 @@ router = APIRouter()
 # ──────────────────────────────────────────────────────────────
 # 内部工具
 # ──────────────────────────────────────────────────────────────
+
+def _dev_activate_allowed() -> bool:
+    """是否允许「模拟激活订阅」端点。
+
+    默认 **关闭**:该端点能让任意登录用户把自己变成 Pro,生产开放等于
+    付费能力免费拿。仅本地开发显式打开。
+    """
+    raw = (os.getenv("CLOUD_DEV_ALLOW_SUBSCRIPTION_ACTIVATE") or "").strip()
+    return raw.lower() in {"1", "true", "yes", "on"}
+
 
 def _plan_quota(plan: str) -> int:
     billing = get_settings()["billing"]
@@ -491,18 +507,70 @@ def verify_license(
     )
 
 
+@router.post("/license/activate", response_model=LicenseActivateResponse)
+def activate_license(
+    payload: LicenseActivateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> LicenseActivateResponse:
+    """用注册码开通/延长云端订阅,并注入注册码携带的积分额度。
+
+    这是**线下人工充值模式**的核心入口(线上支付已下线):
+    用户加产品方微信 → 收款 → 拿到签发好的注册码 → 在客户端填入并同步到这里。
+
+    行为:
+      - 验签(Ed25519,公钥与桌面端同一套);验签失败 → 400;
+      - 订阅置为 pro,到期时间 = 注册码「到期日 + 宽限期」,
+        与桌面端只读切换点对齐;已有更晚的到期时间则保留更晚的;
+      - 注册码带的积分额度注入账户积分,**按 license_id 幂等**
+        (重复同步不会重复加);
+      - 细粒度能力仍由客户端本地注册码条目决定(D1=C 双轨交集),云端只给整档 pro。
+
+    客户端**不能**自报套餐/时长/积分数值 —— 一切以签名内容为准。
+    """
+    quota = _plan_quota("pro")
+    try:
+        result = activate_with_license(
+            db, current_user, payload.token, quota=quota
+        )
+    except LicenseActivationError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return LicenseActivateResponse(ok=True, **result)
+
+
 @router.post("/subscription/activate", response_model=SubscriptionResponse)
 def activate_subscription(
     payload: SubscriptionActivateRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> SubscriptionResponse:
-    """模拟激活订阅(仅供开发 / 支付集成前使用)。
+    """模拟激活订阅(**仅供本地开发**,生产默认关闭)。
 
     - plan='pro':  quota 取 settings['billing']['pro_quota'](默认无限), expire_at = 现在 + days。
     - plan='free': quota 取 free_quota, expire_at = None(永久)。
     激活 pro 后重置本月用量(避免遗留超量)。
+
+    ⚠️ **2026-10-22 安全修正**:这个端点原先在生产也开放,任何登录用户都能
+    直接把自己激活成 Pro —— 等于**付费能力免费拿**。现在默认关闭,
+    需要显式设 `CLOUD_DEV_ALLOW_SUBSCRIPTION_ACTIVATE=1` 才开(本地开发用)。
+
+    生产的订阅开通路径是:
+      - `POST /cloud/license/activate` —— 用户用注册码开通(验签后才放行);
+      - `POST /cloud/admin/subscription/extend` —— 管理端人工开通/延长。
     """
+    if not _dev_activate_allowed():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "reason": "dev_activate_disabled",
+                "message": (
+                    "该端点仅供本地开发调试,生产已关闭。"
+                    "请使用注册码激活(/cloud/license/activate)"
+                    "或由管理端开通(/cloud/admin/subscription/extend)。"
+                ),
+            },
+        )
+
     try:
         sub = activate_for_user(db, current_user, plan=payload.plan, days=payload.days)
     except ValueError as e:

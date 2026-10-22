@@ -23,6 +23,8 @@ os.environ.pop("CLOUD_ACCESS_TOKEN_EXPIRE_MINUTES", None)
 # 让 free quota 较小,便于验证超额场景
 os.environ["CLOUD_FREE_QUOTA"] = "5"
 os.environ["CLOUD_PRO_QUOTA"] = "-1"
+# 「模拟激活订阅」端点生产默认关闭(仅开发用);测试显式打开。
+os.environ["CLOUD_DEV_ALLOW_SUBSCRIPTION_ACTIVATE"] = "1"
 
 # 确保能导入仓库根
 _repo_root = Path(__file__).resolve().parent.parent

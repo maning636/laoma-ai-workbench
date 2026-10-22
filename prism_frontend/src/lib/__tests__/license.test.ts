@@ -203,6 +203,7 @@ function makeLicense(
     customer: null,
     message: "",
     hasToken: status !== "missing",
+    credits: 0,
     ...overrides,
   }
 }

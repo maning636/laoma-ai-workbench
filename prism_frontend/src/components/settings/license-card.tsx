@@ -26,6 +26,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
+  Coins,
   Info,
   KeyRound,
   Loader2,
@@ -33,6 +34,7 @@ import {
   RefreshCw,
   ShieldCheck,
   Trash2,
+  UploadCloud,
   XCircle,
 } from "lucide-react"
 
@@ -49,6 +51,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/components/ui/use-toast"
+import { cloudAuth } from "@/lib/cloud-auth"
 import {
   ENTITLEMENTS,
   ENTITLEMENT_LABELS,
@@ -178,6 +181,45 @@ export function LicenseCard() {
     },
   })
 
+  // 同步到云端（线下人工充值模式）
+  // 注册码原文不出本机：后端从本地 license.json 读取后转发给云端。
+  // 这里只带云端登录态，让云端知道给哪个账户开通。
+  const syncCloud = useMutation({
+    mutationFn: async () => {
+      const accessToken = await cloudAuth.getAccessToken()
+      const res = await fetch(`${LICENSE_BASE}/sync-cloud`, {
+        method: "POST",
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        throw new Error(body?.detail || `同步失败 (HTTP ${res.status})`)
+      }
+      return (await res.json()) as {
+        ok: boolean
+        result?: { creditsAdded?: number; creditsSkipped?: boolean }
+      }
+    },
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: ["license"] })
+      const added = Number(data?.result?.creditsAdded ?? 0)
+      toast({
+        title: "已同步到云端",
+        description:
+          added > 0
+            ? `云端订阅已开通，本次到账积分 ${added}。`
+            : "云端订阅已开通或已更新（积分无新增）。",
+      })
+    },
+    onError: (err) => {
+      toast({
+        variant: "destructive",
+        title: "同步到云端失败",
+        description: parseDetail(err),
+      })
+    },
+  })
+
   // 清除注册码
   const clear = useMutation({
     mutationFn: async () => {
@@ -246,8 +288,8 @@ export function LicenseCard() {
           </div>
         ) : null}
 
-        {/* 三列状态栏 */}
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        {/* 状态栏 */}
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
           {/* 授权状态 */}
           <div className="rounded-xl border border-border/70 bg-card p-4">
             <div className="text-xs text-muted-foreground">授权状态</div>
@@ -311,6 +353,19 @@ export function LicenseCard() {
               {effectiveFlags?.cloudAvailable
                 ? "已同步云端配额"
                 : "离线模式：按 Community 兜底"}
+            </div>
+          </div>
+          {/* 积分额度 */}
+          <div className="rounded-xl border border-border/70 bg-card p-4">
+            <div className="text-xs text-muted-foreground">积分额度</div>
+            <div className="mt-2 flex items-center gap-1.5 text-lg font-semibold text-foreground">
+              <Coins className="h-4 w-4 text-foreground/60" />
+              <span>{license?.credits ? license.credits : "-"}</span>
+            </div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              {license?.credits
+                ? "随注册码下发，同步到云端后到账"
+                : "该注册码不含积分额度"}
             </div>
           </div>
         </div>
@@ -405,6 +460,26 @@ export function LicenseCard() {
               <RefreshCw className="mr-1.5 h-4 w-4" />
             )}
             刷新状态
+          </Button>
+
+          <Button
+            size="sm"
+            variant="secondary"
+            className="border-border/70 bg-card text-foreground hover:bg-accent/40"
+            onClick={() => syncCloud.mutate()}
+            disabled={syncCloud.isPending || !hasToken}
+            title={
+              hasToken
+                ? "把本地注册码同步到云端(开通云端能力,积分额度一并到账)"
+                : "当前没有已保存的注册码"
+            }
+          >
+            {syncCloud.isPending ? (
+              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            ) : (
+              <UploadCloud className="mr-1.5 h-4 w-4" />
+            )}
+            同步到云端
           </Button>
 
           <Button

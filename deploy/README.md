@@ -76,8 +76,23 @@ sudo chmod 600 /opt/prism-fusion/.db_credentials/.env
 - `CLOUD_LLM_MODEL` — 默认 `deepseek-ai/DeepSeek-V3`
 
 **管理 / HMAC**
-- `CLOUD_ADMIN_TOKEN` — **必填**(用于 `/cloud/prompts-export` 二次门禁)
+- `CLOUD_ADMIN_TOKEN` — **必填**(用于 `/cloud/prompts-export` 二次门禁;
+  同时也是线下人工充值管理端 `/cloud/admin/*` 的鉴权凭据 —— 未设置则这三个端点一律 503,fail-closed)
 - `CLOUD_HMAC_SECRET` — **必填**(用于 `/cloud/prompts-export` 签名)
+
+**线上支付开关（线下人工充值模式,2026-10-22)**
+- `CLOUD_ONLINE_PAYMENT_ENABLED` — 默认 `false`。**当前生产保持 false**:
+  网站备案 / ICP 许可证未落地,线上收款不具备合规前提,商业闭环改为
+  「加产品方微信 → 人工收款 → 签发注册码 → 用户填入客户端」。
+  关闭时 `/cloud/payment/*` 与 `/cloud/points/recharge` 统一返回 `403`
+  (`reason=online_payment_disabled` + 人工充值指引),且不启动订单超时 / 对账后台任务。
+  **备案到位后设成 `true` 即完整恢复线上支付,不需要重写任何代码。**
+- 人工充值管理端(`X-Admin-Token` header + `CLOUD_ADMIN_TOKEN`):
+  - `GET  /cloud/admin/users` — 用户列表(含积分余额 / 套餐 / 到期时间)
+  - `POST /cloud/admin/points/adjust` — 调整账户积分(`mode=add|set`,可加可减可设定,写流水)
+  - `POST /cloud/admin/subscription/extend` — 人工续期
+- 注册码激活:`POST /cloud/license/activate` —— 用注册码开通订阅 + 注入注册码携带的积分额度
+  (幂等键 = `license_id`,重复激活不会重复加积分)。桌面端对应入口是「设置 → 本地注册码 → 同步到云端」。
 
 **CORS**
 - `CLOUD_CORS_ORIGINS` — 例:`https://fusion.maning789link.top,https://<frontend-domain>`

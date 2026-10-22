@@ -651,6 +651,141 @@ B1/D4/P0 这批改动，**装出来就是老侧边栏 + 无注册码入口 + P0 
 
 ---
 
+### 7.13 线下人工充值模式（2026-10-22）：砍掉线上支付，注册码带积分
+
+#### 7.13.1 决策与理由
+
+马哥明确：**不做线上支付**。理由是网站备案 / ICP 许可证未落地，线上收款不具备合规前提
+（收不了钱）。同时要求把商业闭环改成纯人工形态，并且**积分额度要能随时改**。
+
+于是原设计里的「线上下单 → 支付回调 → 自动开通」整条线被替换为：
+
+```
+用户加产品方个人微信 → 人工收款 → 签发注册码（带积分额度）→ 用户填入客户端
+                                              ↓
+                                    用户点「同步到云端」
+                                              ↓
+                              云端验签 → 订阅置 pro + 注入积分（幂等）
+```
+
+微信群同时承担两件事：**用户沟通渠道**（答疑、新版本通知）与**拉客手段**（沉淀用户、复购）。
+
+#### 7.13.2 线上支付「下线不删」
+
+不是删除，是**开关下线**。理由：支付宝正式商户凭证马哥「后期会给」，
+所以线上支付是**待启用**而非永久废弃 —— 备案到位后改一个环境变量即可完全恢复，零重写成本。
+
+| 项 | 结论 |
+|---|---|
+| 开关 | `CLOUD_ONLINE_PAYMENT_ENABLED`（默认 `false`） |
+| 关闭时行为 | 支付 router **级依赖**统一返回 `403` + `reason=online_payment_disabled` + 人工充值指引；`POST /cloud/points/recharge` 同样 403 |
+| 为什么不是 404 | 让调用方知道「这条路关了，走哪条」；404 会让人以为接口不存在 |
+| 后台任务 | `main.py` 在支付关闭时**不启动** `order_timeout` / `reconcile` 后台任务 |
+| 恢复方式 | 设 `CLOUD_ONLINE_PAYMENT_ENABLED=true` → 支付端点与后台任务自动恢复，代码不动 |
+
+生产侧佐证：服务器 `/opt/prism-fusion/.env.cloud` 里**从来没有任何支付配置**
+（只有一个空的 `CLOUD_LLM_API_KEY`）→ 线上支付在生产从未真正启用过，下线不损失任何既有能力。
+
+#### 7.13.3 注册码带积分额度
+
+注册码 payload 新增可选字段 `cr`（积分额度）。
+
+| 项 | 结论 |
+|---|---|
+| 签发 | `scripts/license/issue_license.py --credits N`（默认 0，负数报错） |
+| 载荷 | `LicensePayload.credits` / `LicenseState.credits` / `to_dict()` 输出 `credits` |
+| 解析 | `decode_payload` 容忍缺省 = 0，**拒绝负数与非整数** |
+| **版本** | **不 bump `PAYLOAD_VERSION`**（保持 `v=1`） |
+| 为什么升版本是错的 | `decode_payload` 严格比对版本号，升 v=2 会让**旧客户端把新码判为 `invalid`**；不升版则旧客户端忽略未知字段仍可验签，只是不显示积分 |
+
+#### 7.13.4 云端验签：不 import prism_backend
+
+云端新增 `cloud_service/billing/license_verify.py` —— **独立实现**验签，不 import 桌面端模块。
+
+**为什么不用 import**：`prism_backend` 带 Electron / 浏览器依赖，跨模块 import 会把客户端依赖
+拖进云端运行时，并牵动刚交付的 1.1.1 PyInstaller 打包链（重打包风险）。
+且 `cloud_service` 不进安装包，独立实现没有分发代价。
+
+代价是**常量可能漂移**（`ENTITLEMENTS` / `FLAG_CAPACITY` / `FLAG_ENTITLEMENT` 三张表）。
+因此新增 `cloud_service/test_license_verify.py`：**用 AST 解析桌面端源文件**做一致性比对
+（**不 import**，零副作用；带注解的赋值要按 `ast.AnnAssign` 解析，只处理 `ast.Assign` 会漏
+`ENTITLEMENTS: tuple[str, ...] = (...)`）。9/9 PASS。
+
+#### 7.13.5 激活链路与积分注入
+
+| 端点 | 位置 | 作用 |
+|---|---|---|
+| `POST /cloud/license/activate` | 云端 `billing/router.py` | 入参**只有 token**；套餐/时长/积分一律以**签名内容**为准 |
+| `POST /api/v1/license/sync-cloud` | 桌面端 `api/v1/license/router.py` | 读本地 token → 调云端 → 成功后清 flag 缓存 |
+| `POST /cloud/admin/points/adjust` | 云端 `billing/admin_router.py` | 账户积分**随时改**（`add` 加 / `set` 设；支持负数） |
+| `POST /cloud/admin/subscription/extend` | 云端 `billing/admin_router.py` | 人工续期 |
+| `GET /cloud/admin/users` | 云端 `billing/admin_router.py` | 用户列表 |
+
+关键语义：
+
+- **订阅到期 = `exp + grace_days`** —— 与桌面端只读切换点对齐，避免「本地还能写、云端已降级」的错位。
+- **不清零月度 LLM 用量** —— 清零等于让续费用户白嫖一个月的已用额度。
+- **积分注入幂等键 = `license_id`**（写 `credit_ledger.recharge_id`）→ 重复激活**不加**积分，
+  且**零新增表/列**（`create_all()` 只建表不 ALTER，服务器上 `credit_balance` / `credit_ledger`
+  / `credit_pricing` / `subscriptions` 等表本来就有）。
+- **注册码原文不出本机** —— 前端不接触 token，由桌面端后端从本地 `license.json` 读出后转发。
+- **订阅 plan 直接置 `pro`**，细粒度能力由客户端本地 entitlements 取**子集**（D1=C 双轨交集）。
+
+#### 7.13.6 管理端鉴权（fail-closed）
+
+沿用既有模式：`X-Admin-Token` header + `CLOUD_ADMIN_TOKEN` 环境变量，
+`hmac.compare_digest` 比对。**未配置 → 全部端点 503**（fail-closed，不是 fail-open）。
+积分调整流水留痕，`recharge_id = admin-<时间戳>`。
+
+#### 7.13.7 顺带修掉的两个真实缺陷
+
+| 缺陷 | 后果 | 修法 |
+|---|---|---|
+| `POST /cloud/subscription/activate` 任何登录用户都能把自己激活成 Pro | **越权** | 默认 403；仅 `CLOUD_DEV_ALLOW_SUBSCRIPTION_ACTIVATE=1` 才开（本地开发用） |
+| 云端 `COMMUNITY_FLAGS` / `PRO_FLAGS` 只有 10 个，缺 `cloud_prompt` / `campaign_orchestration` | 双轨交集里这两个**永远 False** | 补齐到 **12 个**，同步 `check_feature` 布尔分支与模块 docstring |
+
+#### 7.13.8 前端：线上支付没有页面，所以下线成本极低
+
+前端**从来没有**独立的支付 / 充值 / 订单 / 积分购买页面 —— 查 `src/app/**/page.tsx` 无任何
+订单或充值路由。所以砍线上支付的前端成本几乎只有文案：
+
+| 位置 | 改动 |
+|---|---|
+| `src/lib/contact.ts`（新建） | `NEXT_PUBLIC_CONTACT_WECHAT_ID` / `_GROUP_QR` / `_GROUP_URL` / `_NOTICE`；`RECHARGE_GUIDE`；`CONTACT_ANCHOR = "/settings#contact"` |
+| `src/components/settings/contact-card.tsx`（新建） | 「联系我们」卡片：微信号 + 复制按钮 + 群二维码 + 群链接；二维码 `onError` 降级为文字提示，不出破图 |
+| `src/components/settings/license-card.tsx` | 状态栏加「积分额度」块；操作区加「同步到云端」按钮（`POST /api/v1/license/sync-cloud`） |
+| `src/lib/plan-flags.ts` | `DEFAULT_UPGRADE_URL` → `/settings#contact`；`actionLabel` → Pro「续费联系」/ Community「加微信开通」 |
+| `src/components/layout/plan-badge.tsx` | 按钮与 tooltip 文案同步 |
+| `src/components/wizard/agent-picker-step.tsx` | 「加微信开通可解锁」+ fallback `/settings#contact` |
+| `src/app/fusion/styles/agent-studio-panel.tsx` | 「已达配额上限，可加微信开通解锁更多智能体。」 |
+| `public/wechat-group-qr.png`（新建） | 内置**占位图**（「待替换」）。运营直接覆盖该文件即可生效，不必改环境变量 |
+
+`contact.ts` **刻意不写死具体微信号** —— 那是运营信息，用环境变量注入，
+没配就显示「未配置」提示，而不是露出一个错误的微信号。
+
+#### 7.13.9 验证
+
+| 项 | 结果 |
+|---|---|
+| 云端新测试 `test_manual_recharge.py` | **31/31 PASS**（支付端点 403、充值 403、模拟激活 403、注册码开通订阅 + 注入 2000 积分、到期 = 2027-01-08、重复激活幂等、非法码被拒、管理端加/扣/设积分、错 token 403、无 token 403、用户列表、订阅延长） |
+| 云端 `test_license_verify.py` | **9/9 PASS**（含 AST 常量一致性） |
+| 注册码积分 `tmp/_test_credits.py` | **12/12 PASS**（签发 / 解析 / 老码兼容 / 非法值） |
+| 云端全量 `pytest cloud_service -q` | **22 passed** |
+| 后端全量 `pytest prism_backend/tests -q` | **217 passed, 1 skipped** |
+| 前端 `tsc --noEmit` | **0 错** |
+| 前端 `vitest run` | **20 文件 / 364 用例全 PASS**（基线 19/355 → 新增 `contact-card.dom.test.tsx` 9 例） |
+
+#### 7.13.10 待马哥提供 / 拍板
+
+| 项 | 用途 | 阻塞发布？ |
+|---|---|---|
+| 真实微信群二维码图片 | 覆盖 `prism_frontend/public/wechat-group-qr.png` | 是（占位图会写着「待替换」） |
+| 个人微信号 | 设 `NEXT_PUBLIC_CONTACT_WECHAT_ID` | 是（不配则显示「未配置」） |
+| 支付宝正式商户凭证与证书路径 | 后期恢复线上支付用 | 否（现在线下） |
+| 服务器 `CLOUD_ADMIN_TOKEN` | 管理端改积分 / 续期 | 是（未配置 → 管理端 503） |
+
+---
+
 ## 附：本文档的复现方式
 
 ```powershell

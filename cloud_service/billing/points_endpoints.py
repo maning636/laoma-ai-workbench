@@ -329,10 +329,29 @@ def points_create_recharge(
 
     本端点**不直接落积分**,仅在支付回调时由 payment.router 触发
     `recharge_credit()` 落积分。见 `payment/router.py` 的回调分支。
+
+    ⚠️ **2026-10-22 起线上支付默认下线**,本端点随之关闭(返回 403 + 人工充值指引)。
+    积分的入账路径现在是:
+      - `POST /cloud/license/activate` —— 注册码激活时注入注册码携带的积分额度;
+      - `POST /cloud/admin/points/adjust` —— 管理端人工增减账户积分。
+    两者都不依赖支付通道,积分系统不会因为支付下线而失去入账能力。
     """
     cfg = _credit_config()
     if not cfg["enabled"]:
         raise HTTPException(status_code=400, detail="points recharge disabled")
+
+    payment_cfg = get_settings().get("online_payment", {})
+    if not payment_cfg.get("enabled", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "reason": "online_payment_disabled",
+                "message": payment_cfg.get(
+                    "contact_hint", "线上充值已下线,请联系产品方人工充值"
+                ),
+                "channel": "manual_recharge",
+            },
+        )
 
     pts = _dec(payload.points)
     if pts < _dec(cfg["min_points"]) or pts > _dec(cfg["max_points"]):

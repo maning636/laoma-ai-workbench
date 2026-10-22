@@ -9,8 +9,8 @@
  *   3. 组件提供 4 秒轮询（低频，不干扰用户），失败静默。
  *
  * 视觉：
- *   - Community：灰色 badge + "3 账号 / 3 平台" + "升级 Pro" 按钮
- *   - Pro：金色/primary badge + "无限账号 / 多平台" + "续费" 按钮
+ *   - Community：灰色 badge + "3 账号 / 3 平台" + "加微信开通" 按钮
+ *   - Pro：金色/primary badge + "无限账号 / 多平台" + "续费联系" 按钮
  *
  * 复用：
  *   - `@/components/ui/badge` / `@/components/ui/button` / `@/components/ui/progress`
@@ -92,7 +92,7 @@ function QuotaCell({
   return (
     <div
       className="flex flex-col items-center px-1.5 py-0.5"
-      title={locked ? `${label}：升级 Pro 解锁` : label}
+      title={locked ? `${label}：加微信开通解锁` : label}
     >
       <span className="flex items-center gap-0.5 text-xs font-semibold tabular-nums text-foreground">
         {value === "无限" ? (
@@ -172,8 +172,8 @@ export function PlanBadge({
             ? "border-primary/40 bg-primary/15 text-primary"
             : "border-border/60 bg-background/40 text-foreground/70 hover:bg-accent"
         }`}
-        title={view.isPro ? "Pro 会员" : "Community 免费版，点击升级 Pro"}
-        aria-label={view.isPro ? "Pro 会员" : "Community 免费版，升级 Pro"}
+        title={view.isPro ? "Pro 会员" : "Community 免费版，点击加微信开通"}
+        aria-label={view.isPro ? "Pro 会员" : "Community 免费版，加微信开通"}
       >
         {view.isPro ? (
           <Crown className="h-4 w-4" />

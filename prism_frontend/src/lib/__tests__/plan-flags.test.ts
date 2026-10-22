@@ -121,17 +121,17 @@ describe("buildPlanBadgeView", () => {
     },
   }
 
-  it("Community：显示 3/3/0 与'升级 Pro'", () => {
+  it("Community：显示 3/3/0 与'加微信开通'", () => {
     const v = buildPlanBadgeView(communityResp)
     expect(v.plan).toBe("community")
     expect(v.isPro).toBe(false)
     expect(v.accountsLabel).toBe("3")
     expect(v.platformsLabel).toBe("3")
     expect(v.agentLabel).toBe("0")
-    expect(v.actionLabel).toBe("升级 Pro")
+    expect(v.actionLabel).toBe("加微信开通")
   })
 
-  it("Pro：-1 显示'无限'，actionLabel='续费'", () => {
+  it("Pro：-1 显示'无限'，actionLabel='续费联系'", () => {
     const v = buildPlanBadgeView({
       plan: "pro",
       flags: { max_accounts: -1, max_platforms: 8, agent_quota: 2 },
@@ -140,7 +140,7 @@ describe("buildPlanBadgeView", () => {
     expect(v.accountsLabel).toBe("无限")
     expect(v.platformsLabel).toBe("多") // D5：Pro 不写死平台数量
     expect(v.agentLabel).toBe("2")
-    expect(v.actionLabel).toBe("续费")
+    expect(v.actionLabel).toBe("续费联系")
   })
 
   it("upgrade_url 缺失时回落到 DEFAULT_UPGRADE_URL", () => {

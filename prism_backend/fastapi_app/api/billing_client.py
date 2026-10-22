@@ -221,6 +221,25 @@ def _flags_path() -> str:
     return "/cloud/feature-flags"
 
 
+def _cloud_error_message(status_code: int, data: Any) -> str:
+    """从云端错误响应里挑出能给用户看的中文文案。
+
+    云端错误体有两种形态:
+      - `{"detail": "中文串"}`(多数端点)
+      - `{"detail": {"reason": ..., "message": ...}}`(本轮新增的支付下线提示)
+    """
+    detail: Any = None
+    if isinstance(data, dict):
+        detail = data.get("detail")
+    if isinstance(detail, dict):
+        msg = detail.get("message") or detail.get("reason")
+        if msg:
+            return str(msg)
+    if isinstance(detail, str) and detail.strip():
+        return detail
+    return f"云端注册码激活失败(HTTP {status_code})"
+
+
 def _cache_key(user_id: str) -> str:
     """Redis 缓存 key。"""
     return f"{_FLAGS_CACHE_KEY_PREFIX}{user_id}"
@@ -449,6 +468,42 @@ class BillingClient:
         return {"plan": plan, "flags": flags}
 
     # ── 公开 API ─────────────────────────────────────────────
+
+    def activate_license(
+        self,
+        license_token: str,
+        auth_token: str = "",
+        *,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        """POST /cloud/license/activate —— 用注册码开通云端订阅 + 注入积分额度。
+
+        线下人工充值模式(线上支付已下线)下的关键一步:用户把注册码填进客户端后,
+        需要让**云端**也认这份注册码,否则 D1=C 双轨交集会把云端侧压回 community 档。
+
+        失败抛 `RuntimeError`(消息取云端返回的中文 detail,便于直接展示给用户)。
+        """
+        url = f"{self._base_url}/cloud/license/activate"
+        hdrs: Dict[str, Any] = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
+        if auth_token:
+            hdrs["Authorization"] = f"Bearer {auth_token}"
+        if headers:
+            hdrs.update(headers)
+
+        resp = self._transport(
+            "POST", url,
+            headers=hdrs,
+            json={"token": license_token},
+            timeout=self._timeout,
+        )
+        status_code = int(resp.get("status_code") or 0)
+        data = resp.get("data") or {}
+        if status_code == 200:
+            return data if isinstance(data, dict) else {}
+        raise RuntimeError(_cloud_error_message(status_code, data))
 
     def get_feature_flags(
         self,

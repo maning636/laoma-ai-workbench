@@ -43,6 +43,7 @@ import { EnvironmentInstallCard } from "./components/environment-install-card"
 import { PendingChannelCard } from "./components/pending-channel-card"
 import { TranscribeCard } from "./components/transcribe-card"
 import { CloudSubscriptionCard } from "@/components/settings/cloud-subscription-card"
+import { ContactCard } from "@/components/settings/contact-card"
 import { LicenseCard } from "@/components/settings/license-card"
 import {
   type PlatformBrowserChoice,
@@ -1153,10 +1154,19 @@ export default function SettingsPage() {
     </div>
   )
 
+  // 联系我们 / 微信群：线上支付下线后的充值入口 + 用户沟通入口。
+  const renderContact = () => (
+    <div className="space-y-2">
+      <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">联系我们</div>
+      <ContactCard />
+    </div>
+  )
+
   const renderMoreSettings = () => (
     <div className="space-y-8">
       {renderSubscription()}
       {renderLicense()}
+      {renderContact()}
 
       <div className="space-y-2">
         <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">运行概览</div>

@@ -37,6 +37,8 @@ os.environ["CLOUD_PRO_QUOTA"] = "-1"
 os.environ["CLOUD_LLM_API_KEY"] = "test-key-placeholder"
 os.environ["CLOUD_LLM_BASE_URL"] = "https://example.invalid/v1"
 os.environ["CLOUD_LLM_MODEL"] = "mock-model"
+# 「模拟激活订阅」端点生产默认关闭(仅开发用);测试显式打开。
+os.environ["CLOUD_DEV_ALLOW_SUBSCRIPTION_ACTIVATE"] = "1"
 
 _repo_root = Path(__file__).resolve().parent.parent
 if str(_repo_root) not in sys.path:

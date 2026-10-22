@@ -37,6 +37,8 @@ _tmp.close()
 os.environ["CLOUD_DB_URL"] = f"sqlite:///{_tmp.name}"
 os.environ["CLOUD_PAYMENT_NOTIFY_URL"] = "https://example.com/cloud/payment/callback/alipay"
 os.environ["CLOUD_PAYMENT_RETURN_URL"] = "/payment/success"
+# 线上支付默认下线(2026-10-22);测试要覆盖支付代码路径,显式打开开关。
+os.environ["CLOUD_ONLINE_PAYMENT_ENABLED"] = "true"
 
 _repo_root = Path(__file__).resolve().parent.parent
 if str(_repo_root) not in sys.path:

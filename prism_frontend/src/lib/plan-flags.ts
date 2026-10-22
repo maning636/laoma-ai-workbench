@@ -58,7 +58,7 @@ export interface PlanBadgeView {
   platformsLabel: string
   /** 智能体配额文案（"0" / "2" / "无限"） */
   agentLabel: string
-  /** 升级入口 URL（"升级 Pro" / "续费"） */
+  /** 升级入口 URL（"加微信开通" / "续费联系"） */
   upgradeUrl: string
   /** Pro 用户看到的动作按钮文案 */
   actionLabel: string
@@ -78,8 +78,13 @@ export const DEFAULT_COMMUNITY_FLAGS: FeatureFlags = {
   team_members: 1,
 }
 
-/** 默认升级 URL（占位；后续接真实支付后替换）。 */
-export const DEFAULT_UPGRADE_URL = "/settings"
+/**
+ * 默认升级 URL。
+ *
+ * 线上支付已下线(2026-10-22),没有「在线下单」页面可跳 —— 统一指向
+ * 设置页的「联系我们」区块(加微信人工办理 + 用户群)。
+ */
+export const DEFAULT_UPGRADE_URL = "/settings#contact"
 
 /**
  * 把 flag 值格式化成人类可读文本：
@@ -165,8 +170,9 @@ export function buildPlanBadgeView(
     platformsLabel: maxPlatforms === -1 ? "无限" : flags.plan === "pro" ? "多" : formatLimit(maxPlatforms), // D5：Pro 不承诺具体平台数量，不写死数字
     agentLabel: formatLimit(agentQuota),
     upgradeUrl,
-    // Pro 用户看到"续费"，Community 看到"升级 Pro"
-    actionLabel: flags.plan === "pro" ? "续费" : "升级 Pro",
+    // 线上支付下线：Pro 用户看到"续费联系"，Community 看到"加微信开通"
+    // （都指向设置页的「联系我们」区块，走人工充值拿注册码的路径）
+    actionLabel: flags.plan === "pro" ? "续费联系" : "加微信开通",
   }
 }
 

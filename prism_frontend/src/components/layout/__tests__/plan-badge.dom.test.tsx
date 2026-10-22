@@ -10,7 +10,7 @@ import userEvent from "@testing-library/user-event"
  *   - 首次加载显示 loading skeleton
  *   - Community 默认标识 + 3/3/0 配额
  *   - Pro 标识 + 无限/8 配额
- *   - "升级 Pro" / "续费" 按钮
+ *   - "加微信开通" / "续费联系" 按钮
  *   - collapsed 模式下只显示 icon
  *   - 刷新按钮点击
  */
@@ -53,7 +53,7 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe("PlanBadge — Community 默认渲染", () => {
-  it("挂载后显示 Community badge、3/3/0 配额与 升级 Pro 按钮", async () => {
+  it("挂载后显示 Community badge、3/3/0 配额与 加微信开通 按钮", async () => {
     render(<PlanBadge />)
     await waitFor(() => {
       expect(screen.getByText("Community")).toBeInTheDocument()
@@ -63,7 +63,7 @@ describe("PlanBadge — Community 默认渲染", () => {
     expect(screen.getAllByText("3")).toHaveLength(2)
     expect(screen.getByText("0")).toBeInTheDocument()
     // 升级按钮
-    expect(screen.getByText("升级 Pro")).toBeInTheDocument()
+    expect(screen.getByText("加微信开通")).toBeInTheDocument()
     // 组标签
     expect(
       screen.getByRole("group", { name: /Community/ }),
@@ -80,7 +80,7 @@ describe("PlanBadge — Community 默认渲染", () => {
 })
 
 describe("PlanBadge — Pro 用户渲染", () => {
-  it("Pro flags 显示 Pro badge、多平台与 续费 按钮", async () => {
+  it("Pro flags 显示 Pro badge、多平台与 续费联系 按钮", async () => {
     mocked.state.flagsResponse = {
       plan: "pro",
       flags: {
@@ -95,7 +95,7 @@ describe("PlanBadge — Pro 用户渲染", () => {
     })
     // "无限" 通过 lucide InfinityIcon 展示（无文本），此处断言平台文案（D5：不写死数量）
     expect(screen.getByText("多")).toBeInTheDocument()
-    expect(screen.getByText("续费")).toBeInTheDocument()
+    expect(screen.getByText("续费联系")).toBeInTheDocument()
     // Pro 徽标组
     expect(
       screen.getByRole("group", { name: /Pro 会员/ }),
@@ -104,17 +104,17 @@ describe("PlanBadge — Pro 用户渲染", () => {
 })
 
 describe("PlanBadge — 升级按钮跳转", () => {
-  it("默认升级 URL 为 /settings", async () => {
+  it("默认升级 URL 为 /settings#contact", async () => {
     render(<PlanBadge />)
     await waitFor(() => screen.getByText("Community"))
-    const link = screen.getByRole("link", { name: /升级 Pro/ })
-    expect(link).toHaveAttribute("href", "/settings")
+    const link = screen.getByRole("link", { name: /加微信开通/ })
+    expect(link).toHaveAttribute("href", "/settings#contact")
   })
 
   it("upgradeUrl 属性覆盖默认值", async () => {
     render(<PlanBadge upgradeUrl="https://pay.example.com/pro" />)
     await waitFor(() => screen.getByText("Community"))
-    const link = screen.getByRole("link", { name: /升级 Pro/ })
+    const link = screen.getByRole("link", { name: /加微信开通/ })
     expect(link).toHaveAttribute("href", "https://pay.example.com/pro")
   })
 })
@@ -143,7 +143,7 @@ describe("PlanBadge — collapsed 模式", () => {
     })
     // collapsed 下不显示 quota 数字
     expect(screen.queryByText("3")).not.toBeInTheDocument()
-    expect(screen.queryByText("升级 Pro")).not.toBeInTheDocument()
+    expect(screen.queryByText("加微信开通")).not.toBeInTheDocument()
   })
 })
 

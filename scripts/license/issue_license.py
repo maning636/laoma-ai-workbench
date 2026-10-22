@@ -17,11 +17,17 @@
     python scripts/license/issue_license.py --key <私钥> --expires 2027-01-31 --grace 14 \
         --entitlements core,ai_cloud
 
+    # 带积分额度(线下人工充值模式:积分额度随注册码一起签发)
+    python scripts/license/issue_license.py --key <私钥> --plan year \
+        --entitlements core,ai_cloud --credits 2000
+
     # 写到文件(不打印到 stdout)
     python scripts/license/issue_license.py --key <私钥> --plan year --entitlements core --out D:\\lic.txt
 
 期限(D3):年卡 / 季卡 / 月卡,也可用 --expires 指定具体日期。
 宽限:到期后仍可继续使用的天数,默认 7 天(见 license_keys.DEFAULT_GRACE_DAYS)。
+积分(--credits):随注册码签发的积分额度,默认 0(不带积分);
+    云端在注册码激活时把这笔额度注入账户积分,之后管理员仍可随时增减。
 
 私钥位置可用环境变量 `PRISM_LICENSE_KEY` 指定,省得每次敲长路径。
 """
@@ -45,6 +51,7 @@ from prism_backend.fastapi_app.core.license import (  # noqa: E402
     encode_license,
 )
 from prism_backend.fastapi_app.core.license_keys import (  # noqa: E402
+    DEFAULT_CREDITS,
     DEFAULT_GRACE_DAYS,
     ENTITLEMENTS,
 )
@@ -97,6 +104,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument("--customer", default="", help="客户标识(可选)")
     ap.add_argument("--note", default="", help="备注(可选)")
+    ap.add_argument(
+        "--credits", type=int, default=DEFAULT_CREDITS,
+        help=f"随注册码签发的积分额度(默认 {DEFAULT_CREDITS},0 = 不带积分)",
+    )
     ap.add_argument("--license-id", default="", help="注册码 ID(默认自动生成)")
     ap.add_argument("--out", help="把 token 写到文件而不是 stdout")
     ap.add_argument("--json", action="store_true", help="以 JSON 输出签发结果")
@@ -119,6 +130,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if args.grace < 0:
         print("ERROR: --grace 不能为负")
+        return 1
+    if args.credits < 0:
+        print("ERROR: --credits 不能为负")
         return 1
 
     now = datetime.now(timezone.utc)
@@ -155,6 +169,7 @@ def main(argv: list[str] | None = None) -> int:
         "grace": args.grace,
         "cust": args.customer,
         "note": args.note,
+        "cr": args.credits,
     }
     token = encode_license(payload, private_key)
 
@@ -177,6 +192,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"# issued_at    = {payload['iat']}")
         print(f"# expires_at   = {payload['exp']}")
         print(f"# grace_days   = {payload['grace']}")
+        print(f"# credits      = {payload['cr']}")
     return 0
 
 

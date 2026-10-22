@@ -1,5 +1,13 @@
 """Payment 端点(C19)。
 
+⚠️ **2026-10-22 起默认下线** —— 线上支付通道已停用,商业闭环改为
+「线下人工充值 + 注册码」(见 `cloud_service/settings.py` 的 `online_payment` 段)。
+
+代码**保留不删**:备案与 ICP 许可证落地后,把
+`CLOUD_ONLINE_PAYMENT_ENABLED=true` 打开即可完全恢复,不必重写。
+关闭时本 router 的所有端点统一返回 403 + 人工充值指引(而不是 404,
+让调用方知道「为什么没有」以及「该走哪条路」)。
+
 前缀:`/cloud`(在 `main.py` 中挂载)。
 端点:
   POST /cloud/payment/create_order           (JWT) 创建订单,返回渠道支付参数
@@ -15,6 +23,10 @@
   - 回调处理加锁 + 检查 `Order.status`;
   - 同一 order_no 重复回调 → 首次激活 + 置 paid;后续回调 → 直接 no-op 返回;
   - 因此同一订单重复调用 billing.activate 不会发生,不会重复延长时间。
+
+⚠️ 积分入账不在本模块了:原先唯一入账点在支付回调里,现已由
+`billing/license_activation.py`(注册码激活)与
+`billing/admin_router.py`(管理端人工调整)承担,不依赖支付通道。
 """
 
 from __future__ import annotations
@@ -35,6 +47,7 @@ from ..auth.models import User
 from ..auth.router import get_current_user
 from ..billing.router import activate_for_user, _serialize_subscription, _get_usage, _current_period
 from ..db import get_db
+from ..settings import get_settings
 from . import alipay as _alipay_module  # noqa: F401  -- 触发 register_adapter
 from . import wechat as _wechat_module  # noqa: F401
 from .adapter import get_adapter
@@ -57,7 +70,31 @@ from .schemas import (
 )
 
 
-router = APIRouter()
+def _online_payment_enabled() -> bool:
+    """线上支付是否启用(默认关闭,见 settings.online_payment)。"""
+    return bool(get_settings().get("online_payment", {}).get("enabled", False))
+
+
+def _require_online_payment_enabled() -> None:
+    """FastAPI 依赖:线上支付关闭时统一拦截整个 router。
+
+    返回 403 而不是 404,是为了让调用方拿到**可执行的指引**
+    (「加微信人工充值」),而不是一个让人摸不着头脑的 404。
+    """
+    if _online_payment_enabled():
+        return
+    hint = get_settings().get("online_payment", {}).get("contact_hint", "")
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail={
+            "reason": "online_payment_disabled",
+            "message": hint,
+            "channel": "manual_recharge",
+        },
+    )
+
+
+router = APIRouter(dependencies=[Depends(_require_online_payment_enabled)])
 
 
 # ──────────────────────────────────────────────────────────────

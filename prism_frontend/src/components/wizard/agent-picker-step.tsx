@@ -245,16 +245,16 @@ export function AgentPickerStep() {
             </span>
           </div>
           <div className="text-xs text-muted-foreground">
-            Community 版智能体配额为 0，无法创建或使用风格智能体。升级 Pro 可解锁
+            Community 版智能体配额为 0，无法创建或使用风格智能体。加微信开通可解锁
             {view ? ` ${view.agentLabel} 个智能体 ` : " 更多智能体 "}
             并支持云端 LLM 风格训练。
           </div>
           <a
-            href={view?.upgradeUrl || "/settings"}
+            href={view?.upgradeUrl || "/settings#contact"}
             className="mt-1 inline-flex w-fit items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary hover:text-background transition-colors"
           >
             <Crown className="h-3.5 w-3.5" />
-            升级 Pro 解锁智能体
+            加微信开通解锁智能体
           </a>
         </div>
       ) : (

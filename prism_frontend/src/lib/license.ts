@@ -49,6 +49,15 @@ export interface LicenseState {
   customer: string | null
   message: string
   hasToken: boolean
+  /**
+   * 注册码携带的积分额度（2026-10-22 新增）。
+   *
+   * - 由签发端 `issue_license.py --credits N` 写入并随签名下发；
+   * - 老版本注册码没有这个字段 → 后端按 0 返回；
+   * - 云端在「注册码激活」时把这笔额度注入账户积分，
+   *   之后管理员仍可随时增减（以云端余额为准）。
+   */
+  credits: number
 }
 
 /** flag 值可能是 number / boolean / string，与 `plan-flags.ts` 的 FeatureFlags 保持一致 */

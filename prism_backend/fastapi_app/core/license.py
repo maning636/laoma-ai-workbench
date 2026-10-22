@@ -36,6 +36,7 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
 from .license_keys import (
+    DEFAULT_CREDITS,
     DEFAULT_GRACE_DAYS,
     ENTITLEMENTS,
     FLAG_CAPACITY,
@@ -82,6 +83,7 @@ class LicensePayload:
     grace_days: int
     customer: str = ""
     note: str = ""
+    credits: int = DEFAULT_CREDITS
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -93,6 +95,7 @@ class LicensePayload:
             "grace": self.grace_days,
             "cust": self.customer,
             "note": self.note,
+            "cr": self.credits,
         }
 
 
@@ -110,6 +113,7 @@ class LicenseState:
     customer: str = ""
     message: str = ""
     has_token: bool = False
+    credits: int = DEFAULT_CREDITS
 
     @property
     def is_active(self) -> bool:
@@ -143,6 +147,7 @@ class LicenseState:
             "customer": self.customer,
             "message": self.message,
             "hasToken": self.has_token,
+            "credits": self.credits,
         }
 
 
@@ -201,6 +206,13 @@ def decode_payload(body_b64: str) -> LicensePayload:
     grace = int(raw.get("grace", DEFAULT_GRACE_DAYS))
     if grace < 0:
         raise ValueError("grace 不能为负")
+    # 积分额度:老版本注册码没有 `cr` 字段 → 按 0 处理(向后兼容)
+    try:
+        credits = int(raw.get("cr", DEFAULT_CREDITS))
+    except (TypeError, ValueError):
+        raise ValueError("cr 必须是整数")
+    if credits < 0:
+        raise ValueError("cr 不能为负")
     return LicensePayload(
         version=version,
         license_id=str(raw.get("lid") or ""),
@@ -210,6 +222,7 @@ def decode_payload(body_b64: str) -> LicensePayload:
         grace_days=grace,
         customer=str(raw.get("cust") or ""),
         note=str(raw.get("note") or ""),
+        credits=credits,
     )
 
 
@@ -268,7 +281,7 @@ def verify_license(
             status=STATUS_NOT_YET_VALID, valid=True,
             entitlements=payload.entitlements, expires_at=payload.expires_at,
             grace_days=payload.grace_days, license_id=payload.license_id,
-            customer=payload.customer, has_token=True,
+            customer=payload.customer, has_token=True, credits=payload.credits,
             message="注册码尚未生效,请检查本机系统时间",
         )
 
@@ -278,7 +291,7 @@ def verify_license(
             status=STATUS_ACTIVE, valid=True,
             entitlements=payload.entitlements, expires_at=payload.expires_at,
             grace_days=payload.grace_days, license_id=payload.license_id,
-            customer=payload.customer, has_token=True,
+            customer=payload.customer, has_token=True, credits=payload.credits,
             message=f"注册码有效,到期时间 {payload.expires_at.date().isoformat()}",
         )
 
@@ -288,7 +301,7 @@ def verify_license(
             status=STATUS_GRACE, valid=True,
             entitlements=payload.entitlements, expires_at=payload.expires_at,
             grace_days=payload.grace_days, license_id=payload.license_id,
-            customer=payload.customer, has_token=True,
+            customer=payload.customer, has_token=True, credits=payload.credits,
             message=f"注册码已到期,宽限期内还可继续使用(剩余约 {days_left} 天)",
         )
 
@@ -296,7 +309,7 @@ def verify_license(
         status=STATUS_EXPIRED, valid=True, read_only=True,
         entitlements=payload.entitlements, expires_at=payload.expires_at,
         grace_days=payload.grace_days, license_id=payload.license_id,
-        customer=payload.customer, has_token=True,
+        customer=payload.customer, has_token=True, credits=payload.credits,
         message="注册码已过期,当前为只读模式(可查看,不能新增)",
     )
 
@@ -383,6 +396,24 @@ def clear_license() -> bool:
     return False
 
 
+def load_license_token() -> str:
+    """读取本地保存的注册码**原文**(token)。
+
+    ⚠️ 只供**后端内部**使用 —— 例如把注册码同步到云端开通能力。
+    原文**不要**出现在任何 HTTP 响应里:注册码本身就是发给用户的凭据,
+    但没必要到处传。前端只拿 `LicenseState.to_dict()` 里的脱敏字段。
+    """
+    path = license_file_path()
+    if not path.is_file():
+        return ""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[license] 读取 token 失败:%s", exc)
+        return ""
+    return str(data.get("token") or "").strip()
+
+
 def load_license(
     *,
     public_key_hex: str = PUBLIC_KEY_HEX,
@@ -412,6 +443,7 @@ def load_license(
             entitlements=state.entitlements, expires_at=state.expires_at,
             grace_days=state.grace_days, license_id=state.license_id,
             customer=state.customer, message=state.message,
+            credits=state.credits,
         )
 
     # ── 时钟回拨防护 ────────────────────────────────────────
@@ -425,7 +457,7 @@ def load_license(
                     status=STATUS_INVALID, valid=True, has_token=True,
                     entitlements=state.entitlements, expires_at=state.expires_at,
                     grace_days=state.grace_days, license_id=state.license_id,
-                    customer=state.customer,
+                    customer=state.customer, credits=state.credits,
                     message="检测到系统时间被回拨,注册码已暂停使用,请校正系统时间",
                 )
         except Exception:  # noqa: BLE001 - lastSeenAt 坏了不算回拨
@@ -559,6 +591,7 @@ __all__ = [
     "save_license",
     "clear_license",
     "load_license",
+    "load_license_token",
     "license_file_path",
     "license_cap",
     "effective_flags",

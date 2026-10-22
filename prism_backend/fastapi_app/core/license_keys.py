@@ -86,6 +86,14 @@ FLAG_ENTITLEMENT: dict[str, str] = {
 #: 默认宽限天数(license 到期后仍可继续写的天数)
 DEFAULT_GRACE_DAYS = 7
 
+#: 注册码默认携带的积分额度(0 = 不带积分)
+#:
+#: 语义:这是**签发时授权的积分上限**,随注册码签名一起下发。
+#: 线下人工充值模式下,云端在"注册码激活"时把这笔额度注入账户积分;
+#: 之后管理员仍可随时增减账户积分(以云端余额为准)。
+#: 老版本注册码没有这个字段,一律按 0 处理(向后兼容,不 bump payload 版本)。
+DEFAULT_CREDITS = 0
+
 
 __all__ = [
     "PUBLIC_KEY_HEX",
@@ -93,4 +101,5 @@ __all__ = [
     "FLAG_CAPACITY",
     "FLAG_ENTITLEMENT",
     "DEFAULT_GRACE_DAYS",
+    "DEFAULT_CREDITS",
 ]

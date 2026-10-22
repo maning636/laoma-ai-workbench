@@ -82,6 +82,46 @@ class LicenseVerifyResponse(BaseModel):
     model_config = {"extra": "forbid"}
 
 
+class LicenseActivateRequest(BaseModel):
+    """`POST /cloud/license/activate` 请求体(用注册码开通云端能力)。
+
+    线下人工充值模式下的核心入口:用户把产品方签发的注册码同步到云端,
+    云端验签后开通订阅并注入注册码携带的积分额度。
+
+    客户端应只传注册码原文;**不要**传任何期望的套餐/时长/积分数值——
+    那些都以注册码签名内容为准,服务端不接受客户端自报。
+    """
+
+    token: str = Field(
+        ...,
+        min_length=16,
+        max_length=4096,
+        description="注册码 token(PRISM1.<payload>.<signature>)",
+    )
+
+    model_config = {"extra": "forbid"}
+
+
+class LicenseActivateResponse(BaseModel):
+    """`POST /cloud/license/activate` 响应。
+
+    - `license`: 注册码声明(条目 / 到期 / 积分额度)
+    - `subscription`: 激活后的订阅状态
+    - `creditsAdded`: 本次实际注入的积分(重复同步时为 0)
+    - `creditsSkipped`: 积分未注入(额度为 0,或该码已注入过)
+    - `points`: 账户积分快照
+    """
+
+    ok: bool
+    license: dict[str, Any]
+    subscription: dict[str, Any]
+    creditsAdded: float = 0
+    creditsSkipped: bool = False
+    points: dict[str, Any]
+
+    model_config = {"extra": "forbid"}
+
+
 class FeatureFlagsResponse(BaseModel):
     """`GET /cloud/feature-flags` 响应(Open Core feature gate 快照)。
 

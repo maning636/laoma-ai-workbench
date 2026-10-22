@@ -65,3 +65,25 @@ NEXT_PUBLIC_API_URL=https://api.example.com
 ```
 
 These variables will be loaded automatically by Next.js.
+
+## 联系方式配置（线下人工充值模式）
+
+线上支付已下线（备案 / ICP 许可证未落地），商业闭环改为「加产品方微信 → 人工收款 →
+签发注册码 → 用户填入客户端」。以下变量控制设置页「联系我们」卡片的展示：
+
+| 变量 | 必填 | 说明 |
+|---|---|---|
+| `NEXT_PUBLIC_CONTACT_WECHAT_ID` | **是** | 产品方个人微信号。不配则卡片显示「微信号尚未配置」提示 |
+| `NEXT_PUBLIC_CONTACT_GROUP_QR` | 否 | 微信群二维码图片路径（相对 `public/`）。默认 `/wechat-group-qr.png` |
+| `NEXT_PUBLIC_CONTACT_GROUP_URL` | 否 | 群邀请链接（企业微信 / 群聊链接）。不配则只展示二维码 |
+| `NEXT_PUBLIC_CONTACT_NOTICE` | 否 | 附加说明文案，显示在卡片底部 |
+
+**群二维码默认不需要配环境变量**：仓库内置了占位图 `public/wechat-group-qr.png`
+（画面上写着「待替换」）。运营拿到真实群二维码后**直接覆盖这个文件**即可，
+不必改代码、不必重新配置环境变量。
+
+前端所有「升级 / 续费 / 充值」入口统一指向 `/settings#contact`，
+文案为 Community「加微信开通」、Pro「续费联系」。
+
+> 注意：这些是 `NEXT_PUBLIC_*` 变量，会被打进浏览器 bundle，构建后**再改必须重新构建**。
+> 微信号是运营信息，不要写死在源码里。

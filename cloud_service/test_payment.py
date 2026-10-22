@@ -30,6 +30,8 @@ os.environ["CLOUD_PRO_QUOTA"] = "-1"
 # 回调 URL(与 mock 签名 payload 对齐)
 os.environ["CLOUD_PAYMENT_NOTIFY_URL"] = "/cloud/payment/callback/alipay"
 os.environ["CLOUD_PAYMENT_RETURN_URL"] = "/payment/success"
+# 线上支付默认下线(2026-10-22);测试要覆盖支付代码路径,显式打开开关。
+os.environ["CLOUD_ONLINE_PAYMENT_ENABLED"] = "true"
 
 # 确保能导入仓库根
 _repo_root = Path(__file__).resolve().parent.parent

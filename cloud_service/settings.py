@@ -112,6 +112,28 @@ def get_settings():
             "custom_enabled": _get_str("CLOUD_POINTS_CUSTOM_ENABLED", "true").lower()
                 in {"1", "true", "yes"},
         },
+        # ── 线上支付(2026-10-22 下线)────────────────────────
+        # 商业闭环已改为「线下人工充值」:用户加产品方微信 → 人工收款 →
+        # 签发注册码(含授权条目 / 期限 / 积分额度)→ 用户填入客户端并同步云端。
+        # 原因:网站备案与 ICP 许可证未落地,线上收款通道不具备合规前提。
+        #
+        # 代码**保留不删**(备案到位后把开关打开即可恢复),但默认关闭:
+        #   - 关闭时 `/cloud/payment/*` 统一返回 403 + 人工充值指引;
+        #   - 支付相关的后台任务(订单超时清理 / 日终对账)不启动;
+        #   - `/cloud/points/recharge`(创建充值订单)返回同样的指引。
+        #
+        # 注意:积分的**入账**路径不在这里 —— 它由注册码激活
+        # (`POST /cloud/license/activate`)和管理端调整
+        # (`POST /cloud/admin/points/adjust`)承担,两者都不依赖支付通道。
+        "online_payment": {
+            "enabled": _get_str("CLOUD_ONLINE_PAYMENT_ENABLED", "false").lower()
+            in {"1", "true", "yes"},
+            # 关闭时返回给调用方的指引文案(前端也会用同一口径)
+            "contact_hint": _get_str(
+                "CLOUD_ONLINE_PAYMENT_CONTACT_HINT",
+                "线上充值已下线,请通过微信联系产品方人工充值(充值后获取注册码)",
+            ),
+        },
         # ── 订单超时任务(P4)───────────────────────────
         # 只影响 `status='created'` 的订单;不影响 paid / refunded / closed。
         # 多 worker 部署下每个 worker 都会跑一份,注意幂等性(按 id 列表关闭)。

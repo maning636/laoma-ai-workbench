@@ -3,6 +3,19 @@
 挂载:
   - `cloud_service/auth/router.py`       → `/cloud/auth/*`
   - `cloud_service/billing/router.py`    → `/cloud/subscription | /cloud/usage | /cloud/license`
+  - `cloud_service/billing/points_endpoints.py` → `/cloud/points/*`
+  - `cloud_service/billing/admin_router.py`      → `/cloud/admin/*`(人工充值运营入口)
+  - `cloud_service/payment/router.py`    → `/cloud/payment/*`(**默认下线**,见下)
+
+线上支付下线(2026-10-22)
+------------------------
+网站备案 / ICP 许可证未落地,线上收款不具备合规前提,商业闭环改为
+「线下人工充值 + 注册码」。因此:
+  - `/cloud/payment/*` 默认返回 403 + 人工充值指引
+    (`CLOUD_ONLINE_PAYMENT_ENABLED=true` 可恢复);
+  - 支付专用的后台任务(订单超时清理 / 日终对账)不启动;
+  - 积分入账改由 `POST /cloud/license/activate`(注册码激活)与
+    `POST /cloud/admin/points/adjust`(管理端人工调整)承担。
 
 启动:
   开发: `uvicorn cloud_service.main:app --reload --port 8000`
@@ -17,6 +30,7 @@ Lifespan 内启动的后台任务(P4 / P6):
                                    因为 `platform_bills=None` 会触发 adapter 的
                                    `fetch_bill()`,接入真实商户 adapter 后就是
                                    外部调用,不能默认在生产里悄悄跑。
+  - 两者在**线上支付下线**时都不启动(见上)。
 """
 
 from __future__ import annotations
@@ -30,6 +44,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .auth.router import router as auth_router
+from .billing.admin_router import router as admin_router
 from .billing.points_endpoints import router as billing_points_router
 from .billing.router import router as billing_router
 from .db import init_db
@@ -53,6 +68,18 @@ async def _lifespan(_app: FastAPI):
     reconcile_cfg = settings.get("reconcile", {})
     lock_cfg = settings.get("task_lock", {})
 
+    # 线上支付默认下线(2026-10-22):订单超时清理与日终对账都是**支付专用**后台任务,
+    # 没有线上订单时它们只是空转 + 无谓的 DB 访问,直接不启动。
+    # 备案到位后 `CLOUD_ONLINE_PAYMENT_ENABLED=true` 即自动恢复。
+    online_payment_enabled = bool(
+        settings.get("online_payment", {}).get("enabled", False)
+    )
+    if not online_payment_enabled:
+        logger.info(
+            "online payment DISABLED by env; order_timeout/reconcile tasks "
+            "will not start (manual recharge via license activation instead)"
+        )
+
     stop_event = asyncio.Event()
     background_tasks: list[asyncio.Task] = []
 
@@ -62,7 +89,7 @@ async def _lifespan(_app: FastAPI):
     if not task_lock_enabled:
         logger.info("task_lock DISABLED by env; each worker runs tasks independently")
 
-    if timeout_cfg.get("enabled", True):
+    if timeout_cfg.get("enabled", True) and online_payment_enabled:
         background_tasks.append(asyncio.create_task(
             close_expired_orders_task(
                 interval_seconds=float(timeout_cfg.get("interval_seconds", 3600)),
@@ -81,9 +108,12 @@ async def _lifespan(_app: FastAPI):
             task_lock_enabled,
         )
     else:
-        logger.info("order_timeout task disabled by env")
+        logger.info(
+            "order_timeout task not started (enabled=%s, online_payment=%s)",
+            timeout_cfg.get("enabled", True), online_payment_enabled,
+        )
 
-    if reconcile_cfg.get("enabled", False):
+    if reconcile_cfg.get("enabled", False) and online_payment_enabled:
         background_tasks.append(asyncio.create_task(
             reconcile_task(
                 interval_seconds=float(reconcile_cfg.get("interval_seconds", 86400)),
@@ -176,9 +206,13 @@ app.add_middleware(
 app.include_router(auth_router, prefix="/cloud/auth", tags=["cloud-auth"])
 app.include_router(billing_router, prefix="/cloud", tags=["cloud-billing"])
 app.include_router(billing_points_router, prefix="/cloud", tags=["cloud-billing-points"])
+# 管理端(线下人工充值):积分调整 / 订阅开通 / 用户查询。
+# 鉴权走 `X-Admin-Token` header + `CLOUD_ADMIN_TOKEN`,未配置则全部 503。
+app.include_router(admin_router, prefix="/cloud", tags=["cloud-admin"])
 # LLM 代理挂在 /cloud 下(router 内部路径含 /llm/* → 最终 /cloud/llm/*)
 app.include_router(llm_proxy_router, prefix="/cloud", tags=["cloud-llm"])
-# 支付(C19):router 内部路径含 /payment/* → 最终 /cloud/payment/*
+# 支付(C19):线上支付默认下线,router 内部依赖会统一返回 403 + 人工充值指引;
+# 备案到位后设 `CLOUD_ONLINE_PAYMENT_ENABLED=true` 即恢复。
 app.include_router(payment_router, prefix="/cloud", tags=["cloud-payment"])
 
 

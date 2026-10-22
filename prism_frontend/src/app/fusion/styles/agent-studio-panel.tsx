@@ -168,7 +168,7 @@ export function AgentStudioPanel() {
         </div>
         {q.showUpgrade && (
           <div className="text-xs text-amber-600 dark:text-amber-400">
-            已达配额上限，可升级套餐解锁更多智能体。
+            已达配额上限，可加微信开通解锁更多智能体。
           </div>
         )}
       </CardHeader>
