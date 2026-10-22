@@ -50,25 +50,6 @@ allowed(功能) = 注册码授权条目（本地校验） ∩ 订阅配额（云
 > - `prism_backend/fastapi_app/api/billing_client.py`（客户端实现）：10 个 flag 全部对齐
 > - `prism_frontend/src/lib/plan-flags.ts`（前端默认）：10 个 flag 全部对齐
 
-## 1. Flag 真源表（11 个既有 + 2 个新增）
-
-| flag | 类型 | Community | Pro | 注册码条目 | 说明 |
-|---|---|---|---|---|---|
-| `max_accounts` | numeric | `3` | `-1` | `core` | 账号数配额，云端订阅维度 |
-| `max_platforms` | numeric | `3` | `8` | `multi_platform` | D5：对外不承诺具体数量（README/前端文案统一写「多平台」）；此值为内部配额，随版本扩充 |
-| `ai_mode` | mode | `local_key` | `cloud` | `ai_cloud` | 云端模式需 ai_cloud 条目 |
-| `image_gen` | mode | `local_key` | `cloud` | `ai_cloud` | 云端生图需 ai_cloud 条目 |
-| `agent_quota` | numeric | `0` | `2` | `agent` | 0 = 禁用 |
-| `data_recovery` | bool | `True` | `True` | `core` | D7：不收进 Pro，社区版即可用（已同步改云端 / 客户端 / 前端三处） |
-| `persona` | bool | `False` | `True` | `persona` |  |
-| `proxy_management` | bool | `False` | `True` | `persona` |  |
-| `stream_chat` | bool | `False` | `True` | `agent` |  |
-| `team_members` | numeric | `1` | `1` | `core` |  |
-| `cloud_prompt` | bool | `False` | `True` | `ai_cloud` | D6：云端 prompt 资产，随 prompts.py 移出开源树（B2） |
-| `campaign_orchestration` | bool | `False` | `True` | `campaign` | 新增：营销活动与任务包编排（注册码授权） |
-
-> ⚠️ **需要同步改代码**：`prism_backend/fastapi_app/api/billing_client.py` 的 `COMMUNITY_FLAGS["data_recovery"]` 仍是 `False`，与 D7 冲突（B1 批次改）。
-
 ## 2. 注册码条目（可组合的授权包）
 
 | 条目键 | 名称 | 解锁 | 说明 |

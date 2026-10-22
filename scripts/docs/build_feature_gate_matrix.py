@@ -235,18 +235,6 @@ A(">")
 for c in crosscheck:
     A("> - `%s`（%s）：%d 个 flag 全部对齐" % (c["file"], c["role"], c["flag_count"]))
 A("")
-A("## 1. Flag 真源表（11 个既有 + 2 个新增）")
-A("")
-A("| flag | 类型 | Community | Pro | 注册码条目 | 说明 |")
-A("|---|---|---|---|---|---|")
-for f in FLAGS:
-    pro = f["pro"] if f["pro"] is not None else "随版本扩充"
-    A("| `%s` | %s | `%s` | `%s` | `%s` | %s |" % (
-        f["flag"], f["type"], f["community"], pro, f["entry"], f["note"]))
-A("")
-A("> ⚠️ **需要同步改代码**：`prism_backend/fastapi_app/api/billing_client.py` 的 "
-  "`COMMUNITY_FLAGS[\"data_recovery\"]` 仍是 `False`，与 D7 冲突（B1 批次改）。")
-A("")
 A("## 2. 注册码条目（可组合的授权包）")
 A("")
 A("| 条目键 | 名称 | 解锁 | 说明 |")
