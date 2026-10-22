@@ -784,6 +784,78 @@ B1/D4/P0 这批改动，**装出来就是老侧边栏 + 无注册码入口 + P0 
 | 支付宝正式商户凭证与证书路径 | 后期恢复线上支付用 | 否（现在线下） |
 | 服务器 `CLOUD_ADMIN_TOKEN` | 管理端改积分 / 续期 | 是（未配置 → 管理端 503） |
 
+#### 7.13.11 云端已部署上线 + 线上验收（2026-10-22）
+
+本轮改动已快进到服务器工作树并重启 `prism-cloud.service`，**线上行为已实测**。
+
+| 项 | 结果 |
+|---|---|
+| 工作树 | `/opt/prism-fusion/app` 从 `59175d9` **快进**到 `7983f64`（`git merge --ff-only`，无强推、无 checkout） |
+| 服务 | `prism-cloud.service` 重启成功，新 PID `2223880`，`/health` 返回 `{"status":"ok"}` |
+| 端点 | 线上 openapi **33 条路径**，本轮新增的 `/cloud/license/activate`、`/cloud/admin/{users,points/adjust,subscription/extend}` 全部在册 |
+| 干跑导入 | 部署前先用服务端 venv `import cloud_service.main` 验过（`cryptography 50.0.2` 已在依赖里），通过才重启 |
+| JWT | `CLOUDJWT_SECRET` 在 `.env.cloud` 里且**稳定**（64 位），重启**不会**踢掉在线用户的登录态 |
+
+线上实测（服务器本机 `127.0.0.1:8091`，用应用自己的签发函数造 access token，token 全程不打印）：
+
+| 探测 | 结果 |
+|---|---|
+| `POST /cloud/payment/create_order` | **403** `reason=online_payment_disabled`，文案「线上充值已下线,请通过微信联系产品方人工充值(充值后获取注册码)」 |
+| `POST /cloud/payment/refund` | **403** 同上 |
+| `GET /cloud/payment/order/{no}` | **403** 同上 |
+| `POST /cloud/points/recharge` | **403** 同上 |
+| `POST /cloud/subscription/activate`（已登录、合法请求体） | **403** `reason=dev_activate_disabled`，指向「请使用注册码激活」或管理端开通 |
+| `GET /cloud/admin/users`（无 token） | **403** `invalid admin token` |
+| `GET /cloud/admin/users`（带 token） | **200**，返回真实库中 6 个用户 |
+| `GET /cloud/feature-flags` | **200**，**12 个 flag 齐全**（含本轮补齐的 `cloud_prompt` / `campaign_orchestration`） |
+
+**注册码全链路 E2E**（新建测试用户 → 登录 → 激活 → 重复激活 → 管理端改积分 → 延期）：
+
+| 步骤 | 结果 |
+|---|---|
+| 激活前 | `plan=free`、`expire=None`、`points=0.0` |
+| `POST /cloud/license/activate`（`--credits 2000` 签发的码） | **200** → `plan=pro`、`expire=2027-10-29`（`exp + grace`）、**`points=2000.0`** |
+| 重复激活 | **200**，积分仍为 `2000.0` → **幂等生效**（幂等键 = `license_id`） |
+| 积分流水 | 1 条，`txType=RECHARGE`，`rechargeId=LIC-20261022-BAF86A` |
+| 管理端 `add 500` | 200，`delta=500.0` |
+| 管理端 `set 1000` | 200，`delta=-1500.0`，最终 `points=1000.0` |
+| 管理端 `subscription/extend` 30 天 | 200，`expire` 由 `2027-10-29` → `2027-11-28` |
+
+> E2E 产生的测试用户与订阅**已删除**，服务器 `/tmp` 下的注册码临时文件与脚本**已清理**（注册码原文不留在服务器上）。
+
+#### 7.13.12 仍未打通的一环：云端 API 没有公网入口
+
+**这是本轮之后阻塞真实用户端到端的唯一基础设施缺口，且是既有缺口，不是本轮引入。**
+
+| 事实 | 证据 |
+|---|---|
+| 云端只监听回环 | `ss -lntp` → `127.0.0.1:8091`（pid 2223880） |
+| 活跃 nginx 配置里**没有** 8091 的反代 | `grep 8091 /etc/nginx/conf.d/bidmaster.conf /etc/nginx/conf.d/fde.conf` → 无匹配；只有 `.bak` 备份文件里有 |
+| 计划中的域名**没有 DNS 记录** | `fusion.maning789link.top` → NXDOMAIN（`maning789link.top` / `www.` / `bid.` 三个有记录，都指向 101.43.65.216） |
+| 反代配置文件**已经写好了，只是没装** | 仓库 `deploy/nginx-prism-cloud.conf` 已含 `/cloud/` 反代、`/cloud/llm/stream` 的 SSE 免缓冲参数、`/.well-known/acme-challenge/` 放行 |
+
+**后果**：桌面端的「同步到云端」按钮（后端 `POST /api/v1/license/sync-cloud` → 云端 `/cloud/license/activate`）
+和前端的云端账号/订阅/积分读取都打不到云端 —— 因为客户端侧没有可用的云端地址：
+
+- 桌面端后端读 `CLOUD_URL` / `LAOMA_CLOUD_BASE_URL`，未配置时回落到占位 `https://api.prism.local`；
+- 前端读 `NEXT_PUBLIC_CLOUD_URL`，未配置时同样回落到占位 `https://api.prism.local/cloud`。
+
+**需要马哥做的一步（唯一阻塞项）**：在域名服务商处加一条 A 记录
+
+```
+fusion.maning789link.top  →  101.43.65.216
+```
+
+DNS 生效后，剩下三步由本机完成（不改 `fde.conf`、不动既有服务）：
+
+1. `certbot certonly --webroot -w /var/www/letsencrypt -d fusion.maning789link.top` 签证书；
+2. `cp deploy/nginx-prism-cloud.conf /etc/nginx/conf.d/prism-cloud.conf`（**新文件**，不动 `fde.conf`），
+   按注释把 `server_name` 与证书路径改成实际值；
+3. `nginx -t && systemctl reload nginx`（reload 不中断既有连接）。
+
+之后在桌面端构建时设 `CLOUD_URL` / `NEXT_PUBLIC_CLOUD_URL` = `https://fusion.maning789link.top`，
+云端链路即打通。
+
 ---
 
 ## 附：本文档的复现方式

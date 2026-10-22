@@ -94,6 +94,27 @@ sudo chmod 600 /opt/prism-fusion/.db_credentials/.env
 - 注册码激活:`POST /cloud/license/activate` —— 用注册码开通订阅 + 注入注册码携带的积分额度
   (幂等键 = `license_id`,重复激活不会重复加积分)。桌面端对应入口是「设置 → 本地注册码 → 同步到云端」。
 
+**公网入口(当前唯一未打通的一环)**
+云端服务本身只监听 `127.0.0.1:8091`,**必须**经 nginx 对外暴露,否则桌面端的
+「同步到云端」与前端的云端账号/订阅/积分都打不到云端。仓库已备好反代模板:
+
+```bash
+# 1) 先在域名服务商加 A 记录:fusion.maning789link.top -> 服务器公网 IP
+# 2) 签证书(DNS 生效后)
+certbot certonly --webroot -w /var/www/letsencrypt -d fusion.maning789link.top
+# 3) 装反代(**新文件**,不改 fde.conf,不影响既有服务)
+cp /opt/prism-fusion/app/deploy/nginx-prism-cloud.conf /etc/nginx/conf.d/prism-cloud.conf
+#    按文件头注释把 server_name 与 ssl_certificate 路径改成实际值
+nginx -t && systemctl reload nginx
+```
+
+装好后,客户端侧要指向同一个地址:
+- 桌面端后端:`CLOUD_URL` 或 `LAOMA_CLOUD_BASE_URL` = `https://fusion.maning789link.top`
+- 前端:`NEXT_PUBLIC_CLOUD_URL` = `https://fusion.maning789link.top`
+
+模板里已包含 `/cloud/llm/stream` 的 SSE 免缓冲参数(`proxy_buffering off` /
+`X-Accel-Buffering: no`)与 ACME 放行,**不要**用普通 location 代替,否则流式对话会被 nginx 缓冲住。
+
 **CORS**
 - `CLOUD_CORS_ORIGINS` — 例:`https://fusion.maning789link.top,https://<frontend-domain>`
 
