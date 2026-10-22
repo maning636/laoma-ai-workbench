@@ -12,10 +12,15 @@
  * 流程与官网（https://maning789link.top）一致：
  *   扫个人微信码 → 备注来意 → 产品方把用户拉进对应微信群。
  * 素材说明：
- *   - 微信号来自 `NEXT_PUBLIC_CONTACT_WECHAT_ID`（构建时注入）；
+ *   - 微信号来自 `NEXT_PUBLIC_CONTACT_WECHAT_ID`（构建时注入，可空）；
  *   - 二维码来自 `NEXT_PUBLIC_CONTACT_QR`（默认 `/wechat-contact-qr.png`）。
  *   - 二维码图片由运营提供并放进 `prism_frontend/public/`；未提供时显示占位提示，
  *     **不会**露出一个失效的图。
+ *
+ * ⚠️ 终端用户**不应该**看到构建期的环境变量名。
+ *   微信号没配时，整块微信号区直接不渲染 —— 官网给的是同一个二维码，
+ *   扫码入口已经够用，没必要在用户面前解释「有个变量没配」。
+ *   只有微信号与二维码**都**没有时，才给一句用户能懂的兜底文案。
  */
 
 import { useState } from "react"
@@ -106,13 +111,7 @@ export function ContactCard() {
               添加时备注「老马AI工作台 + 你的账号」,方便核对订单。
             </div>
           </div>
-        ) : (
-          <div className="rounded-xl border border-border/70 bg-muted/30 p-4 text-xs text-muted-foreground">
-            微信号尚未配置（构建时未设置
-            <code className="mx-1 font-mono">NEXT_PUBLIC_CONTACT_WECHAT_ID</code>
-            ）。
-          </div>
-        )}
+        ) : null}
 
         {/* 微信二维码 */}
         {showQr ? (
@@ -134,9 +133,9 @@ export function ContactCard() {
               ) : (
                 <div className="flex h-40 w-40 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border/70 bg-muted/30 p-2 text-center text-[11px] text-muted-foreground">
                   <TriangleAlert className="h-4 w-4" />
-                  <span>二维码图片缺失</span>
+                  <span>二维码暂时无法显示</span>
                   <span className="text-[10px] text-muted-foreground/70">
-                    请将二维码放入 public/ 或修正 NEXT_PUBLIC_CONTACT_QR
+                    请稍后重试，或通过官网联系我们
                   </span>
                 </div>
               )}
@@ -148,13 +147,16 @@ export function ContactCard() {
               </div>
             </div>
           </div>
-        ) : (
+        ) : null}
+
+        {/* 兜底：微信号与二维码都没配置时，给一句用户能懂的话。
+            刻意**不**把 NEXT_PUBLIC_CONTACT_* 这类内部环境变量名露给终端用户 ——
+            那是给运营看的构建期配置，不是用户需要知道的东西。 */}
+        {!showWechat && !showQr ? (
           <div className="rounded-xl border border-border/70 bg-muted/30 p-4 text-xs text-muted-foreground">
-            二维码尚未配置（构建时未设置
-            <code className="mx-1 font-mono">NEXT_PUBLIC_CONTACT_QR</code>
-            ）。
+            联系方式暂不可用。请稍后再试，或通过官网 maning789link.top 联系我们。
           </div>
-        )}
+        ) : null}
 
         {/* 群邀请链接：可选口子。现在主流做法是「扫码 + 备注来意 → 人工拉群」，
             没有固定群链接；将来有企业微信群链接时配 NEXT_PUBLIC_CONTACT_GROUP_URL 即可。 */}

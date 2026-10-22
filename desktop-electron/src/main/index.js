@@ -31,11 +31,29 @@ const {
 } = require('./update-manager');
 const { getVersionInfo: buildVersionInfo, aboutDetail } = require('./version-info');
 
-// 閰嶇疆鏃ュ織
+/**
+ * 读 JSON 文件，顺手剥掉可能存在的 BOM。
+ *
+ * Windows 上用 PowerShell 的 `Set-Content -Encoding UTF8` 改过的 JSON，
+ * 文件开头会多一个 U+FEFF。`JSON.parse` 不接受它（U+FEFF 不是合法 JSON 空白），
+ * 会直接抛 SyntaxError —— 于是一个 BOM 就能让整段配置读取静默走进 catch 分支，
+ * 读出来的是空值而不是"文件坏了"的显式报错。
+ *
+ * 这个坑踩过一次：`desktop-electron/package.json` 被 PowerShell 改版本号时
+ * 写进了 BOM，而 `getCloudBaseUrl()` 用 JSON.parse 读它 —— 结果 laomaCloudUrl
+ * 读不到，云端地址退回占位域名，整条商业闭环（注册码同步 / 云端订阅 / 云端生图）
+ * 静默失效。这里统一收口。
+ */
+function readJsonFileSafely(filePath) {
+  const raw = fs.readFileSync(filePath, 'utf-8');
+  return JSON.parse(raw.replace(/^\uFEFF/, ''));
+}
+
+// 配置日志
 log.transports.file.level = 'info';
 log.transports.console.level = 'debug';
 
-// 鍗曞疄渚嬮攣瀹?- 闃叉澶氭鍚姩
+    // 单实例锁 — 防止多次启动
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
@@ -89,7 +107,7 @@ class PrismApp {
     console.log('老马AI工作台正在启动...');
     log.info('老马AI工作台正在启动...');
 
-    // 绛夊緟 Electron 鍑嗗灏辩华
+    // 等待 Electron 准备就绪
     await app.whenReady();
     nativeTheme.themeSource = 'dark';
     log.info('Applied default dark theme source for Electron browser surfaces');
@@ -114,13 +132,13 @@ class PrismApp {
     log.info('resourcesPath:', process.resourcesPath);
     log.info('supervisor paths:', supervisorPaths);
 
-    // 1. 璁剧疆 Playwright 娴忚鍣ㄨ矾寰?
+    // 1. 设置 Playwright 浏览器路径
     this.setupAutomationPath();
 
-    // 2. 鍚姩鍚庣/鍓嶇鏈嶅姟锛堢敓浜ч粯璁ゅ惎鍔紝寮€鍙戝彲鐢?LAOMA_START_SERVICES=1 寮哄埗锛?
+    // 2. 启动后端/前端服务（生产默认启动，开发可用 LAOMA_START_SERVICES=1 强制开）
     const useExternalStack = this.useExternalStack();
     const shouldStartServices = !useExternalStack && (process.env.LAOMA_START_SERVICES === '1' || !this.isDev);
-    const showLauncher = process.env.LAOMA_SHOW_LAUNCHER === '1'; // 鏄惁鏄剧ず鍚姩绠＄悊鍣?
+    const showLauncher = process.env.LAOMA_SHOW_LAUNCHER === '1'; // 是否显示启动管理器
     console.log('Use external stack:', useExternalStack);
     console.log('Should start services:', shouldStartServices, '(isDev:', this.isDev, ')');
     console.log('Show launcher:', showLauncher);
@@ -151,17 +169,17 @@ class PrismApp {
       log.info('Services started');
     }
 
-    // 3. 鍒涘缓绐楀彛锛堝鏋滃惎鐢ㄥ惎鍔ㄧ鐞嗗櫒锛屽垯鏄剧ず鍚姩绠＄悊鍣紱鍚﹀垯鍒涘缓涓荤獥鍙ｏ級
+    // 3. 创建窗口（如果启用启动管理器，则显示启动管理器；否则创建主窗口）
     if (showLauncher) {
       this.createLauncherWindow();
     } else {
       this.createMainWindow();
     }
 
-    // 4. 璁剧疆 IPC 澶勭悊
+    // 4. 设置 IPC 处理
     this.setupIPC();
 
-    // 5. 璁剧疆搴旂敤浜嬩欢
+    // 5. 设置应用事件
     this.setupAppEvents();
 
     // 6. 应用菜单（帮助：检查更新 / 关于-双版本体系）
@@ -229,23 +247,23 @@ class PrismApp {
   }
 
   setupAutomationPath() {
-    // 鑾峰彇鎵撳寘鍚庣殑璧勬簮璺緞
+    // 获取打包后的资源路径
     const isDev = this.isDev;
 
     if (isDev) {
-      // 寮€鍙戠幆澧冿細浣跨敤椤圭洰鏍圭洰褰曠殑娴忚鍣?
+      // 开发环境：使用项目根目录的浏览器
       this.automationBrowserPath = path.join(__dirname, '../../../browsers');
       log.info('Dev mode Playwright browser path:', this.automationBrowserPath);
     } else {
-      // 鐢熶骇鐜锛氫娇鐢ㄦ墦鍖呭悗鐨勬祻瑙堝櫒
+      // 生产环境：使用打包后的浏览器
       this.automationBrowserPath = path.join(process.resourcesPath, 'browsers');
       log.info('Packaged mode Playwright browser path:', this.automationBrowserPath);
     }
 
-    // 璁剧疆鐜鍙橀噺锛岃 Playwright 浣跨敤鎸囧畾鐨勬祻瑙堝櫒
+    // 设置环境变量，让 Playwright 使用指定的浏览器
     process.env.PLAYWRIGHT_BROWSERS_PATH = this.automationBrowserPath;
 
-    // 楠岃瘉娴忚鍣ㄦ槸鍚﹀瓨鍦?
+    // 验证浏览器是否存在
     if (fs.existsSync(this.automationBrowserPath)) {
       log.info('Playwright browser path is ready');
     } else {
@@ -606,7 +624,7 @@ class PrismApp {
       if (!fs.existsSync(settingsPath)) {
         return this.normalizeRuntimeSettings();
       }
-      return this.normalizeRuntimeSettings(JSON.parse(fs.readFileSync(settingsPath, 'utf8')));
+      return this.normalizeRuntimeSettings(readJsonFileSafely(settingsPath));
     } catch (error) {
       log.warn('Failed to load runtime settings; using defaults:', error);
       return this.normalizeRuntimeSettings();
@@ -1724,8 +1742,20 @@ class PrismApp {
 
     let packaged = '';
     try {
-      // 打包后指向 app.asar 内的 package.json(electron-builder 会把 extraMetadata 合并进去)
-      const pkg = require('../package.json');
+      // ⚠️ 这里**不能**用 `require('../package.json')`。
+      // 打包后本文件位于 `app.asar/src/main/index.js`，`'../package.json'` 解析到
+      // `app.asar/src/package.json` —— 不存在，require 抛 MODULE_NOT_FOUND，
+      // 于是 laomaCloudUrl **永远读不到**，getCloudBaseUrl() 返回空串，
+      // 后端拿不到 CLOUD_URL → 云端地址退回占位域名 `api.prism.local` →
+      // 云端订阅永远 community、注册码「同步到云端」直接 502、
+      // 云端 AI / 云端生图全部退回本地模式（商业闭环整条链断在这里）。
+      //
+      // 正确做法：从 `app.getAppPath()` 拼根 package.json
+      // （打包态 = `...\resources\app.asar`，开发态 = `desktop-electron` 目录），
+      // electron-builder 的 extraMetadata 会把 laomaCloudUrl 合并进那一份。
+      // fs 读 asar 内文件是透明的，dev / packaged 两条路都成立。
+      const pkgPath = path.join(app.getAppPath(), 'package.json');
+      const pkg = readJsonFileSafely(pkgPath);
       packaged = String((pkg && pkg.laomaCloudUrl) || '').trim();
     } catch (error) {
       log.warn('Unable to read laomaCloudUrl from package.json:', error && error.message);
@@ -1788,34 +1818,48 @@ class PrismApp {
     Object.assign(env, pythonEnv);
     this.applyPlatformBrowserPreferenceEnv(env, this.runtimeSettings.platformBrowserPreferences || {});
     this.applyPlatformProxyPreferenceEnv(env, this.runtimeSettings.platformProxyPreferences || {});
-    if (!env.LAOMA_DATA_DIR) {
-      if (this.isDev) {
+    // ⚠️ 数据目录：
+    //   - dev 态：仍然「环境变量优先，没有才用仓库内目录」（开发时想在项目内落数据的人
+    //     可以自己设 LAOMA_DATA_DIR）。
+    //   - packaged 态：**恒为** userData\data，**不接受进程环境变量覆盖**。
+    //     外部环境里只要残留一个同名变量，用户数据就会被劫持到别处
+    //     （实测：机器上有 LAOMA_DATA_DIR=D:\...\data 时，客户端把注册码写进了
+    //       源码仓库目录，而不是跟着用户走的 %APPDATA%\laoma-ai-workbench\data），
+    //     与「装在哪就在哪用、卸载即清干净」的预期完全不符。
+    if (this.isDev) {
+      if (!env.LAOMA_DATA_DIR) {
         const devDataDir = path.join(this.repoRoot, 'prism_backend');
         env.LAOMA_DATA_DIR = devDataDir;
         log.info('  - LAOMA_DATA_DIR (dev):', devDataDir);
-      } else {
-        const userDataDir = app.getPath('userData');
-        const dataDir = path.join(userDataDir, 'data');
-        if (!fs.existsSync(dataDir)) {
-          fs.mkdirSync(dataDir, { recursive: true });
-        }
-        env.LAOMA_DATA_DIR = dataDir;
-        const hermesRoot = path.join(userDataDir, 'hermes');
-        const hermesHome = path.join(hermesRoot, 'home');
-        const hermesWebUiState = path.join(hermesRoot, 'webui');
-        const hermesWorkspace = path.join(hermesRoot, 'workspace');
-        const hermesConfigRoot = path.join(userDataDir, 'config');
-        [hermesHome, hermesWebUiState, hermesWorkspace, hermesConfigRoot].forEach((dirPath) => {
-          if (!fs.existsSync(dirPath)) {
-            fs.mkdirSync(dirPath, { recursive: true });
-          }
-        });
-        env.PRISM_HERMES_HOME = hermesHome;
-        env.PRISM_HERMES_WEBUI_STATE_DIR = hermesWebUiState;
-        env.PRISM_HERMES_WORKSPACE = hermesWorkspace;
-        env.PRISM_HERMES_CONFIG_ROOT = hermesConfigRoot;
-        log.info('  - LAOMA_DATA_DIR:', dataDir);
       }
+    } else {
+      if (env.LAOMA_DATA_DIR) {
+        log.warn(
+          '  - Ignoring inherited LAOMA_DATA_DIR in packaged mode:',
+          env.LAOMA_DATA_DIR
+        );
+      }
+      const userDataDir = app.getPath('userData');
+      const dataDir = path.join(userDataDir, 'data');
+      if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+      }
+      env.LAOMA_DATA_DIR = dataDir;
+      const hermesRoot = path.join(userDataDir, 'hermes');
+      const hermesHome = path.join(hermesRoot, 'home');
+      const hermesWebUiState = path.join(hermesRoot, 'webui');
+      const hermesWorkspace = path.join(hermesRoot, 'workspace');
+      const hermesConfigRoot = path.join(userDataDir, 'config');
+      [hermesHome, hermesWebUiState, hermesWorkspace, hermesConfigRoot].forEach((dirPath) => {
+        if (!fs.existsSync(dirPath)) {
+          fs.mkdirSync(dirPath, { recursive: true });
+        }
+      });
+      env.PRISM_HERMES_HOME = hermesHome;
+      env.PRISM_HERMES_WEBUI_STATE_DIR = hermesWebUiState;
+      env.PRISM_HERMES_WORKSPACE = hermesWorkspace;
+      env.PRISM_HERMES_CONFIG_ROOT = hermesConfigRoot;
+      log.info('  - LAOMA_DATA_DIR:', dataDir);
     }
     // 开发态跳过 Hermes 能力门禁：本地通常没有注册码，
     // 否则 supervisor 会把 dashboard / webui / gateway 全拦掉，没法调试。
@@ -2351,7 +2395,7 @@ class PrismApp {
     log.info('  - Launch Command:', launchCmd);
     log.info('  - Launch Args:', launchArgs);
 
-    // 鏋勫缓鐜鍙橀噺
+    // 构建环境变量
     const env = this.buildServiceEnv();
     // 动态端口发现：supervisor 把 API 端口/服务端口/启动令牌写入状态文件
     env.LAOMA_SUPERVISOR_STATE_PATH = this.getSupervisorStatePath();
@@ -2738,12 +2782,12 @@ class PrismApp {
       }
     });
 
-    // 鍔犺浇鍚姩绠＄悊鍣ㄩ〉闈?
+    // 加载启动管理器页面
     const launcherPath = path.join(__dirname, '../launcher/launcher.html');
     log.info('Loading launcher page:', launcherPath);
     this.launcherWindow.loadFile(launcherPath);
 
-    // 绐楀彛鍏抽棴浜嬩欢
+    // 窗口关闭事件
     this.launcherWindow.on('closed', () => {
       this.launcherWindow = null;
       log.info('Launcher window closed');
@@ -2755,7 +2799,7 @@ class PrismApp {
   createSettingsWindow() {
     log.info('Creating settings window...');
 
-    // 濡傛灉璁剧疆绐楀彛宸插瓨鍦紝鐩存帴鏄剧ず
+    // 如果设置窗口已存在，直接显示
     if (this.settingsWindow) {
       this.settingsWindow.show();
       this.settingsWindow.focus();
@@ -2775,16 +2819,16 @@ class PrismApp {
         preload: path.join(__dirname, '../preload/index.js'),
         contextIsolation: true,
         nodeIntegration: false,
-        webSecurity: false // 鍏佽璁块棶 localhost API
+        webSecurity: false // 允许访问 localhost API
       }
     });
 
-    // 鍔犺浇璁剧疆椤甸潰
+    // 加载设置页面
     const settingsPath = path.join(__dirname, '../settings/settings.html');
     log.info('Loading settings page:', settingsPath);
     this.settingsWindow.loadFile(settingsPath);
 
-    // 绐楀彛鍏抽棴浜嬩欢
+    // 窗口关闭事件
     this.settingsWindow.on('closed', () => {
       this.settingsWindow = null;
       log.info('Settings window closed');
@@ -2968,12 +3012,12 @@ class PrismApp {
         : { success: false, error: 'delete failed' };
     });
 
-    // 鑾峰彇 Playwright 娴忚鍣ㄨ矾寰?
+    // 获取 Playwright 浏览器路径
     ipcMain.handle('automation:getBrowserPath', () => {
       return this.automationBrowserPath;
     });
 
-    // 鍒涘缓鍙鍖栨祻瑙堝櫒绐楀彛锛堢敤浜庤皟璇曞拰棰勮锛?
+    // 创建可视化浏览器窗口（用于调试和预览）
     ipcMain.handle('browser:createVisual', async (event, url, options = {}) => {
       log.info('Creating visual browser window:', url);
 
@@ -3003,7 +3047,7 @@ class PrismApp {
       return windowId;
     });
 
-    // 鍏抽棴鍙鍖栨祻瑙堝櫒绐楀彛
+    // 关闭可视化浏览器窗口
     ipcMain.handle('browser:closeVisual', (event, windowId) => {
       const win = this.visualBrowserWindows.get(windowId);
       if (win && !win.isDestroyed()) {
@@ -3013,7 +3057,7 @@ class PrismApp {
       return false;
     });
 
-    // 鑾峰彇搴旂敤淇℃伅
+    // 获取应用信息
     ipcMain.handle('app:getInfo', () => {
       return {
         version: app.getVersion(),
@@ -3100,7 +3144,7 @@ class PrismApp {
       }
     });
 
-    // 璁剧疆 Session Cookies
+    // 设置 Session Cookies
     ipcMain.handle('session:setCookies', async (event, partition, cookies) => {
       log.info(`Setting ${cookies.length} cookies for partition ${partition}`);
       const { session } = require('electron');
@@ -3274,7 +3318,7 @@ class PrismApp {
       }
     });
 
-    // 鍚姩鎵€鏈夋湇鍔?
+    // 启动所有服务
     ipcMain.handle('supervisor:start-all', async () => {
       try {
         const http = require('http');
@@ -3295,7 +3339,7 @@ class PrismApp {
             res.on('end', () => {
               try {
                 const result = JSON.parse(data);
-                // 鍚屾椂鍚姩鍓嶇
+                // 同时启动前端
                 this.startFrontend();
                 resolve({ success: true, message: result.message });
               } catch (error) {
@@ -3316,13 +3360,13 @@ class PrismApp {
       }
     });
 
-    // 鍋滄鎵€鏈夋湇鍔?
+    // 停止所有服务
 
 
-    // 鍚姩涓诲簲鐢?
+    // 启动主应用
     ipcMain.handle('supervisor:launch-main-app', async () => {
       try {
-        // 鍏抽棴鍚姩绠＄悊鍣ㄧ獥鍙?
+        // 关闭启动管理器窗口
         if (this.launcherWindow) {
           this.launcherWindow.close();
           this.launcherWindow = null;
@@ -3340,14 +3384,14 @@ class PrismApp {
       }
     });
 
-    // ========== 鎵撳紑璁剧疆绐楀彛 ==========
+    // ========== 打开设置窗口 ==========
     ipcMain.handle('window:openSettings', () => {
       log.info('Opening settings window');
       this.createSettingsWindow();
       return { success: true };
     });
 
-    // ========== 鏁版嵁娓呯悊 IPC ==========
+    // ========== 数据清理 IPC ==========
     ipcMain.handle('system:clear-video-data', async (event, options = {}) => {
       log.info('Clearing video data...');
       try {
@@ -3501,10 +3545,10 @@ class PrismApp {
   }
 }
 
-// 鍚姩搴旂敤
+// 启动应用
 const prismApp = new PrismApp();
 
-// 鎹曡幏鏈鐞嗙殑閿欒
+// 捕获未处理的错误
 // 最后兜底：进程退出时确保所有子进程被清理（防止 before-quit 未触发时残留）
 process.on('exit', () => {
   try {
@@ -3522,7 +3566,7 @@ process.on('unhandledRejection', (reason, promise) => {
   log.error('Unhandled promise rejection:', reason);
 });
 
-// 鍒濆鍖栧簲鐢?
+// 初始化应用
 prismApp.initialize().catch((error) => {
   log.error('Application initialization failed:', error);
   if (app && app.quit) {

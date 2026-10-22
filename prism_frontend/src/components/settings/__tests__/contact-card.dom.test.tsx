@@ -8,9 +8,11 @@ import userEvent from "@testing-library/user-event"
  *
  * 覆盖：
  *   - 微信号已配置 → 展示微信号 + 复制按钮（点复制写剪贴板）
- *   - 微信号未配置 → 展示「未配置」提示，不露出空号
+ *   - 微信号未配置 → 整块不渲染，扫码入口仍然可用
+ *   - 微信号与二维码都没配 → 中性兜底文案
+ *   - 页面任何状态下都**不得**出现 NEXT_PUBLIC_* 内部环境变量名（回归守卫）
  *   - 二维码正常 → 渲染 <img>
- *   - 二维码加载失败 → 降级成「二维码图片缺失」文字，**不留破图**
+ *   - 二维码加载失败 → 降级成文字提示，**不留破图**
  *   - 群链接存在 → 出现「打开群链接」按钮
  */
 
@@ -66,10 +68,23 @@ describe("ContactCard — 微信号", () => {
     expect(screen.getByRole("button", { name: /复制/ })).toBeInTheDocument()
   })
 
-  it("未配置：展示提示而不是空号", () => {
+  it("未配置：整块微信号区不渲染（扫码入口已够用）", () => {
+    mocked.state.qr = "/wechat-contact-qr.png"
     render(<ContactCard />)
-    expect(screen.getByText(/微信号尚未配置/)).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /复制/ })).not.toBeInTheDocument()
+    expect(screen.queryByText(/微信号尚未配置/)).not.toBeInTheDocument()
+  })
+
+  it("未配置：页面不得出现 NEXT_PUBLIC_ 这类内部环境变量名", () => {
+    mocked.state.qr = "/wechat-contact-qr.png"
+    const { container } = render(<ContactCard />)
+    expect(container.textContent || "").not.toMatch(/NEXT_PUBLIC_/)
+  })
+
+  it("微信号与二维码都没配：给一句用户能懂的兜底文案", () => {
+    const { container } = render(<ContactCard />)
+    expect(screen.getByText(/联系方式暂不可用/)).toBeInTheDocument()
+    expect(container.textContent || "").not.toMatch(/NEXT_PUBLIC_/)
   })
 
   it("点击复制把微信号写进剪贴板", async () => {
@@ -104,7 +119,8 @@ describe("ContactCard — 微信二维码入口", () => {
     const img = screen.getByAltText("产品方微信二维码")
     fireEvent.error(img)
     expect(screen.queryByAltText("产品方微信二维码")).not.toBeInTheDocument()
-    expect(screen.getByText(/二维码图片缺失/)).toBeInTheDocument()
+    expect(screen.getByText(/二维码暂时无法显示/)).toBeInTheDocument()
+    expect(document.body.textContent || "").not.toMatch(/NEXT_PUBLIC_/)
   })
 
   it("配了群链接：出现「打开群链接」按钮（与二维码互相独立）", () => {
@@ -120,9 +136,10 @@ describe("ContactCard — 微信二维码入口", () => {
     expect(screen.queryByRole("link", { name: /打开群链接/ })).not.toBeInTheDocument()
   })
 
-  it("二维码入口完全没配：展示未配置提示", () => {
-    render(<ContactCard />)
-    expect(screen.getByText(/二维码尚未配置/)).toBeInTheDocument()
+  it("二维码入口完全没配：展示中性兜底文案，不露内部变量名", () => {
+    const { container } = render(<ContactCard />)
+    expect(screen.getByText(/联系方式暂不可用/)).toBeInTheDocument()
+    expect(container.textContent || "").not.toMatch(/NEXT_PUBLIC_/)
   })
 })
 
