@@ -1,0 +1,1186 @@
+{
+ "version": "1.0",
+ "decided_at": "2026-10-22",
+ "decided_by": "maning636",
+ "source": "docs/feature-inventory-and-oss-boundary.md §7 + docs/oss-boundary-decision-form.docx",
+ "model": {
+  "route": "C",
+  "formula": "allowed = 注册码授权条目（本地校验） ∩ 订阅配额（云端）",
+  "code_binding": false,
+  "code_expiry": "固定期限（年卡 / 季卡 / 月卡）",
+  "expired_behavior": "到期后已产生数据「能看，不能新增」",
+  "notes": [
+   "注册码只决定『能不能用』，云端订阅只决定『能用多少』",
+   "注册码默认不绑机器；离线宽限期待实现时定（建议 7–14 天）",
+   "未登录 / 云端不可达 → 回落 Community flag（既有行为不变）"
+  ]
+ },
+ "registration_entries": [
+  {
+   "key": "core",
+   "name": "基础包",
+   "desc": "全部开源功能（默认包含）",
+   "features": [
+    "max_accounts",
+    "max_platforms",
+    "team_members"
+   ]
+  },
+  {
+   "key": "ai_cloud",
+   "name": "云端 AI",
+   "desc": "云端 prompt / 云端生图 / 云端模型（自配 key 走本地模式不需此条目）",
+   "features": [
+    "ai_mode",
+    "image_gen",
+    "cloud_prompt"
+   ]
+  },
+  {
+   "key": "agent",
+   "name": "Agent 配额",
+   "desc": "Hermes Agent 配额与流式对话",
+   "features": [
+    "agent_quota",
+    "stream_chat"
+   ]
+  },
+  {
+   "key": "persona",
+   "name": "Persona 与代理",
+   "desc": "Persona 指纹 / 代理管理 / 代理网关",
+   "features": [
+    "persona",
+    "proxy_management"
+   ]
+  },
+  {
+   "key": "campaign",
+   "name": "营销活动编排",
+   "desc": "营销活动 → 任务包 → 发布任务整链",
+   "features": [
+    "campaign_orchestration"
+   ]
+  },
+  {
+   "key": "multi_platform",
+   "name": "多平台发布",
+   "desc": "超出社区版 3 平台的发布能力（数量随版本扩充，不写死）",
+   "features": [
+    "max_platforms"
+   ]
+  }
+ ],
+ "flags": [
+  {
+   "flag": "max_accounts",
+   "type": "numeric",
+   "community": 3,
+   "pro": -1,
+   "entry": "core",
+   "status": "已实现",
+   "note": "账号数配额，云端订阅维度"
+  },
+  {
+   "flag": "max_platforms",
+   "type": "numeric",
+   "community": 3,
+   "pro": 8,
+   "entry": "multi_platform",
+   "status": "已实现",
+   "note": "D5：对外不承诺具体数量（README/前端文案统一写「多平台」）；此值为内部配额，随版本扩充"
+  },
+  {
+   "flag": "ai_mode",
+   "type": "mode",
+   "community": "local_key",
+   "pro": "cloud",
+   "entry": "ai_cloud",
+   "status": "已实现",
+   "note": "云端模式需 ai_cloud 条目"
+  },
+  {
+   "flag": "image_gen",
+   "type": "mode",
+   "community": "local_key",
+   "pro": "cloud",
+   "entry": "ai_cloud",
+   "status": "已实现",
+   "note": "云端生图需 ai_cloud 条目"
+  },
+  {
+   "flag": "agent_quota",
+   "type": "numeric",
+   "community": 0,
+   "pro": 2,
+   "entry": "agent",
+   "status": "已实现",
+   "note": "0 = 禁用"
+  },
+  {
+   "flag": "data_recovery",
+   "type": "bool",
+   "community": true,
+   "pro": true,
+   "entry": "core",
+   "status": "已实现",
+   "note": "D7：不收进 Pro，社区版即可用（已同步改云端 / 客户端 / 前端三处）"
+  },
+  {
+   "flag": "persona",
+   "type": "bool",
+   "community": false,
+   "pro": true,
+   "entry": "persona",
+   "status": "已实现",
+   "note": ""
+  },
+  {
+   "flag": "proxy_management",
+   "type": "bool",
+   "community": false,
+   "pro": true,
+   "entry": "persona",
+   "status": "已实现",
+   "note": ""
+  },
+  {
+   "flag": "stream_chat",
+   "type": "bool",
+   "community": false,
+   "pro": true,
+   "entry": "agent",
+   "status": "已实现",
+   "note": ""
+  },
+  {
+   "flag": "team_members",
+   "type": "numeric",
+   "community": 1,
+   "pro": 1,
+   "entry": "core",
+   "status": "已实现",
+   "note": ""
+  },
+  {
+   "flag": "cloud_prompt",
+   "type": "bool",
+   "community": false,
+   "pro": true,
+   "entry": "ai_cloud",
+   "status": "新增待实现",
+   "note": "D6：云端 prompt 资产，随 prompts.py 移出开源树（B2）"
+  },
+  {
+   "flag": "campaign_orchestration",
+   "type": "bool",
+   "community": false,
+   "pro": true,
+   "entry": "campaign",
+   "status": "新增待实现",
+   "note": "新增：营销活动与任务包编排（注册码授权）"
+  }
+ ],
+ "code_crosscheck": [
+  {
+   "file": "cloud_service/billing/feature_gate.py",
+   "role": "云端实现",
+   "flag_count": 10
+  },
+  {
+   "file": "prism_backend/fastapi_app/api/billing_client.py",
+   "role": "客户端实现",
+   "flag_count": 10
+  },
+  {
+   "file": "prism_frontend/src/lib/plan-flags.ts",
+   "role": "前端默认",
+   "flag_count": 10
+  }
+ ],
+ "feature_items": [
+  {
+   "no": 1,
+   "name": "仪表盘",
+   "route": "/",
+   "desc": "账号总数、发布概览、快捷入口",
+   "eps": 25,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 2,
+   "name": "快速开始",
+   "route": "/guide",
+   "desc": "新手向导与场景演示（含 Mock 选题环节）",
+   "eps": 19,
+   "advice": "已接后端（部分演示流程）",
+   "pick": "开源"
+  },
+  {
+   "no": 3,
+   "name": "账号管理",
+   "route": "/account",
+   "desc": "多平台账号登录态、Cookie 校验、创作者后台、粉丝数据回填",
+   "eps": 29,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 4,
+   "name": "素材管理",
+   "route": "/materials",
+   "desc": "素材库、AI 标题/标签润色、批量上传",
+   "eps": 22,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 5,
+   "name": "代理管理",
+   "route": "/ip-pool",
+   "desc": "IP 池增删绑定、导出、状态统计",
+   "eps": 8,
+   "advice": "已接后端",
+   "pick": "注册码"
+  },
+  {
+   "no": 6,
+   "name": "代理网关",
+   "route": "/persona-proxy",
+   "desc": "per-country 代理网关订阅与热重载",
+   "eps": 3,
+   "advice": "已接后端",
+   "pick": "注册码"
+  },
+  {
+   "no": 7,
+   "name": "Persona",
+   "route": "/persona",
+   "desc": "浏览器身份/指纹/Profile 层",
+   "eps": 0,
+   "advice": "占位/重定向",
+   "pick": "注册码"
+  },
+  {
+   "no": 8,
+   "name": "选题库",
+   "route": "/ideas",
+   "desc": "选题灵感 CRUD",
+   "eps": 1,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 9,
+   "name": "趋势热榜",
+   "route": "/trends",
+   "desc": "全平台热榜聚合",
+   "eps": 1,
+   "advice": "已接后端（热榜数据源为占位）",
+   "pick": "开源"
+  },
+  {
+   "no": 10,
+   "name": "内容拆解",
+   "route": "/breakdown",
+   "desc": "拆解爆款内容结构",
+   "eps": 2,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 11,
+   "name": "账号画像",
+   "route": "/profile",
+   "desc": "账号内容画像与生成",
+   "eps": 3,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 12,
+   "name": "内容库",
+   "route": "/easel-content",
+   "desc": "内容资产库（列表/预览/编辑/导出）",
+   "eps": 4,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 13,
+   "name": "收件箱",
+   "route": "/easel-inbox",
+   "desc": "创作收件箱、草稿导入",
+   "eps": 8,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 14,
+   "name": "创作工作台",
+   "route": "/easel-workbench",
+   "desc": "素材 + 选题 + 技能编排工作台",
+   "eps": 6,
+   "advice": "已接后端（含占位文案）",
+   "pick": "开源"
+  },
+  {
+   "no": 15,
+   "name": "创作工坊",
+   "route": "/workshop",
+   "desc": "工具调用工坊（脚本执行）",
+   "eps": 2,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 16,
+   "name": "CMS",
+   "route": "/cms",
+   "desc": "隐藏内容后台、浏览器无头/登录模式配置",
+   "eps": 2,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 17,
+   "name": "AI 生图",
+   "route": "/fusion/image-studio",
+   "desc": "文生图/图生图，云端或本地 Key",
+   "eps": 23,
+   "advice": "已接后端",
+   "pick": "注册码"
+  },
+  {
+   "no": 18,
+   "name": "视频流水线",
+   "route": "/video-pipeline",
+   "desc": "模板 → 渲染 → 成片",
+   "eps": 4,
+   "advice": "已接后端（模板库依赖外部目录 `E:\\FDE\\fde-landing-delivery`，本机缺失）",
+   "pick": "注册码"
+  },
+  {
+   "no": 19,
+   "name": "图片编辑器",
+   "route": "/tools/image-editor",
+   "desc": "图片裁剪/编辑",
+   "eps": 0,
+   "advice": "纯前端",
+   "pick": "开源"
+  },
+  {
+   "no": 20,
+   "name": "产物中心",
+   "route": "/artifacts",
+   "desc": "统一产物 ID / 阶段流转 / 血缘（生图·上传·渲染·审核·发布串联）",
+   "eps": 22,
+   "advice": "已接后端（本轮新建）",
+   "pick": "开源"
+  },
+  {
+   "no": 21,
+   "name": "矩阵发布",
+   "route": "/publish/matrix",
+   "desc": "多平台多账号同步发布编排",
+   "eps": 22,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 22,
+   "name": "发布中心",
+   "route": "/publish",
+   "desc": "发布预设与批量发布入口",
+   "eps": 0,
+   "advice": "兼容跳转页",
+   "pick": "开源"
+  },
+  {
+   "no": 23,
+   "name": "发布任务",
+   "route": "/tasks/publish",
+   "desc": "发布任务列表/统计/取消",
+   "eps": 3,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 24,
+   "name": "分发记录",
+   "route": "/tasks/distribution",
+   "desc": "扫码派发（二维码分发，依赖 TikHub）",
+   "eps": 23,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 25,
+   "name": "营销活动",
+   "route": "/campaigns",
+   "desc": "活动 → 任务包 → 发布任务整链",
+   "eps": 6,
+   "advice": "已接后端（本轮打通）",
+   "pick": "注册码"
+  },
+  {
+   "no": 26,
+   "name": "排期日历",
+   "route": "/calendar",
+   "desc": "内容排期",
+   "eps": 2,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 27,
+   "name": "审核队列",
+   "route": "/review",
+   "desc": "发布前审查：审核队列 / 内容版本审批 / 敏感词库",
+   "eps": 7,
+   "advice": "已接后端（本轮新建）",
+   "pick": "开源"
+  },
+  {
+   "no": 28,
+   "name": "任务管理",
+   "route": "/tasks",
+   "desc": "任务总览与状态机",
+   "eps": 29,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 29,
+   "name": "数据中心",
+   "route": "/analytics",
+   "desc": "发布与内容数据总览、导出",
+   "eps": 4,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 30,
+   "name": "趋势分析",
+   "route": "/analytics/trends",
+   "desc": "趋势图表锚点定位（本轮由空壳改为跳转 `#trend`）",
+   "eps": 0,
+   "advice": "兼容跳转页",
+   "pick": "开源"
+  },
+  {
+   "no": 31,
+   "name": "视频数据（父级）",
+   "route": "/analytics/videos",
+   "desc": "各平台视频数据汇总入口",
+   "eps": 0,
+   "advice": "父级入口",
+   "pick": "开源"
+  },
+  {
+   "no": 32,
+   "name": "抖音视频数据",
+   "route": "/analytics/videos/douyin",
+   "desc": "抖音作品数据采集与复盘",
+   "eps": 2,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 33,
+   "name": "B 站视频数据",
+   "route": "/analytics/videos/bilibili",
+   "desc": "B 站作品数据",
+   "eps": 2,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 34,
+   "name": "快手视频数据",
+   "route": "/analytics/videos/kuaishou",
+   "desc": "快手作品数据",
+   "eps": 2,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 35,
+   "name": "小红书视频数据",
+   "route": "/analytics/videos/xiaohongshu",
+   "desc": "小红书笔记数据",
+   "eps": 2,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 36,
+   "name": "视频号视频数据",
+   "route": "/analytics/videos/channels",
+   "desc": "视频号数据",
+   "eps": 2,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 37,
+   "name": "TikTok 视频数据",
+   "route": "/analytics/videos/tiktok",
+   "desc": "TikTok 作品数据",
+   "eps": 2,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 38,
+   "name": "YouTube 视频数据",
+   "route": "/analytics/videos/youtube",
+   "desc": "YouTube 频道数据",
+   "eps": 2,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 39,
+   "name": "Hermes Agent",
+   "route": "/ai-agent",
+   "desc": "Agent 控制台：脚本、上下文、运行时配置",
+   "eps": 24,
+   "advice": "已接后端",
+   "pick": "注册码"
+  },
+  {
+   "no": 40,
+   "name": "Agent 控制台",
+   "route": "/ai-agent",
+   "desc": "同上入口（子项）",
+   "eps": 24,
+   "advice": "已接后端",
+   "pick": "注册码"
+  },
+  {
+   "no": 41,
+   "name": "提示词配置",
+   "route": "/ai-agent/prompts",
+   "desc": "Agent 提示词管理",
+   "eps": 18,
+   "advice": "已接后端",
+   "pick": "注册码"
+  },
+  {
+   "no": 42,
+   "name": "运行设置",
+   "route": "/ai-agent/settings",
+   "desc": "Hermes 运行时配置与连通性测试",
+   "eps": 21,
+   "advice": "已接后端",
+   "pick": "注册码"
+  },
+  {
+   "no": 43,
+   "name": "HermesChat",
+   "route": "/hermes-chat",
+   "desc": "对话式生成（本轮改为原生 SSE 流式）",
+   "eps": 24,
+   "advice": "已接后端",
+   "pick": "注册码"
+  },
+  {
+   "no": 44,
+   "name": "AI 对话",
+   "route": "/chat",
+   "desc": "通用 AI 对话（云端失败自动降级）",
+   "eps": 22,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 45,
+   "name": "技能库",
+   "route": "/skills",
+   "desc": "技能列表、刷新、共享脚本",
+   "eps": 3,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 46,
+   "name": "融合中心",
+   "route": "/fusion",
+   "desc": "融合编排总入口",
+   "eps": 19,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 47,
+   "name": "风格库",
+   "route": "/fusion/styles",
+   "desc": "内容风格模板",
+   "eps": 21,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 48,
+   "name": "内容审查",
+   "route": "/fusion/moderation",
+   "desc": "敏感词与内容审查",
+   "eps": 20,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 49,
+   "name": "融合分析",
+   "route": "/fusion/analytics",
+   "desc": "融合效果分析",
+   "eps": 20,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 50,
+   "name": "融合配置",
+   "route": "/fusion/config",
+   "desc": "融合参数配置",
+   "eps": 19,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 51,
+   "name": "模型市场",
+   "route": "/fusion/model-market",
+   "desc": "模型清单与切换",
+   "eps": 21,
+   "advice": "已接后端",
+   "pick": "注册码"
+  },
+  {
+   "no": 52,
+   "name": "供应商配置",
+   "route": "/fusion/providers",
+   "desc": "AI 供应商/模型接入配置",
+   "eps": 20,
+   "advice": "已接后端",
+   "pick": "注册码"
+  },
+  {
+   "no": 53,
+   "name": "工具中心",
+   "route": "/tools",
+   "desc": "MCP 工具/技能安装与状态",
+   "eps": 27,
+   "advice": "已接后端",
+   "pick": "开源"
+  },
+  {
+   "no": 54,
+   "name": "演示控制台",
+   "route": "/dashboard-demo",
+   "desc": "组件样例（**非真实数据**）",
+   "eps": 0,
+   "advice": "演示",
+   "pick": "开源"
+  },
+  {
+   "no": 55,
+   "name": "系统设置",
+   "route": "/settings",
+   "desc": "LLM/模型/通道/订阅/浏览器运行时/授权",
+   "eps": 45,
+   "advice": "已接后端",
+   "pick": "注册码"
+  }
+ ],
+ "capability_domains": [
+  {
+   "no": 1,
+   "domain": "fusion",
+   "groups": 25,
+   "ops": 31,
+   "desc": "融合引擎：云端状态、供应商模型、编排配置",
+   "advice": "部分注册码",
+   "pick": "做入口但注册码"
+  },
+  {
+   "no": 2,
+   "domain": "system",
+   "groups": 24,
+   "ops": 24,
+   "desc": "浏览器运行时与系统运维",
+   "advice": "不做入口（Pro 内部）",
+   "pick": "不做入口"
+  },
+  {
+   "no": 3,
+   "domain": "accounts",
+   "groups": 18,
+   "ops": 19,
+   "desc": "账号运维工具（回填、去重、调试）",
+   "advice": "不做入口",
+   "pick": "不做入口"
+  },
+  {
+   "no": 4,
+   "domain": "platforms",
+   "groups": 16,
+   "ops": 16,
+   "desc": "各平台登录/任务/Cookie 校验直连接口",
+   "advice": "不做入口（已被账号页封装）",
+   "pick": "不做入口"
+  },
+  {
+   "no": 5,
+   "domain": "agent",
+   "groups": 15,
+   "ops": 17,
+   "desc": "Agent 运行时配置与自检",
+   "advice": "注册码",
+   "pick": "做入口但注册码"
+  },
+  {
+   "no": 6,
+   "domain": "tasks",
+   "groups": 13,
+   "ops": 14,
+   "desc": "任务分发/认领/二维码派发",
+   "advice": "注册码",
+   "pick": "做入口但注册码"
+  },
+  {
+   "no": 7,
+   "domain": "tikhub",
+   "groups": 12,
+   "ops": 12,
+   "desc": "TikHub 数据服务（快手/B站用户与作品）",
+   "advice": "注册码（外部付费 API）",
+   "pick": "做入口但注册码"
+  },
+  {
+   "no": 8,
+   "domain": "files",
+   "groups": 11,
+   "ops": 13,
+   "desc": "文件上传与 AI 封面任务",
+   "advice": "开源",
+   "pick": "做入口且开源"
+  },
+  {
+   "no": 9,
+   "domain": "ai",
+   "groups": 11,
+   "ops": 11,
+   "desc": "LLM 代理与 agent-chat",
+   "advice": "注册码",
+   "pick": "做入口但注册码"
+  },
+  {
+   "no": 10,
+   "domain": "recovery",
+   "groups": 10,
+   "ops": 10,
+   "desc": "数据回收（TikHub 快照）",
+   "advice": "注册码",
+   "pick": "做入口且开源"
+  },
+  {
+   "no": 11,
+   "domain": "ip-pool",
+   "groups": 10,
+   "ops": 10,
+   "desc": "IP 池增删与绑定",
+   "advice": "注册码",
+   "pick": "做入口但注册码"
+  },
+  {
+   "no": 12,
+   "domain": "receipts",
+   "groups": 10,
+   "ops": 11,
+   "desc": "幂等回执",
+   "advice": "开源",
+   "pick": "做入口且开源"
+  },
+  {
+   "no": 13,
+   "domain": "matrix",
+   "groups": 9,
+   "ops": 10,
+   "desc": "矩阵任务生成与消费",
+   "advice": "开源",
+   "pick": "做入口且开源"
+  },
+  {
+   "no": 14,
+   "domain": "health",
+   "groups": 8,
+   "ops": 8,
+   "desc": "健康评分与趋势",
+   "advice": "不做入口",
+   "pick": "不做入口"
+  },
+  {
+   "no": 15,
+   "domain": "webhooks",
+   "groups": 7,
+   "ops": 10,
+   "desc": "Webhook 订阅（对外事件）",
+   "advice": "开源",
+   "pick": "做入口且开源"
+  },
+  {
+   "no": 16,
+   "domain": "analytics",
+   "groups": 6,
+   "ops": 6,
+   "desc": "视频级采集与解析",
+   "advice": "开源",
+   "pick": "做入口且开源"
+  },
+  {
+   "no": 17,
+   "domain": "video-pipeline",
+   "groups": 6,
+   "ops": 6,
+   "desc": "视频引擎、模板 HTML、运行",
+   "advice": "注册码",
+   "pick": "做入口但注册码"
+  },
+  {
+   "no": 18,
+   "domain": "review",
+   "groups": 6,
+   "ops": 6,
+   "desc": "审核条目编辑与驳回",
+   "advice": "开源（并入 /review）",
+   "pick": "做入口且开源"
+  },
+  {
+   "no": 19,
+   "domain": "dedup",
+   "groups": 6,
+   "ops": 6,
+   "desc": "内容查重",
+   "advice": "开源",
+   "pick": "做入口且开源"
+  },
+  {
+   "no": 20,
+   "domain": "insights",
+   "groups": 5,
+   "ops": 5,
+   "desc": "异常与洞察",
+   "advice": "开源",
+   "pick": "做入口且开源"
+  },
+  {
+   "no": 21,
+   "domain": "platform-fields",
+   "groups": 5,
+   "ops": 5,
+   "desc": "平台字段字典",
+   "advice": "不做入口",
+   "pick": "不做入口"
+  },
+  {
+   "no": 22,
+   "domain": "selectors",
+   "groups": 5,
+   "ops": 5,
+   "desc": "选择器版本管理",
+   "advice": "不做入口",
+   "pick": "不做入口"
+  },
+  {
+   "no": 23,
+   "domain": "ai-prompts",
+   "groups": 4,
+   "ops": 5,
+   "desc": "提示词结构与配置",
+   "advice": "注册码（云端 prompt 不开源）",
+   "pick": "做入口但注册码"
+  },
+  {
+   "no": 24,
+   "domain": "dashboard",
+   "groups": 4,
+   "ops": 4,
+   "desc": "仪表盘聚合",
+   "advice": "开源",
+   "pick": "做入口且开源"
+  },
+  {
+   "no": 25,
+   "domain": "concurrency",
+   "groups": 4,
+   "ops": 5,
+   "desc": "并发配额与用量",
+   "advice": "不做入口",
+   "pick": "不做入口"
+  },
+  {
+   "no": 26,
+   "domain": "task-state",
+   "groups": 4,
+   "ops": 6,
+   "desc": "任务状态机与校验",
+   "advice": "不做入口",
+   "pick": "不做入口"
+  },
+  {
+   "no": 27,
+   "domain": "content-variants",
+   "groups": 4,
+   "ops": 6,
+   "desc": "内容版本审批",
+   "advice": "开源（并入 /review）",
+   "pick": "做入口且开源"
+  },
+  {
+   "no": 28,
+   "domain": "matrix-groups",
+   "groups": 4,
+   "ops": 5,
+   "desc": "矩阵分组与分配",
+   "advice": "开源",
+   "pick": "做入口且开源"
+  },
+  {
+   "no": 29,
+   "domain": "campaigns",
+   "groups": 3,
+   "ops": 4,
+   "desc": "活动暂停/恢复/详情",
+   "advice": "注册码",
+   "pick": "做入口但注册码"
+  },
+  {
+   "no": 30,
+   "domain": "auth",
+   "groups": 3,
+   "ops": 3,
+   "desc": "浏览器导入登录会话",
+   "advice": "开源",
+   "pick": "做入口且开源"
+  },
+  {
+   "no": 31,
+   "domain": "publish",
+   "groups": 3,
+   "ops": 3,
+   "desc": "单条发布与发布调试截图",
+   "advice": "开源",
+   "pick": "做入口且开源"
+  },
+  {
+   "no": 32,
+   "domain": "data",
+   "groups": 3,
+   "ops": 3,
+   "desc": "数据健康与采集",
+   "advice": "不做入口",
+   "pick": "不做入口"
+  },
+  {
+   "no": 33,
+   "domain": "persona",
+   "groups": 3,
+   "ops": 3,
+   "desc": "指纹看板启停",
+   "advice": "注册码",
+   "pick": "做入口但注册码"
+  },
+  {
+   "no": 34,
+   "domain": "easel",
+   "groups": 3,
+   "ops": 3,
+   "desc": "Easel 草稿与输出",
+   "advice": "开源",
+   "pick": "做入口且开源"
+  },
+  {
+   "no": 35,
+   "domain": "content-library",
+   "groups": 3,
+   "ops": 3,
+   "desc": "内容库刷新与画像构建",
+   "advice": "开源",
+   "pick": "做入口且开源"
+  },
+  {
+   "no": 36,
+   "domain": "artifacts",
+   "groups": 3,
+   "ops": 3,
+   "desc": "统一产物总线的详情 / 阶段推进 / 按来源反查（主链路已接前端）",
+   "advice": "开源（补前端入口即可）",
+   "pick": "做入口且开源"
+  },
+  {
+   "no": 37,
+   "domain": "diagnostics",
+   "groups": 3,
+   "ops": 4,
+   "desc": "日志脱敏诊断",
+   "advice": "不做入口",
+   "pick": "不做入口"
+  },
+  {
+   "no": 38,
+   "domain": "scripts",
+   "groups": 2,
+   "ops": 2,
+   "desc": "脚本列表与执行",
+   "advice": "注册码",
+   "pick": "做入口但注册码"
+  },
+  {
+   "no": 39,
+   "domain": "manual-tasks",
+   "groups": 2,
+   "ops": 3,
+   "desc": "手动任务",
+   "advice": "不做入口",
+   "pick": "不做入口"
+  },
+  {
+   "no": 40,
+   "domain": "plans",
+   "groups": 2,
+   "ops": 2,
+   "desc": "计划发布与任务包",
+   "advice": "注册码",
+   "pick": "做入口但注册码"
+  },
+  {
+   "no": 41,
+   "domain": "cookies",
+   "groups": 2,
+   "ops": 2,
+   "desc": "Cookie 快速校验",
+   "advice": "开源",
+   "pick": "做入口且开源"
+  },
+  {
+   "no": 42,
+   "domain": "mediacrawler",
+   "groups": 2,
+   "ops": 2,
+   "desc": "媒体爬虫登录",
+   "advice": "注册码",
+   "pick": "做入口但注册码"
+  },
+  {
+   "no": 43,
+   "domain": "ai-design",
+   "groups": 2,
+   "ops": 3,
+   "desc": "AI 设计 Agent 配额",
+   "advice": "注册码",
+   "pick": "做入口但注册码"
+  },
+  {
+   "no": 44,
+   "domain": "login-check",
+   "groups": 2,
+   "ops": 2,
+   "desc": "登录态检查",
+   "advice": "开源",
+   "pick": "做入口且开源"
+  },
+  {
+   "no": 45,
+   "domain": "monitor",
+   "groups": 2,
+   "ops": 4,
+   "desc": "监控事件与状态迁移",
+   "advice": "不做入口",
+   "pick": "不做入口"
+  },
+  {
+   "no": 46,
+   "domain": "/",
+   "groups": 1,
+   "ops": 1,
+   "desc": "服务根",
+   "advice": "忽略",
+   "pick": "不做入口"
+  },
+  {
+   "no": 47,
+   "domain": "/health",
+   "groups": 1,
+   "ops": 1,
+   "desc": "健康检查",
+   "advice": "忽略",
+   "pick": "不做入口"
+  },
+  {
+   "no": 48,
+   "domain": "task-packages",
+   "groups": 1,
+   "ops": 3,
+   "desc": "任务包 CRUD（**GET/PUT/DELETE 仍为空壳**）",
+   "advice": "注册码",
+   "pick": "做入口但注册码"
+  },
+  {
+   "no": 49,
+   "domain": "persona-proxy",
+   "groups": 1,
+   "ops": 1,
+   "desc": "网关元信息",
+   "advice": "注册码",
+   "pick": "做入口但注册码"
+  },
+  {
+   "no": 50,
+   "domain": "skills",
+   "groups": 1,
+   "ops": 1,
+   "desc": "技能详情",
+   "advice": "开源",
+   "pick": "做入口且开源"
+  },
+  {
+   "no": 51,
+   "domain": "tools",
+   "groups": 1,
+   "ops": 1,
+   "desc": "工具状态",
+   "advice": "开源",
+   "pick": "做入口且开源"
+  },
+  {
+   "no": 52,
+   "domain": "ccswitch",
+   "groups": 1,
+   "ops": 1,
+   "desc": "当前 CC 切换",
+   "advice": "开源",
+   "pick": "做入口且开源"
+  },
+  {
+   "no": 53,
+   "domain": "matrix-assignments",
+   "groups": 1,
+   "ops": 1,
+   "desc": "矩阵分配",
+   "advice": "开源",
+   "pick": "做入口且开源"
+  },
+  {
+   "no": 54,
+   "domain": "getFile",
+   "groups": 1,
+   "ops": 1,
+   "desc": "文件读取",
+   "advice": "忽略",
+   "pick": "不做入口"
+  }
+ ]
+}

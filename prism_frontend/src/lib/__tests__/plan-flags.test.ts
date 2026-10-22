@@ -89,7 +89,7 @@ describe("normalizeFlags", () => {
     expect(r.plan).toBe("pro")
     expect(r.flags.max_accounts).toBe(-1)
     // 未提供的其他 flag 用 Community 默认补齐
-    expect(r.flags.data_recovery).toBe(false)
+    expect(r.flags.data_recovery).toBe(true) // D7：数据回收社区版即可用
   })
 
   it("忽略未知 flag key（不在 FEATURE_NAMES 中）", () => {
@@ -138,7 +138,7 @@ describe("buildPlanBadgeView", () => {
     })
     expect(v.isPro).toBe(true)
     expect(v.accountsLabel).toBe("无限")
-    expect(v.platformsLabel).toBe("8")
+    expect(v.platformsLabel).toBe("多") // D5：Pro 不写死平台数量
     expect(v.agentLabel).toBe("2")
     expect(v.actionLabel).toBe("续费")
   })

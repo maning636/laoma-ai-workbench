@@ -147,7 +147,7 @@ COMMUNITY_FLAGS: Dict[str, Any] = {
     "ai_mode": "local_key",
     "image_gen": "local_key",
     "agent_quota": 0,
-    "data_recovery": False,
+    "data_recovery": True,       # D7：数据回收不收进 Pro，社区版即可用
     "persona": False,
     "proxy_management": False,
     "stream_chat": False,

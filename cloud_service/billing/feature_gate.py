@@ -36,7 +36,7 @@ Feature Flags 完整列表 (对齐 `open-core-strategy.md` §3.1/§3.2):
   ai_mode            AI 调用模式            Community=local   Pro=cloud
   image_gen          文生图(M1)            Community=local   Pro=cloud
   agent_quota        Hermes Agent 可用数    Community=0       Pro=2
-  data_recovery      数据回收能力           Community=false   Pro=true
+  data_recovery      数据回收能力           Community=true    Pro=true（D7 社区版即可用）
   persona            Persona 指纹增强       Community=false   Pro=true
   proxy_management   代理管理/IP 池         Community=false   Pro=true
   stream_chat        SSE 流式 AI 对话       Community=false   Pro=true
@@ -76,7 +76,7 @@ COMMUNITY_FLAGS: dict[str, Any] = {
     "ai_mode": "local_key",
     "image_gen": "local_key",
     "agent_quota": 0,
-    "data_recovery": False,
+    "data_recovery": True,       # D7：数据回收不收进 Pro，社区版即可用
     "persona": False,
     "proxy_management": False,
     "stream_chat": False,

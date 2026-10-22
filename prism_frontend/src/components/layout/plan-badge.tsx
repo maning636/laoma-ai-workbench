@@ -10,7 +10,7 @@
  *
  * 视觉：
  *   - Community：灰色 badge + "3 账号 / 3 平台" + "升级 Pro" 按钮
- *   - Pro：金色/primary badge + "无限账号 / 8 平台" + "续费" 按钮
+ *   - Pro：金色/primary badge + "无限账号 / 多平台" + "续费" 按钮
  *
  * 复用：
  *   - `@/components/ui/badge` / `@/components/ui/button` / `@/components/ui/progress`

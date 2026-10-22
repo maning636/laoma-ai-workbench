@@ -80,7 +80,7 @@ describe("PlanBadge — Community 默认渲染", () => {
 })
 
 describe("PlanBadge — Pro 用户渲染", () => {
-  it("Pro flags 显示 Pro badge、8 平台与 续费 按钮", async () => {
+  it("Pro flags 显示 Pro badge、多平台与 续费 按钮", async () => {
     mocked.state.flagsResponse = {
       plan: "pro",
       flags: {
@@ -93,8 +93,8 @@ describe("PlanBadge — Pro 用户渲染", () => {
     await waitFor(() => {
       expect(screen.getByText("Pro")).toBeInTheDocument()
     })
-    // "无限" 通过 lucide InfinityIcon 展示（无文本），此处断言平台数字
-    expect(screen.getByText("8")).toBeInTheDocument()
+    // "无限" 通过 lucide InfinityIcon 展示（无文本），此处断言平台文案（D5：不写死数量）
+    expect(screen.getByText("多")).toBeInTheDocument()
     expect(screen.getByText("续费")).toBeInTheDocument()
     // Pro 徽标组
     expect(

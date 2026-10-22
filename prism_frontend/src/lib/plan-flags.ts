@@ -71,7 +71,7 @@ export const DEFAULT_COMMUNITY_FLAGS: FeatureFlags = {
   ai_mode: "local_key",
   image_gen: "local_key",
   agent_quota: 0,
-  data_recovery: false,
+  data_recovery: true,
   persona: false,
   proxy_management: false,
   stream_chat: false,
@@ -140,7 +140,7 @@ export function normalizeFlags(
  *
  * 设计说明：
  *   - Community 用户 `max_accounts=3, max_platforms=3` → 显示 "3" / "3"
- *   - Pro 用户 `max_accounts=-1, max_platforms=8` → 显示 "无限" / "8"
+ *   - Pro 用户 `max_accounts=-1` → 账号显示 "无限"；平台**不承诺具体数量**（D5），显示 "多"
  *   - `agent_quota=0`（Community） → 显示 "0"，同时 badge 展示 "升级解锁智能体"
  *   - `upgrade_url` 缺失时回落到 `DEFAULT_UPGRADE_URL`
  */
@@ -162,7 +162,7 @@ export function buildPlanBadgeView(
     maxPlatforms,
     agentQuota,
     accountsLabel: formatLimit(maxAccounts),
-    platformsLabel: formatLimit(maxPlatforms),
+    platformsLabel: maxPlatforms === -1 ? "无限" : flags.plan === "pro" ? "多" : formatLimit(maxPlatforms), // D5：Pro 不承诺具体平台数量，不写死数字
     agentLabel: formatLimit(agentQuota),
     upgradeUrl,
     // Pro 用户看到"续费"，Community 看到"升级 Pro"
