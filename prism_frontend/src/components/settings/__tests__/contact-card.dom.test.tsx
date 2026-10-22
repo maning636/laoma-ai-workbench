@@ -9,8 +9,8 @@ import userEvent from "@testing-library/user-event"
  * 覆盖：
  *   - 微信号已配置 → 展示微信号 + 复制按钮（点复制写剪贴板）
  *   - 微信号未配置 → 展示「未配置」提示，不露出空号
- *   - 群二维码正常 → 渲染 <img>
- *   - 群二维码加载失败 → 降级成「二维码图片缺失」文字，**不留破图**
+ *   - 二维码正常 → 渲染 <img>
+ *   - 二维码加载失败 → 降级成「二维码图片缺失」文字，**不留破图**
  *   - 群链接存在 → 出现「打开群链接」按钮
  */
 
@@ -19,7 +19,7 @@ import userEvent from "@testing-library/user-event"
 const mocked = vi.hoisted(() => {
   const state = {
     wechatId: "",
-    groupQr: "",
+    qr: "",
     groupUrl: "",
     notice: "",
   }
@@ -33,8 +33,8 @@ vi.mock("@/lib/contact", () => ({
   get CONTACT_WECHAT_ID() {
     return mocked.state.wechatId
   },
-  get CONTACT_GROUP_QR() {
-    return mocked.state.groupQr
+  get CONTACT_QR() {
+    return mocked.state.qr
   },
   get CONTACT_GROUP_URL() {
     return mocked.state.groupUrl
@@ -44,15 +44,14 @@ vi.mock("@/lib/contact", () => ({
   },
   RECHARGE_GUIDE: "充值与开通请通过微信联系产品方人工办理（线上支付暂未开放）。",
   hasContactWechat: () => mocked.state.wechatId.trim().length > 0,
-  hasContactGroup: () =>
-    mocked.state.groupUrl.trim().length > 0 || mocked.state.groupQr.trim().length > 0,
+  hasContactQr: () => mocked.state.qr.trim().length > 0,
 }))
 
 import { ContactCard } from "../contact-card"
 
 beforeEach(() => {
   mocked.state.wechatId = ""
-  mocked.state.groupQr = ""
+  mocked.state.qr = ""
   mocked.state.groupUrl = ""
   mocked.state.notice = ""
 })
@@ -90,34 +89,40 @@ describe("ContactCard — 微信号", () => {
   })
 })
 
-describe("ContactCard — 微信群入口", () => {
+describe("ContactCard — 微信二维码入口", () => {
   it("配了二维码路径：渲染二维码图片", () => {
-    mocked.state.groupQr = "/wechat-group-qr.png"
+    mocked.state.qr = "/wechat-contact-qr.png"
     render(<ContactCard />)
-    const img = screen.getByAltText("微信群二维码")
+    const img = screen.getByAltText("产品方微信二维码")
     expect(img).toBeInTheDocument()
-    expect(img).toHaveAttribute("src", "/wechat-group-qr.png")
+    expect(img).toHaveAttribute("src", "/wechat-contact-qr.png")
   })
 
   it("二维码加载失败：降级为文字提示，不留破图", () => {
-    mocked.state.groupQr = "/wechat-group-qr.png"
+    mocked.state.qr = "/wechat-contact-qr.png"
     render(<ContactCard />)
-    const img = screen.getByAltText("微信群二维码")
+    const img = screen.getByAltText("产品方微信二维码")
     fireEvent.error(img)
-    expect(screen.queryByAltText("微信群二维码")).not.toBeInTheDocument()
+    expect(screen.queryByAltText("产品方微信二维码")).not.toBeInTheDocument()
     expect(screen.getByText(/二维码图片缺失/)).toBeInTheDocument()
   })
 
-  it("配了群链接：出现「打开群链接」按钮", () => {
+  it("配了群链接：出现「打开群链接」按钮（与二维码互相独立）", () => {
     mocked.state.groupUrl = "https://example.com/group"
     render(<ContactCard />)
     const link = screen.getByRole("link", { name: /打开群链接/ })
     expect(link).toHaveAttribute("href", "https://example.com/group")
   })
 
-  it("群入口完全没配：展示未配置提示", () => {
+  it("没配群链接：不显示「打开群链接」按钮", () => {
+    mocked.state.qr = "/wechat-contact-qr.png"
     render(<ContactCard />)
-    expect(screen.getByText(/群二维码尚未配置/)).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: /打开群链接/ })).not.toBeInTheDocument()
+  })
+
+  it("二维码入口完全没配：展示未配置提示", () => {
+    render(<ContactCard />)
+    expect(screen.getByText(/二维码尚未配置/)).toBeInTheDocument()
   })
 })
 

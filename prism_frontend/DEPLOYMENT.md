@@ -73,14 +73,17 @@ These variables will be loaded automatically by Next.js.
 
 | 变量 | 必填 | 说明 |
 |---|---|---|
-| `NEXT_PUBLIC_CONTACT_WECHAT_ID` | **是** | 产品方个人微信号。不配则卡片显示「微信号尚未配置」提示 |
-| `NEXT_PUBLIC_CONTACT_GROUP_QR` | 否 | 微信群二维码图片路径（相对 `public/`）。默认 `/wechat-group-qr.png` |
+| `NEXT_PUBLIC_CONTACT_WECHAT_ID` | **是** | 产品方微信号（可搜索的名字）。不配则卡片显示「微信号尚未配置」提示 |
+| `NEXT_PUBLIC_CONTACT_QR` | 否 | 微信二维码图片路径（相对 `public/`）。默认 `/wechat-contact-qr.png` |
 | `NEXT_PUBLIC_CONTACT_GROUP_URL` | 否 | 群邀请链接（企业微信 / 群聊链接）。不配则只展示二维码 |
 | `NEXT_PUBLIC_CONTACT_NOTICE` | 否 | 附加说明文案，显示在卡片底部 |
 
-**群二维码默认不需要配环境变量**：仓库内置了占位图 `public/wechat-group-qr.png`
-（画面上写着「待替换」）。运营拿到真实群二维码后**直接覆盖这个文件**即可，
-不必改代码、不必重新配置环境变量。
+**加微信的流程与官网一致**：扫个人微信码 → 备注来意 → 产品方把用户拉进对应微信群。
+所以仓库里**没有单独的「群二维码」**——群是按来意手动拉的，不存在固定的群码。
+
+**二维码默认不需要配环境变量**：仓库内置了 `public/wechat-contact-qr.png`，
+与官网 <https://maning789link.top> 用的是同一张个人微信码。运营拿到新码后
+**直接覆盖这个文件**即可，不必改代码、不必重新配置环境变量。
 
 前端所有「升级 / 续费 / 充值」入口统一指向 `/settings#contact`，
 文案为 Community「加微信开通」、Pro「续费联系」。

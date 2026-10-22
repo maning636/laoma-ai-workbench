@@ -751,17 +751,22 @@ B1/D4/P0 这批改动，**装出来就是老侧边栏 + 无注册码入口 + P0 
 
 | 位置 | 改动 |
 |---|---|
-| `src/lib/contact.ts`（新建） | `NEXT_PUBLIC_CONTACT_WECHAT_ID` / `_GROUP_QR` / `_GROUP_URL` / `_NOTICE`；`RECHARGE_GUIDE`；`CONTACT_ANCHOR = "/settings#contact"` |
-| `src/components/settings/contact-card.tsx`（新建） | 「联系我们」卡片：微信号 + 复制按钮 + 群二维码 + 群链接；二维码 `onError` 降级为文字提示，不出破图 |
+| `src/lib/contact.ts`（新建） | `NEXT_PUBLIC_CONTACT_WECHAT_ID` / `_QR` / `_GROUP_URL` / `_NOTICE`；`RECHARGE_GUIDE`；`CONTACT_ANCHOR = "/settings#contact"` |
+| `src/components/settings/contact-card.tsx`（新建） | 「联系我们」卡片：微信号 + 复制按钮 + 微信二维码 + 群链接；二维码 `onError` 降级为文字提示，不出破图 |
 | `src/components/settings/license-card.tsx` | 状态栏加「积分额度」块；操作区加「同步到云端」按钮（`POST /api/v1/license/sync-cloud`） |
 | `src/lib/plan-flags.ts` | `DEFAULT_UPGRADE_URL` → `/settings#contact`；`actionLabel` → Pro「续费联系」/ Community「加微信开通」 |
 | `src/components/layout/plan-badge.tsx` | 按钮与 tooltip 文案同步 |
 | `src/components/wizard/agent-picker-step.tsx` | 「加微信开通可解锁」+ fallback `/settings#contact` |
 | `src/app/fusion/styles/agent-studio-panel.tsx` | 「已达配额上限，可加微信开通解锁更多智能体。」 |
-| `public/wechat-group-qr.png`（新建） | 内置**占位图**（「待替换」）。运营直接覆盖该文件即可生效，不必改环境变量 |
+| `public/wechat-contact-qr.png`（新建） | 个人微信二维码，与官网 <https://maning789link.top> 同一张。运营直接覆盖该文件即可生效，不必改环境变量 |
 
 `contact.ts` **刻意不写死具体微信号** —— 那是运营信息，用环境变量注入，
 没配就显示「未配置」提示，而不是露出一个错误的微信号。
+
+**加微信的流程与官网一致**：扫个人微信码 → 备注来意 → 产品方把用户拉进对应微信群。
+所以产品里**没有单独的「群二维码」**——官网也没有（站内只有一张个人码，
+两个「加入微信群」按钮弹的都是它），群是按来意手动拉的。
+`NEXT_PUBLIC_CONTACT_GROUP_URL` 留作以后有固定群链接时的可选口子。
 
 #### 7.13.9 验证
 
@@ -779,8 +784,8 @@ B1/D4/P0 这批改动，**装出来就是老侧边栏 + 无注册码入口 + P0 
 
 | 项 | 用途 | 阻塞发布？ |
 |---|---|---|
-| 真实微信群二维码图片 | 覆盖 `prism_frontend/public/wechat-group-qr.png` | 是（占位图会写着「待替换」） |
-| 个人微信号 | 设 `NEXT_PUBLIC_CONTACT_WECHAT_ID` | 是（不配则显示「未配置」） |
+| ~~真实微信群二维码图片~~ | **已解决（2026-10-22）**：官网上取到个人微信码，已入库 `prism_frontend/public/wechat-contact-qr.png` | 否 |
+| ~~个人微信号~~ | **待定（2026-10-22）**：官网只给了「马哥AI落地」这个可搜索名（企业微信），个人微信真号要马哥确认 | 是（不配则显示「未配置」） |
 | 支付宝正式商户凭证与证书路径 | 后期恢复线上支付用 | 否（现在线下） |
 | 服务器 `CLOUD_ADMIN_TOKEN` | 管理端改积分 / 续期 | 是（未配置 → 管理端 503） |
 

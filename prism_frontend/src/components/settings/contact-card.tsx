@@ -1,17 +1,19 @@
 "use client"
 
 /**
- * 「联系我们 / 加入微信群」设置卡片。
+ * 「联系我们」设置卡片（线下人工充值模式的用户联系入口）。
  *
  * 位置：`/settings` → "更多设置" → 紧跟在 `LicenseCard` 之后。
  *
  * 线上支付下线后，这个卡片承担两件事：
  *   1. **人工充值入口** —— 用户要加购积分 / 开通功能，唯一的路径是加产品方微信；
- *   2. **用户沉淀** —— 微信群是答疑、新版本通知、复购的主阵地。
+ *   2. **用户沉淀** —— 微信是答疑、新版本通知、复购的主阵地。
  *
+ * 流程与官网（https://maning789link.top）一致：
+ *   扫个人微信码 → 备注来意 → 产品方把用户拉进对应微信群。
  * 素材说明：
  *   - 微信号来自 `NEXT_PUBLIC_CONTACT_WECHAT_ID`（构建时注入）；
- *   - 群二维码来自 `NEXT_PUBLIC_CONTACT_GROUP_QR`（默认 `/wechat-group-qr.png`）。
+ *   - 二维码来自 `NEXT_PUBLIC_CONTACT_QR`（默认 `/wechat-contact-qr.png`）。
  *   - 二维码图片由运营提供并放进 `prism_frontend/public/`；未提供时显示占位提示，
  *     **不会**露出一个失效的图。
  */
@@ -29,12 +31,12 @@ import {
 } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
 import {
-  CONTACT_GROUP_QR,
   CONTACT_GROUP_URL,
   CONTACT_NOTICE,
+  CONTACT_QR,
   CONTACT_WECHAT_ID,
   RECHARGE_GUIDE,
-  hasContactGroup,
+  hasContactQr,
   hasContactWechat,
 } from "@/lib/contact"
 
@@ -46,8 +48,8 @@ export function ContactCard() {
 
   const wechatId = CONTACT_WECHAT_ID.trim()
   const groupUrl = CONTACT_GROUP_URL.trim()
-  const groupQr = CONTACT_GROUP_QR.trim()
-  const showGroup = hasContactGroup()
+  const qr = CONTACT_QR.trim()
+  const showQr = hasContactQr()
   const showWechat = hasContactWechat()
 
   const copyWechat = async () => {
@@ -112,20 +114,20 @@ export function ContactCard() {
           </div>
         )}
 
-        {/* 微信群 */}
-        {showGroup ? (
+        {/* 微信二维码 */}
+        {showQr ? (
           <div className="space-y-3 rounded-xl border border-border/70 bg-card p-4">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Users className="h-4 w-4" />
-              用户交流群
+              扫码加我
             </div>
 
             <div className="flex flex-wrap items-start gap-4">
-              {groupQr && !qrBroken ? (
+              {qr && !qrBroken ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={groupQr}
-                  alt="微信群二维码"
+                  src={qr}
+                  alt="产品方微信二维码"
                   onError={() => setQrBroken(true)}
                   className="h-40 w-40 rounded-lg border border-border/70 bg-background object-contain"
                 />
@@ -134,32 +136,39 @@ export function ContactCard() {
                   <TriangleAlert className="h-4 w-4" />
                   <span>二维码图片缺失</span>
                   <span className="text-[10px] text-muted-foreground/70">
-                    请将群二维码放入 public/ 或修正 NEXT_PUBLIC_CONTACT_GROUP_QR
+                    请将二维码放入 public/ 或修正 NEXT_PUBLIC_CONTACT_QR
                   </span>
                 </div>
               )}
               <div className="min-w-0 flex-1 space-y-2">
                 <div className="text-xs text-foreground/80">
-                  扫码进群，可获取使用答疑、新版本通知与优惠信息。
+                  扫码加我个人微信，备注来意（如「老马AI工作台」「素材库」或「企业交付」），
+                  我拉你进对应微信群，可获取使用答疑、新版本通知与优惠信息。
                 </div>
-                {groupUrl ? (
-                  <Button size="sm" asChild>
-                    <a href={groupUrl} target="_blank" rel="noopener noreferrer">
-                      <QrCode className="mr-1.5 h-4 w-4" />
-                      打开群链接
-                    </a>
-                  </Button>
-                ) : null}
               </div>
             </div>
           </div>
         ) : (
           <div className="rounded-xl border border-border/70 bg-muted/30 p-4 text-xs text-muted-foreground">
-            群二维码尚未配置（构建时未设置
-            <code className="mx-1 font-mono">NEXT_PUBLIC_CONTACT_GROUP_QR</code>
+            二维码尚未配置（构建时未设置
+            <code className="mx-1 font-mono">NEXT_PUBLIC_CONTACT_QR</code>
             ）。
           </div>
         )}
+
+        {/* 群邀请链接：可选口子。现在主流做法是「扫码 + 备注来意 → 人工拉群」，
+            没有固定群链接；将来有企业微信群链接时配 NEXT_PUBLIC_CONTACT_GROUP_URL 即可。 */}
+        {groupUrl ? (
+          <div className="rounded-xl border border-border/70 bg-card p-4">
+            <div className="text-xs text-muted-foreground">群邀请链接</div>
+            <Button size="sm" asChild className="mt-2">
+              <a href={groupUrl} target="_blank" rel="noopener noreferrer">
+                <QrCode className="mr-1.5 h-4 w-4" />
+                打开群链接
+              </a>
+            </Button>
+          </div>
+        ) : null}
 
         {CONTACT_NOTICE.trim() ? (
           <div className="rounded-lg border border-border/70 bg-muted/30 p-2.5 text-xs text-muted-foreground">
