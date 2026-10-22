@@ -1,17 +1,17 @@
-﻿"""
-璐﹀彿缁存姢宸ュ叿 API
-灏嗘牴鐩綍鐨勮处鍙风浉鍏宠剼鏈姛鑳介€氳繃 FastAPI 鎺ュ彛鏆撮湶
+"""
+账号维护工具 API
+将根目录的账号相关脚本功能通过 FastAPI 接口暴露
 """
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
-router = APIRouter(prefix="/accounts/tools", tags=["璐﹀彿宸ュ叿"])
+router = APIRouter(prefix="/accounts/tools", tags=["账号工具"])
 
 
 class BackfillUserIdsResponse(BaseModel):
-    """鍥炲～鐢ㄦ埛ID鍝嶅簲"""
+    """回填用户ID响应"""
     status: str
     updated_count: int
     failed_count: int
@@ -19,7 +19,7 @@ class BackfillUserIdsResponse(BaseModel):
 
 
 class CleanDuplicatesResponse(BaseModel):
-    """娓呯悊閲嶅璐﹀彿鍝嶅簲"""
+    """清理重复账号响应"""
     status: str
     removed_count: int
     kept_count: int
@@ -27,7 +27,7 @@ class CleanDuplicatesResponse(BaseModel):
 
 
 class CloseGuideRequest(BaseModel):
-    """鍏抽棴寮曞璇锋眰"""
+    """关闭导入请求"""
     platform: str
     account_id: str
     timeout: Optional[int] = 5000
@@ -35,7 +35,7 @@ class CloseGuideRequest(BaseModel):
 
 
 class CloseGuideResponse(BaseModel):
-    """鍏抽棴寮曞鍝嶅簲"""
+    """关闭导入响应"""
     success: bool
     closed_count: int
     method: Optional[str]
@@ -43,10 +43,10 @@ class CloseGuideResponse(BaseModel):
     platform: str
 
 
-@router.post("/backfill-user-ids", response_model=BackfillUserIdsResponse, summary="鍥炲～鐢ㄦ埛ID")
+@router.post("/backfill-user-ids", response_model=BackfillUserIdsResponse, summary="回填用户ID")
 async def backfill_user_ids():
     """
-    涓虹己灏?user_id 鐨勮处鍙峰洖濉敤鎴稩D
+    为缺失 user_id 的账号回填用户ID
     鍘熻剼鏈? backfill_user_ids.py
     """
     try:
@@ -63,14 +63,14 @@ async def backfill_user_ids():
             # 濡傛灉娌℃湁 user_id锛屽皾璇曟彁鍙?
             if not user_id or user_id == 'unknown':
                 try:
-                    # 浠?cookie 鏂囦欢涓彁鍙?user_id
+                    # 从 cookie 文件中提取 user_id
                     cookie_file = account.get('cookie_file')
                     if cookie_file:
-                        # 杩欓噷搴旇璋冪敤瀹為檯鐨勬彁鍙栭€昏緫
+                        # 这里应该调用实际的提取逻辑
                         # 鏆傛椂浣跨敤鍗犱綅绗?
                         extracted_id = f"user_{account_id}"
                         
-                        # 鏇存柊鍒版暟鎹簱
+                        # 更新到数据库
                         cookie_manager.update_account_info(
                             account_id,
                             {'user_id': extracted_id}
@@ -94,13 +94,13 @@ async def backfill_user_ids():
             details=updated + failed
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"鍥炲～澶辫触: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"回填失败: {str(e)}")
 
 
-@router.post("/clean-duplicates", response_model=CleanDuplicatesResponse, summary="娓呯悊閲嶅璐﹀彿")
+@router.post("/clean-duplicates", response_model=CleanDuplicatesResponse, summary="清理重复账号")
 async def clean_duplicate_accounts():
     """
-    娓呯悊閲嶅鐨勮处鍙疯褰?
+    清理重复账号记录
     鍘熻剼鏈? clean_duplicate_accounts.py
     """
     try:
@@ -115,7 +115,7 @@ async def clean_duplicate_accounts():
         with sqlite3.connect(settings.COOKIE_DB_PATH) as conn:
             cursor = conn.cursor()
             
-            # 鏌ユ壘閲嶅鐨勮处鍙?(鐩稿悓骞冲彴鍜岀敤鎴峰悕)
+            # 查找重复的账号（相同平台和用户名）
             cursor.execute("""
                 SELECT platform, username, COUNT(*) as count
                 FROM accounts
@@ -142,11 +142,11 @@ async def clean_duplicate_accounts():
                 
                 for account_id, created_at, status in remove_accounts:
                     try:
-                        # 鍒犻櫎閲嶅璐﹀彿
+                        # 删除重复账号
                         cursor.execute("DELETE FROM accounts WHERE account_id = ?", (account_id,))
                         removed_count += 1
                     except Exception as e:
-                        print(f"鍒犻櫎璐﹀彿 {account_id} 澶辫触: {e}")
+                        print(f"删除账号 {account_id} 失败: {e}")
                 
                 duplicates_found.append({
                     'platform': platform,
@@ -165,29 +165,29 @@ async def clean_duplicate_accounts():
             duplicates=duplicates_found
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"娓呯悊澶辫触: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"清理失败: {str(e)}")
 
 
-@router.post("/debug-cookie-extract", summary="璋冭瘯Cookie鎻愬彇")
+@router.post("/debug-cookie-extract", summary="调试Cookie提取")
 async def debug_cookie_extract(account_id: str):
     """
-    璋冭瘯鎸囧畾璐﹀彿鐨凜ookie鎻愬彇杩囩▼
+    调试指定账号的Cookie提取过程
     鍘熻剼鏈? debug_cookie_extract.py
     """
     try:
         from myUtils.cookie_manager import cookie_manager
         import json
         
-        # 鑾峰彇璐﹀彿淇℃伅
+        # 获取账号信息
         account = cookie_manager.get_account(account_id)
         if not account:
             raise HTTPException(status_code=404, detail="Account not found")
         
         cookie_file = account.get('cookie_file')
         if not cookie_file:
-            raise HTTPException(status_code=400, detail="璐﹀彿娌℃湁Cookie鏂囦欢")
+            raise HTTPException(status_code=400, detail="账号没有Cookie文件")
         
-        # 璇诲彇Cookie鏂囦欢
+        # 读取Cookie文件
         from pathlib import Path
         cookie_path = Path(cookie_file)
         
@@ -197,13 +197,13 @@ async def debug_cookie_extract(account_id: str):
         with open(cookie_path, 'r', encoding='utf-8') as f:
             cookies = json.load(f)
         
-        # 鍒嗘瀽Cookie鍐呭
+        # 解析Cookie内容
         cookie_analysis = {
             'total_cookies': len(cookies),
             'domains': list(set(c.get('domain', '') for c in cookies)),
             'has_auth_token': any('token' in c.get('name', '').lower() for c in cookies),
             'has_session': any('session' in c.get('name', '').lower() for c in cookies),
-            'cookies_preview': cookies[:5]  # 鍙樉绀哄墠5涓?
+            'cookies_preview': cookies[:5]  # 只显示前5个
         }
         
         return {
@@ -241,7 +241,7 @@ async def validate_all_accounts(background_tasks: BackgroundTasks):
             for account in accounts:
                 account_id = account['account_id']
                 try:
-                    # 楠岃瘉璐﹀彿
+                    # 验证账号
                     is_valid = await cookie_manager.verify_account(account_id)
                     
                     if is_valid:
@@ -274,7 +274,7 @@ async def validate_all_accounts(background_tasks: BackgroundTasks):
             'message': 'Account validation task started',
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"楠岃瘉澶辫触: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"验证失败: {str(e)}")
 
 
 @router.post("/close-guide", response_model=CloseGuideResponse, summary="关闭平台引导组件")

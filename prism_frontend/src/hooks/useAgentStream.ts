@@ -1,6 +1,6 @@
-﻿/**
- * OpenClaw 娴佸紡鎵ц Hook
- * 澶勭悊 SSE 娴佸紡鎺ユ敹 Agent 鎵ц鐘舵€?
+/**
+ * OpenClaw 流式执行 Hook
+ * 处理 SSE 流式接收 Agent 执行状态
  */
 
 import { useCallback, useRef, useState } from "react"
@@ -70,7 +70,7 @@ export function useAgentStream() {
   const abortControllerRef = useRef<AbortController | null>(null)
 
   const resetState = useCallback(() => {
-    // 缁堟姝ｅ湪杩涜鐨勬祦锛岄伩鍏嶅垏鎹㈢嚎绋?妯″紡鍚庣户缁線鏃?UI 鍐欏叆浜嬩欢
+      // 终止正在进行的流，避免切换线程模式后继续往旧 UI 写入事件
     try {
       abortControllerRef.current?.abort()
     } catch {
@@ -134,7 +134,7 @@ export function useAgentStream() {
       // 閲嶇疆鐘舵€?
       resetState()
 
-      // 缁堟鏃х殑娴?
+      // 终止旧的流
       abortControllerRef.current?.abort()
       const controller = new AbortController()
       abortControllerRef.current = controller
@@ -195,7 +195,7 @@ export function useAgentStream() {
 
           buffer += decoder.decode(value, { stream: true })
 
-          // 澶勭悊鍙兘鐨勫涓簨浠?
+          // 处理可能的多个事件
           const lines = buffer.split("\n\n")
           buffer = lines.pop() || ""
 
@@ -211,7 +211,7 @@ export function useAgentStream() {
           }
         }
       } catch (error) {
-        // Abort 灞炰簬姝ｅ父涓柇锛堝垏绾跨▼/鍒囨ā寮?鐢ㄦ埛鍋滄锛夛紝涓嶅綋鍋氶敊璇睍绀?
+        // Abort 属于正常中断（切线程/切模式/用户停止），不当做错误展示
         if (error instanceof DOMException && error.name === "AbortError") {
           setState(prev => ({ ...prev, isStreaming: false }))
           return
@@ -259,7 +259,7 @@ export function useAgentStream() {
           }
 
         case "tool_call":
-          // 娣诲姞鏂扮殑宸ュ叿璋冪敤
+          // 添加新的工具调用
           const newToolCall = {
             step: event.step,
             toolName: event.tool_name || "unknown",
@@ -283,7 +283,7 @@ export function useAgentStream() {
           }
 
         case "step_complete":
-          // 鏇存柊瀵瑰簲姝ラ鐨勫伐鍏疯皟鐢ㄧ粨鏋?
+          // 更新对应步骤的工具调用结果
           const updatedToolCalls = prev.toolCalls.map((call, idx) =>
             call.step === event.step
               ? { ...call, result: event.result, status: "success" as const }
@@ -347,7 +347,7 @@ export function useAgentStream() {
     }
     abortControllerRef.current = null
 
-    // 璋冪敤鍚庣鍋滄 API
+    // 调用后端停止 API
     fetch(`${API_ENDPOINTS.base || 'http://localhost:7000'}/api/v1/agent/hermes-stop`, {
       method: 'POST',
       headers: {

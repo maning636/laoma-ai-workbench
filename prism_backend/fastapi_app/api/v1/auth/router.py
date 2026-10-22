@@ -1,6 +1,6 @@
 """
-鐧诲綍璁よ瘉璺敱
-鎻愪緵鍚勫钩鍙扮殑鐧诲綍API
+登录认证路由
+提供各平台的登录API
 """
 import asyncio
 import uuid
@@ -35,10 +35,10 @@ from .schemas import (
 
 
 
-router = APIRouter(prefix="/auth", tags=["鐧诲綍璁よ瘉"])
+router = APIRouter(prefix="/auth", tags=["登录认证"])
 
 
-# 鍏ㄥ眬浼氳瘽瀛樺偍
+# 全局会话存储
 login_sessions: Dict[str, dict] = {}
 login_sessions_lock = asyncio.Lock()
 
@@ -246,14 +246,14 @@ def _ensure_account_persisted(platform_name: str, account_id: str, account_detai
 
 @router.post("/qrcode/generate", response_model=QRCodeResponse, summary="Generate login QR code")
 async def generate_qrcode(
-    platform: PlatformType = Query(..., description="骞冲彴绫诲瀷"),
-    account_id: str = Query(..., description="璐﹀彿ID")
+    platform: PlatformType = Query(..., description="平台类型"),
+    account_id: str = Query(..., description="账号ID")
 ):
     """
     鐢熸垚鐧诲綍浜岀淮鐮?
     鎵€鏈夊钩鍙板潎閫氳繃姝ゆ帴鍙ｇ敓鎴愪簩缁寸爜銆?
 
-    **NEW**: 浣跨敤 Automation Worker 鐙珛杩涚▼澶勭悊锛岃В鍐充簨浠跺惊鐜啿绐?
+    **NEW**: 使用 Automation Worker 独立进程处理，解决事件循环冲突
     """
     try:
         logger.info(f"[Login] QR generation started: platform={platform.value} account={account_id}")
@@ -292,7 +292,7 @@ async def generate_qrcode(
 
         session_id = result["session_id"]
 
-        # 瀛樺偍浼氳瘽淇℃伅锛堢敤浜庡悗缁繚瀛橈級
+        # 存储会话信息（用于后续保存账号）
         async with login_sessions_lock:
             login_sessions[session_id] = {
                 "platform": platform,
@@ -315,7 +315,7 @@ async def generate_qrcode(
         import traceback
         err = str(e) or type(e).__name__
         if isinstance(e, NotImplementedError):
-            err = f"{type(e).__name__} (message empty) -> 璇锋鏌?Automation Worker 鎺у埗鍙版棩蹇椾笌 /health 鐨?event_loop_policy"
+            err = f"{type(e).__name__} (message empty) -> 请检查 Automation Worker 控制台日志与 /health 的 event_loop_policy"
         logger.error(
             f"[Login] QR generation failed: platform={platform.value} account={account_id} error={type(e).__name__}: {err}"
         )
@@ -330,11 +330,11 @@ async def generate_qrcode(
 
 
 @router.get("/qrcode/poll", response_model=LoginStatusResponse, summary="Poll login status")
-async def poll_login_status(session_id: str = Query(..., description="鐧诲綍浼氳瘽ID")):
+async def poll_login_status(session_id: str = Query(..., description="登录会话ID")):
     """
-    杞鐧诲綍鐘舵€?
+    轮询登录状态
 
-    **NEW**: 閫氳繃 Automation Worker 杞鐘舵€?
+    **NEW**: 通过 Automation Worker 轮询状态
     """
     async with login_sessions_lock:
         session = login_sessions.get(session_id)
@@ -344,7 +344,7 @@ async def poll_login_status(session_id: str = Query(..., description="鐧诲綍�
     worker_session_id = session.get("worker_session_id", session_id)
 
     try:
-        # 浣跨敤 Automation Worker 瀹㈡埛绔疆璇?
+        # 使用 Automation Worker 客户端轮询
         from automation_worker.client import get_worker_client
         worker = get_worker_client()
 
@@ -355,7 +355,7 @@ async def poll_login_status(session_id: str = Query(..., description="鐧诲綍�
         if status == "confirmed":
             logger.info(f"[Login] Login confirmed via Worker: platform={platform.value} session={session_id[:8]}")
 
-            # 鏋勯€犳暟鎹粨鏋勪互鍏煎鍘熶繚瀛橀€昏緫
+            # 构造数据结构以兼容原保存逻辑
             # Worker 的登录结果统一放在 data 内；兼容旧 worker 的外层返回格式。
             worker_data = result.get("data") or result
             data = {
@@ -364,9 +364,9 @@ async def poll_login_status(session_id: str = Query(..., description="鐧诲綍�
                 "full_state": worker_data.get("full_state")
             }
 
-            # 鈿狅笍 淇2: 浼樺寲 enrich_account 璋冪敤閫昏緫锛岄伩鍏嶄笉蹇呰鐨勪簩娆℃祻瑙堝櫒鍚姩
-            # 璇存槑锛歱oll_status 涓凡缁忓湪棣栨娴忚鍣ㄤ細璇濅腑鎻愬彇浜?user_info锛?
-            # 浠呭綋鍏抽敭瀛楁纭疄缂哄け鏃舵墠闇€瑕佸啀娆″惎鍔ㄦ祻瑙堝櫒琛ュ叏
+            # ✅ 修复2: 优化 enrich_account 调用逻辑，避免不必要的二次浏览器启动
+            # 说明：poll_status 早已在首次浏览器会话中提取了 user_info，
+            # 仅当关键字段确实缺失时才需要再次启动浏览器补全
             try:
                 from config.conf import PLAYWRIGHT_HEADLESS
 
@@ -428,7 +428,7 @@ async def poll_login_status(session_id: str = Query(..., description="鐧诲綍�
                             user_info["extra"] = merged
                     data["user_info"] = user_info
                 else:
-                    logger.info(f"[Login] 淇℃伅宸插畬鏁达紝璺宠繃enrich_account璋冪敤: user_id={user_info.get('user_id')}, name={user_info.get('name')}")
+                    logger.info(f"[Login] 信息已完整，跳过enrich_account调用: user_id={user_info.get('user_id')}, name={user_info.get('name')}")
 
                 if (
                     _is_blank(user_info.get('user_id'))
@@ -485,7 +485,7 @@ async def poll_login_status(session_id: str = Query(..., description="鐧诲綍�
                     logger.warning(f"[Login] Fast validator enrich failed (ignored): {fast_error}")
 
 
-            # 淇濆瓨鐧诲綍淇℃伅
+            # 保存登录信息
             if platform == PlatformType.BILIBILI:
                 await _save_bilibili_login(session, data)
             elif platform == PlatformType.XIAOHONGSHU:
@@ -513,10 +513,10 @@ async def poll_login_status(session_id: str = Query(..., description="鐧诲綍�
 
 @router.get("/login/unified", summary="Unified login entry")
 async def unified_login(
-    platform: PlatformType = Query(..., description="骞冲彴绫诲瀷"),
-    account_id: str = Query(..., description="璐﹀彿ID")
+    platform: PlatformType = Query(..., description="平台类型"),
+    account_id: str = Query(..., description="账号ID")
 ):
-    """缁熶竴鐧诲綍鎺ュ彛 (寮哄埗API妯″紡)"""
+    """统一登录接口 (强制API模式)"""
     return {
         "success": True, 
         "method": "api", 
@@ -610,7 +610,7 @@ async def _save_xiaohongshu_login(session: dict, login_data: dict):
 
         account_id = session["account_id"]
         cookie_str = login_data.get("cookie", "")
-        # 鈿狅笍 淇1: 缁熶竴浣跨敤 user_info锛堣€屼笉鏄痩ogin_info锛夛紝涓巔oll_status淇濇寔涓€鑷?
+        # ✅ 修复1: 统一使用 user_info（不是 login_info），与 poll_status 保持一致
         user_info = login_data.get("user_info", {}) or {}
         full_state = login_data.get("full_state")
 
@@ -621,7 +621,7 @@ async def _save_xiaohongshu_login(session: dict, login_data: dict):
 
         if full_state:
             cookie_data = full_state
-            # 鈿狅笍 鍏抽敭淇: Playwright鐨剆torage_state娌℃湁user_info锛岄渶瑕佹墜鍔ㄦ敞鍏?
+            # ✅ 关键修复: Playwright 的 storage_state 没有 user_info，需要手动注册
             cookie_data["user_info"] = user_info
         else:
             cookie_data = {
@@ -662,7 +662,7 @@ async def _save_xiaohongshu_login(session: dict, login_data: dict):
         }
         _merge_from_cookie_file(account_details, account_file, "xiaohongshu")
 
-        logger.info(f"[Login] 灏忕孩涔﹁处鍙疯鎯? name={account_details['name']}, user_id={account_details['user_id']}")
+        logger.info(f"[Login] 小孩儿账号详情: name={account_details['name']}, user_id={account_details['user_id']}")
 
         # 鏇存柊鍒癱ookie绠＄悊鍣?
         try:
@@ -673,7 +673,7 @@ async def _save_xiaohongshu_login(session: dict, login_data: dict):
         _ensure_account_persisted("xiaohongshu", account_id, account_details, account_file)
 
     except Exception as e:
-        logger.error(f"淇濆瓨灏忕孩涔︾櫥褰曚俊鎭け璐? {e}")
+        logger.error(f"保存小孩儿登录信息失败: {e}")
         raise
 
 
@@ -822,7 +822,7 @@ async def _save_tencent_login(session: dict, login_data: dict):
 
         if full_state:
             cookie_data = full_state
-            # 鈿狅笍 鍏抽敭淇: Playwright鐨剆torage_state娌℃湁user_info锛岄渶瑕佹墜鍔ㄦ敞鍏?
+            # ✅ 关键修复: Playwright 的 storage_state 没有 user_info，需要手动注册
             cookie_data["user_info"] = user_info
         else:
             cookie_data = {
@@ -872,7 +872,7 @@ async def _save_tencent_login(session: dict, login_data: dict):
         _ensure_account_persisted("channels", account_id, account_details, account_file)
 
     except Exception as e:
-        logger.error(f"淇濆瓨瑙嗛鍙风櫥褰曚俊鎭け璐? {e}")
+        logger.error(f"保存视频号登录信息失败: {e}")
         raise
 
 

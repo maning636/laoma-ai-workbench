@@ -32,7 +32,7 @@ class CampaignService:
         start_time: Optional[str],
         end_time: Optional[str],
     ):
-        # 1. 鑾峰彇璐﹀彿淇℃伅骞舵寜骞冲彴鍒嗙粍
+        # 1. 获取账号信息并按平台分组
         all_accounts_resp = await account_service.list_accounts(limit=10000)
         all_accounts = all_accounts_resp.get("items", [])
 

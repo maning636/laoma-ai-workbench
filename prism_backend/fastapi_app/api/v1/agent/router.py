@@ -436,13 +436,13 @@ async def save_script(request: SaveScriptRequest):
     """
     淇濆瓨AI鐢熸垚鐨勮剼鏈?
 
-    - 鏀寔JSON鍜孭ython鑴氭湰
-    - 鑷姩鐢熸垚script_id
-    - 钀界洏鍒皊torage/scripts鐩綍
-    - 璁板綍鍒版暟鎹簱
+    - 支持JSON和Python脚本
+    - 自动生成script_id
+    - 落盘到storage/scripts目录
+    - 记录到数据库
 
     Args:
-        request: 鑴氭湰鍐呭鍜屽厓鏁版嵁
+        request: 脚本内容和元数据
 
     Returns:
         {script_id, path}
@@ -468,10 +468,10 @@ async def save_script(request: SaveScriptRequest):
 @router.post("/execute-script", response_model=Response[ExecuteScriptResponse])
 async def execute_script(request: ExecuteScriptRequest):
     """
-    鎵ц鑴氭湰
+    执行脚本
 
     - execute妯″紡: 鐪熷疄鍒涘缓浠诲姟骞舵墽琛?
-    - dry-run妯″紡: 浠呴獙璇佽鍒掍笉鎵ц
+    - dry-run模式: 仅验证计划不执行
 
     Args:
         request: 鑴氭湰ID鍜屾墽琛岄€夐」
@@ -514,9 +514,9 @@ async def get_system_context():
     """
     鑾峰彇绯荤粺涓婁笅鏂?
 
-    渚汚I浣跨敤,鍖呭惈:
+    供AI使用,包含:
     - 鎵€鏈夊彲鐢ㄨ处鍙蜂俊鎭?
-    - 绱犳潗搴撹棰戝垪琛?
+    - 素材库视频列表
     - 宸插彂甯冨巻鍙?
 
     Returns:
@@ -539,14 +539,14 @@ async def get_system_context():
 @router.get("/scripts")
 async def list_scripts(skip: int = 0, limit: int = 20):
     """
-    鑾峰彇鑴氭湰鍒楄〃
+    获取脚本列表
 
     Args:
-        skip: 璺宠繃鏁伴噺
-        limit: 闄愬埗鏁伴噺
+        skip: 跳过数量
+        limit: 限制数量
 
     Returns:
-        鑴氭湰鍒楄〃
+        脚本列表
     """
     try:
         import sqlite3
@@ -566,7 +566,7 @@ async def list_scripts(skip: int = 0, limit: int = 20):
 
             scripts = [dict(row) for row in cursor.fetchall()]
 
-            # 鑾峰彇鎬绘暟
+            # 获取总数
             count_cursor = conn.execute("SELECT COUNT(*) FROM scripts")
             total = count_cursor.fetchone()[0]
 
@@ -588,13 +588,13 @@ async def list_scripts(skip: int = 0, limit: int = 20):
 @router.get("/scripts/{script_id}")
 async def get_script(script_id: str):
     """
-    鑾峰彇鑴氭湰璇︽儏
+    获取脚本详情
 
     Args:
-        script_id: 鑴氭湰ID
+        script_id: 脚本ID
 
     Returns:
-        鑴氭湰璇︾粏淇℃伅
+        脚本详细信息
     """
     try:
         import sqlite3
@@ -633,14 +633,14 @@ async def get_script(script_id: str):
 @router.get("/executions")
 async def list_executions(skip: int = 0, limit: int = 20):
     """
-    鑾峰彇鎵ц鍘嗗彶
+    获取执行历史
 
     Args:
-        skip: 璺宠繃鏁伴噺
-        limit: 闄愬埗鏁伴噺
+        skip: 跳过数量
+        limit: 限制数量
 
     Returns:
-        鎵ц鍘嗗彶鍒楄〃
+        执行历史列表
     """
     try:
         import sqlite3
@@ -660,7 +660,7 @@ async def list_executions(skip: int = 0, limit: int = 20):
 
             executions = [dict(row) for row in cursor.fetchall()]
 
-            # 鑾峰彇鎬绘暟
+            # 获取总数
             count_cursor = conn.execute("SELECT COUNT(*) FROM script_executions")
             total = count_cursor.fetchone()[0]
 
