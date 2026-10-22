@@ -366,7 +366,7 @@
 | D3 | 有效期 | **固定期限**（年卡 / 季卡 / 月卡） | license 必带到期时间 |
 | D4 | 到期后数据 | **能看，不能新增** | 到期后写操作拦截、读操作放行 |
 | D5 | 8 平台口径 | **暂不承诺数量，只写「多平台」** | ✅ **已落代码**：README 引导句 / 两张表 / 场景说明与前端 badge 文案全部去掉写死的「8」；内部配额值不变 |
-| D6 | `cloud_service/llm_proxy/prompts.py` | **移出开源树，只在 Pro 包提供** | 需改 import 链与打包配置（下一批执行） |
+| D6 | `cloud_service/llm_proxy/prompts.py` | **移出开源树，只在 Pro 包提供** | ✅ **已落代码**（2026-10-23）：公开仓留 stub + 能力清单，模板正文走私有目录注入，见 §7.7 |
 | D7 | `/api/v1/recovery/*` | **不收进 Pro，保持社区版可用** | ✅ **已落代码**：flag `data_recovery` 的 Community 值在云端实现 / 客户端实现 / 前端默认三处同步为 `true` |
 | D8 | 平台细粒度 API 前端入口 | **不给，保持现状** | 账号页封装足够，不新增诊断页 |
 | D9 | NOTICE 版权署名主体 | **保持**「老马AI工作台（Prism-Fusion）贡献者」 | NOTICE.txt 无需改动 |
@@ -398,7 +398,7 @@
 | 批次 | 内容 | 依赖 | 状态 |
 |---|---|---|---|
 | B1 | 注册码模块：签发端（Ed25519）+ 客户端输入入口（系统设置页）+ license 签名/校验 + 离线宽限 + 到期只读 | D1–D4 | 待执行 |
-| B2 | `cloud_service/llm_proxy/prompts.py` 移出开源树，改 import 链与打包配置 | D6 | 待执行（**实现方案待拍板**） |
+| B2 | `cloud_service/llm_proxy/prompts.py` 移出开源树，改 import 链与打包配置 | D6 | ✅ **已完成**（2026-10-23，方案 R2=A，见 §7.7） |
 | B3 | README / 前端文案去掉写死的「8 平台」 | D5 | ✅ **已完成**（2026-10-22） |
 | B4 | 两个安装器重打包 + 干净 VM 验证 | 待办 1、2 | 待执行（干净 VM 未勾） |
 | B5 | 服务器工作副本同步 | 待办 7 | 待执行 |
@@ -429,17 +429,17 @@
 > 知乎 / 头条 / 西瓜，而后端适配器实际支持 抖音 / 快手 / 小红书 / B站 / 视频号 / TikTok / YouTube / 百家号。
 > D5 只处置了「对外承诺多少数量」，选择器与后端不一致属于功能缺陷，等接入稳定后统一（对应 §5 项 2）。
 
-### 7.6 第二轮待决表（4 处尾巴）
+### 7.6 第二轮待决（4 处尾巴）· 已定（2026-10-23）
 
-第一张表（`docs/oss-boundary-decision-form.docx`）的 10 项总体决策 + 7 项运维待办已全部落地；
-剩下 4 处尾巴收进第二张表，马哥勾完即可开工。
+> 来源：`docs/oss-boundary-round2-decision-form.docx` 的勾选。
+> **口径：R1–R4 一律按建议执行**（马哥 2026-10-23 明确「一切按照你的兜底模式来」）。
 
-| 项 | 要你定什么 | 我的建议 | 现状 |
-|---|---|---|---|
-| R1 | D2 绑机器最终口径（第一张表勾了两个互斥项） | 先按「默认不绑」落地，绑定开关留一处常量 | 已按「默认不绑；若启用绑定则允许自助解绑」落地 |
-| R2 | D6 云端 prompt 怎么移出开源树 | **公开仓只留 stub，Pro 打包时注入真实文件** | 未实施 |
-| R3 | §1 55 项 + §2 54 项兜底结果要不要改 | 先按兜底，等 B1 界面出来看实际观感再调 | 已按兜底落地（**推断，非逐项确认**） |
-| R4 | 干净 Windows VM 验证 + 真实生产联调凭证 | 凭证放 D 盘目录，我按路径读（不打印、不入库、不进 git） | 未推进（运维 2、3 未勾） |
+| 项 | 已定结论 | 落地状态 |
+|---|---|---|
+| R1 | **A：默认不绑机器**（一码通用）。日后若启用绑定，允许用户自助解绑；开关常量只留一处 | ✅ 已落设计：license 不写设备指纹；绑定/解绑开关集中在注册码模块一处 |
+| R2 | **A：公开仓只留 stub，Pro 打包时注入真实文件** | ✅ **已落代码**（B2，见 §7.7） |
+| R3 | **A：按兜底**（§1 55 项 + §2 54 项沿用「当前建议」列） | ✅ 已落文档（**推断，非逐项确认**；B1 界面出来后可再调） |
+| R4 | **往上推进**：本机能做的先做；干净 VM 与真实生产凭证仍需马哥提供 | ⚠️ 部分推进（见 §7.3 状态列） |
 
 | 文件 | 说明 |
 |---|---|
@@ -450,6 +450,43 @@
 
 **实测**：zip 完整 / 14 个 XML 部件全解析 / 3 张表（4 + 3 + 5 行）/ 页脚 PAGE 域在位；
 往返测试全绿 —— 勾选、未勾互不干扰、选择行、批注、并列框拆分 均读得准。
+
+### 7.7 B2 落地（2026-10-23）：云端 prompt 移出开源树
+
+**方案（R2=A）**：公开仓保留「能力契约」，把「模板正文」挪进被 gitignore 的私有目录，Pro 部署时注入。
+
+| 内容 | 开源仓 | Pro 部署 |
+|---|---|---|
+| `PromptDef` 数据结构 | ✅ | 同 |
+| `BASIC_PROMPTS`（基础模板正文） | ✅ | 同 |
+| `CLOUD_PROMPT_MANIFEST`（云端模板的**名字/描述/变量**，API 契约） | ✅ | 同 |
+| `CLOUD_PROMPTS`（**云端模板正文**） | ❌ 空 | 由 `_pro_assets/prompts_cloud.py` 注入 |
+
+| 文件 | 改动 |
+|---|---|
+| `cloud_service/llm_proxy/prompt_def.py` | **新增**：把 `PromptDef` 拆成零资产依赖的独立模块，私有资产因此可以做成「纯数据、零 import」 |
+| `cloud_service/llm_proxy/prompts.py` | **重写为公开 stub**：`CLOUD_PROMPTS` 改动态加载；新增 `CLOUD_PROMPT_MANIFEST` / `is_pro_required()` / `list_prompt_manifest()` / `reload_cloud_prompts()`；函数 API 全部保留 |
+| `cloud_service/llm_proxy/router.py` | 云端 prompt 缺失时返回 **403「需 Pro 版」**（不再是 404「不存在」）；`GET /cloud/llm/prompts` 改用 manifest，能力清单始终可见 |
+| `cloud_service/llm_proxy/schemas.py` | `PromptListItem` 增 `available: bool`（当前部署能否拿到模板正文） |
+| `cloud_service/test_llm.py` | 云端相关断言按「资产是否就绪」分支（403 时**不扣额度**，连带影响后面两处额度断言，已一并条件化） |
+| `cloud_service/test_prompts_oss_boundary.py` | **新增**：开源边界测试 —— 公开源码不得含模板正文（base64 marker，避免自指假阳性）、私有目录必须被 gitignore、资产缺失/损坏时的降级行为 |
+| `scripts/cloud/inject_pro_assets.py` | **新增**：注入脚本（`--source` / `--target` / `--check` / `--force` / `--list`），只放行 `.py/.json/.txt` |
+| `.gitignore` | 排除 `/cloud_service/llm_proxy/_pro_assets/` |
+
+**私有资产的版本化归宿**：`D:\Prism-Fusion-Backup\pro-assets\prompts_cloud.py`
+（sha256 `da5a7ad66683a625fbb6780629a15e7c3211eb63ede98335f30e2f56301d6e30`，7,587 字节）。
+Pro 部署时用注入脚本从该目录同步到目标树；`--check` 模式校验两边一致。
+
+**实测**：
+
+| 形态 | 结果 |
+|---|---|
+| 有资产（Pro / 本机） | `pytest cloud_service` → **11 passed**；云端 chat 200、扣 1 额度 |
+| 无资产（开源仓） | `pytest cloud_service` → **11 passed**；云端 chat 403「需 Pro 版」、**不扣额度** |
+| 资产文件与 git 原文 | AST 提取后**逐字段字节一致**（5 条模板、version/description/variables/template 全等） |
+
+> ⚠️ **未做**：服务器侧的私有资产分发（裸仓 / 同步脚本）尚未落地，当前只有本机 D 盘一份；
+> Pro 版安装包也还没重打包（见 B4）。在补上这两项之前，Pro 部署要靠人工拷贝资产文件。
 
 
 ---

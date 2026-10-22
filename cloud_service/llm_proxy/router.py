@@ -123,6 +123,12 @@ def _resolve_prompt(payload: ChatRequest) -> _ResolvedPrompt:
     if payload.prompt_name:
         pdef = _prompts.get_prompt(payload.prompt_name)
         if pdef is None:
+            # 开源仓没有云端模板正文 —— 与"名字不存在"区分开,给出可操作提示。
+            if _prompts.is_pro_required(payload.prompt_name):
+                raise HTTPException(
+                    status_code=403,
+                    detail=_prompts.PRO_REQUIRED_DETAIL,
+                )
             raise HTTPException(
                 status_code=404,
                 detail=f"prompt not found: {payload.prompt_name}",
@@ -214,6 +220,12 @@ async def llm_chat(
     if payload.prompt_name:
         pdef = _prompts.get_prompt(payload.prompt_name)
         if pdef is None:
+            # 开源仓没有云端模板正文 —— 与"名字不存在"区分开,给出可操作提示。
+            if _prompts.is_pro_required(payload.prompt_name):
+                raise HTTPException(
+                    status_code=403,
+                    detail=_prompts.PRO_REQUIRED_DETAIL,
+                )
             raise HTTPException(
                 status_code=404,
                 detail=f"prompt not found: {payload.prompt_name}",
@@ -578,21 +590,19 @@ def list_prompts(
 
     用途:客户端 UI 展示可选 prompt 列表,便于构建表单。
     """
-    names = _prompts.list_prompt_names(tier)
-    items: list[PromptListItem] = []
-    for name in names:
-        pdef = _prompts.get_prompt(name)
-        if pdef is None:
-            continue
-        items.append(
-            PromptListItem(
-                name=pdef.name,
-                tier=pdef.tier,
-                version=pdef.version,
-                variables=list(pdef.variables),
-                description=pdef.description,
-            )
+    # 用 manifest 而不是 ALL_PROMPTS:开源仓下云端模板正文不在,但**能力清单**要能列出来,
+    # 客户端才能提示"这个能力存在、需要 Pro",而不是当成不存在。
+    items = [
+        PromptListItem(
+            name=entry["name"],
+            tier=entry["tier"],
+            version=entry["version"],
+            variables=list(entry["variables"]),
+            description=entry["description"],
+            available=bool(entry["available"]),
         )
+        for entry in _prompts.list_prompt_manifest(tier)
+    ]
     return PromptListResponse(tier=tier, total=len(items), items=items)
 
 

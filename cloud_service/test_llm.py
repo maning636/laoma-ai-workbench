@@ -42,6 +42,12 @@ _repo_root = Path(__file__).resolve().parent.parent
 if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
+# D6:云端模板正文是 Pro 私有资产。开源仓不含它,云端 tier 的行为也不同
+# (403「需 Pro 版」而不是 200),且 403 **不消耗额度** —— 下面的额度断言要一起分支。
+from cloud_service.llm_proxy import prompts as _prompts_mod  # noqa: E402
+
+HAS_CLOUD_ASSETS = bool(_prompts_mod.CLOUD_PROMPTS)
+
 
 def _install_llm_mock():
     """把 `llm_client.call_cloud_llm` 替换为异步 mock,防止真调网络。"""
@@ -143,7 +149,12 @@ def run() -> int:
         hv = r.json()
         check("health.api_key_configured == True", hv.get("api_key_configured") is True,
               f"body={hv}")
-        check("health.prompt_count.cloud == 5", hv.get("prompt_count", {}).get("cloud") == 5,
+        _expected_cloud = 5 if HAS_CLOUD_ASSETS else 0
+        check(f"health.prompt_count.cloud == {_expected_cloud}",
+              hv.get("prompt_count", {}).get("cloud") == _expected_cloud,
+              f"count={hv.get('prompt_count')}")
+        check("health.prompt_count.cloud_declared == 5",
+              hv.get("prompt_count", {}).get("cloud_declared") == 5,
               f"count={hv.get('prompt_count')}")
         check("health.prompt_count.basic == 4", hv.get("prompt_count", {}).get("basic") == 4,
               f"count={hv.get('prompt_count')}")
@@ -166,6 +177,13 @@ def run() -> int:
         check("prompts 列表不含 template 字段",
               all("template" not in i for i in body["items"]),
               f"items[0]={body['items'][0]}")
+        # 能力清单始终可见;available 反映当前部署能否拿到模板正文
+        _cloud_items = [i for i in body["items"] if i.get("tier") == "cloud"]
+        check("cloud 能力清单可列出(5 条)",
+              len(_cloud_items) == 5, f"cloud_items={_cloud_items}")
+        check("cloud 项 available 标记与资产就绪状态一致",
+              all(i.get("available") is HAS_CLOUD_ASSETS for i in _cloud_items),
+              f"cloud_items={_cloud_items}")
 
         # tier 过滤
         r = client.get("/cloud/llm/prompts?tier=cloud", headers=H)
@@ -199,21 +217,28 @@ def run() -> int:
             },
             headers=H,
         )
-        check("POST /cloud/llm/chat prompt_name -> 200", r.status_code == 200,
-              f"status={r.status_code} body={r.text[:300]}")
-        c1 = r.json()
-        check("chat.prompt_name == platform_style.match",
-              c1.get("prompt_name") == "platform_style.match",
-              f"body={c1}")
-        check("chat.prompt_tier == cloud", c1.get("prompt_tier") == "cloud",
-              f"body={c1}")
-        check("chat.content 非空", bool(c1.get("content")),
-              f"content={c1.get('content')!r}")
-        check("chat 响应不含 template 字段", "template" not in c1,
-              f"keys={list(c1.keys())}")
-        check("chat.usage_after.remaining == 2 (3-1)",
-              c1.get("usage_after", {}).get("remaining") == 2,
-              f"usage={c1.get('usage_after')}")
+        if HAS_CLOUD_ASSETS:
+            check("POST /cloud/llm/chat prompt_name -> 200", r.status_code == 200,
+                  f"status={r.status_code} body={r.text[:300]}")
+            c1 = r.json()
+            check("chat.prompt_name == platform_style.match",
+                  c1.get("prompt_name") == "platform_style.match",
+                  f"body={c1}")
+            check("chat.prompt_tier == cloud", c1.get("prompt_tier") == "cloud",
+                  f"body={c1}")
+            check("chat.content 非空", bool(c1.get("content")),
+                  f"content={c1.get('content')!r}")
+            check("chat 响应不含 template 字段", "template" not in c1,
+                  f"keys={list(c1.keys())}")
+            check("chat.usage_after.remaining == 2 (3-1)",
+                  c1.get("usage_after", {}).get("remaining") == 2,
+                  f"usage={c1.get('usage_after')}")
+        else:
+            # 开源仓:云端模板正文不在 → 明确 403「需 Pro 版」,不是 404「不存在」
+            check("POST /cloud/llm/chat cloud prompt(无资产) -> 403",
+                  r.status_code == 403,
+                  f"status={r.status_code} body={r.text[:300]}")
+            check("403 提示需 Pro 版", "Pro" in r.text, f"body={r.text[:200]}")
 
         # ── 6. basic tier chat 也可以 ─────────────────────
         r = client.post(
@@ -229,8 +254,11 @@ def run() -> int:
         c2 = r.json()
         check("chat basic.prompt_tier == basic",
               c2.get("prompt_tier") == "basic", f"body={c2}")
-        check("chat basic.usage_after.remaining == 1",
-              c2.get("usage_after", {}).get("remaining") == 1,
+        # 有资产时云端 chat 已消耗 1(3→2),basic 再消耗 1 → 剩 1;
+        # 无资产时云端 chat 是 403(不扣额度),basic 消耗 1 → 剩 2。
+        _expected_remaining = 1 if HAS_CLOUD_ASSETS else 2
+        check(f"chat basic.usage_after.remaining == {_expected_remaining}",
+              c2.get("usage_after", {}).get("remaining") == _expected_remaining,
               f"usage={c2.get('usage_after')}")
 
         # ── 7. raw_prompt 未开 allow_raw → 400 ───────────
@@ -249,8 +277,12 @@ def run() -> int:
             json={"raw_prompt": "你好", "allow_raw": True},
             headers=H,
         )
-        check("POST /cloud/llm/chat raw_prompt overshoot -> 402",
-              r.status_code == 402, f"status={r.status_code} body={r.text}")
+        # 有资产:已用 2,raw cost=2 → 2+2>3 → 402
+        # 无资产:已用 1,raw cost=2 → 1+2=3 不超 → 200
+        _expected_raw = 402 if HAS_CLOUD_ASSETS else 200
+        check(f"POST /cloud/llm/chat raw_prompt overshoot -> {_expected_raw}",
+              r.status_code == _expected_raw,
+              f"status={r.status_code} body={r.text}")
 
         # ── 9. 不存在的 prompt_name → 404 ────────────────
         r = client.post(
@@ -267,8 +299,11 @@ def run() -> int:
             json={"prompt_name": "platform_style.match", "variables": {"topic": "x"}},
             headers=H,
         )
-        check("POST /cloud/llm/chat missing variables -> 422",
-              r.status_code == 422, f"status={r.status_code} body={r.text[:200]}")
+        # 有资产:模板在,缺变量 → 422;无资产:模板不在 → 先 403「需 Pro 版」
+        _expected_missing = 422 if HAS_CLOUD_ASSETS else 403
+        check(f"POST /cloud/llm/chat missing variables -> {_expected_missing}",
+              r.status_code == _expected_missing,
+              f"status={r.status_code} body={r.text[:200]}")
 
         # ── 11. 激活 pro → raw 兜底可用 ──────────────────
         r = client.post(

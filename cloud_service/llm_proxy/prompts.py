@@ -1,12 +1,29 @@
 """Prompt 库(C14):分层注册表 + 渲染 + 校验。
 
 分层(设计文档 §2.2):
-  cloud tier — 高价值 prompt,只在云端;客户端只按 name 触发,看不到模板源码。
-  basic tier — 基础模板,允许离线版复用(未来客户端 `prompts_basic.py` 直接同步)。
+  cloud tier — 高价值 prompt,**只在云端**;客户端只按 name 触发,看不到模板源码。
+  basic tier — 基础模板,允许离线版复用(客户端 `fusion_ai/prompts_basic.py` 是其快照)。
 
 模板语法:Jinja2 风格 `{{ var }}` 占位符;渲染用 `render_template()`。
 不做 `| safe` / `{% block %}` 等高级语法 —— prompt 是"给 LLM 看的文字",
 不需要执行代码;`_StrictFormatter` 只做键值替换 + 未定义变量报错。
+
+## 开源边界(D6)
+
+**cloud tier 的提示词正文是核心资产,不在开源仓里。** 本文件是开源仓版本:
+
+| 内容 | 开源仓 | Pro 部署 |
+|---|---|---|
+| `PromptDef` 数据结构 | ✅ 在这里 | 同 |
+| `BASIC_PROMPTS`(基础模板正文) | ✅ 在这里 | 同 |
+| `CLOUD_PROMPT_MANIFEST`(云端模板的**名字/描述/变量**,API 契约) | ✅ 在这里 | 同 |
+| `CLOUD_PROMPTS`(**云端模板正文**) | ❌ 空 | 由 `_pro_assets/prompts_cloud.py` 注入 |
+
+Pro 版的注入方式:把私有资产文件放到
+`cloud_service/llm_proxy/_pro_assets/prompts_cloud.py`(该目录被 `.gitignore` 排除),
+本模块在 import 时按路径加载它。注入脚本见 `scripts/cloud/inject_pro_assets.py`。
+
+开源仓下调用云端模板会得到明确的「需 Pro 版」提示,而不是 404 式的"不存在"。
 
 SEED 数据由 `sync_prompts_to_db()` 幂等 upsert 到 `prompts` 表(供 DB 驱动的路径使用),
 但线上真正渲染走本模块的内存表 `CLOUD_PROMPTS` / `BASIC_PROMPTS`,
@@ -15,213 +32,62 @@ SEED 数据由 `sync_prompts_to_db()` 幂等 upsert 到 `prompts` 表(供 DB 驱
 
 from __future__ import annotations
 
+import importlib.util
 import json
-from dataclasses import dataclass
+import logging
+import os
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .models import Prompt
+from .prompt_def import PromptDef
+
+logger = logging.getLogger(__name__)
 
 
 # ──────────────────────────────────────────────────────────────
-# Prompt 定义
+# 渲染
 # ──────────────────────────────────────────────────────────────
 
-@dataclass(frozen=True)
-class PromptDef:
-    """内存版 prompt 定义(与 `Prompt` ORM 结构对齐,但不落 DB)。"""
+class _MissingKey(dict):
+    """渲染时若变量缺失,渲染出字面量 `{{ name }}` 而不是抛 KeyError。
 
-    name: str
-    template: Any  # 允许 str 或 tuple[str, ...];__post_init__ 会归一化
-    tier: str  # "cloud" | "basic"
-    variables: tuple[str, ...] = ()
-    version: str = "1.0.0"
-    description: str = ""
+    好处:模板调试期看到占位符原文,而不是断在中间。
+    """
 
-    def __post_init__(self) -> None:
-        # 源码中 `template=( "a" "b", "c" "d" )` 会被解析成 tuple。
-        # 兼容写法:把 tuple 里所有字符串无分隔符拼接(相邻字符串本应自动拼接)。
-        if isinstance(self.template, tuple):
-            joined = "".join(str(x) for x in self.template)
-            object.__setattr__(self, "template", joined)
-        if not isinstance(self.template, str):
-            raise TypeError(f"template must be str, got {type(self.template)}")
-        if self.tier not in {"cloud", "basic"}:
-            raise ValueError(f"tier must be 'cloud' or 'basic', got {self.tier!r}")
-        if not self.name:
-            raise ValueError("name must not be empty")
-
-    def variables_json(self) -> str:
-        return json.dumps(list(self.variables), ensure_ascii=False)
-
-    def to_orm(self) -> Prompt:
-        return Prompt(
-            name=self.name,
-            tier=self.tier,
-            template=self.template,
-            variables_json=self.variables_json(),
-            version=self.version,
-            is_active=True,
-        )
-
-    def render(self, variables: dict[str, Any]) -> str:
-        return render_template(self.template, variables)
+    def __missing__(self, key: str) -> str:  # pragma: no cover - trivial
+        return "{{ " + key + " }}"
 
 
-# ──────────────────────────────────────────────────────────────
-# Cloud tier — 高价值 prompt(下沉核心资产)
-# ──────────────────────────────────────────────────────────────
-# 变量占位符:
-#   topic         — 主题/选题关键词
-#   tone          — 语气(专业 / 幽默 / 情绪饱满 ...)
-#   style         — 风格补充(平台/领域)
-#   audience      — 目标受众
-#   content       — 输入正文(评审类 prompt)
-#   platform      — 目标平台(xiaohongshu / douyin / zhihu ...)
-#   constraints   — 约束(字数、tag 上限 ...)
-# ──────────────────────────────────────────────────────────────
+def render_template(template: str, variables: dict[str, Any] | None = None) -> str:
+    """Jinja2-lite 渲染。
 
-CLOUD_PROMPTS: dict[str, PromptDef] = {
-    "cognition.matrix_evaluate": PromptDef(
-        name="cognition.matrix_evaluate",
-        tier="cloud",
-        version="1.0.0",
-        description="认知矩阵:5 维度评估内容(选题/结构/情绪/权威/行动)",
-        variables=("content", "audience"),
-        template=(
-            "你是一位资深内容编辑顾问,擅长从多维视角评估一篇内容的质量。\n\n"
-            "【任务】对下面这篇内容做一次「认知矩阵」评估。\n\n"
-            "【目标受众】{{ audience }}\n\n"
-            "【评估维度】\n"
-            "1. 选题分 — 主题是否明确、是否具备讨论价值、观点表达是否充分\n"
-            "2. 结构分 — 段落层次是否清晰、是否有引导逻辑、是否易读\n"
-            "3. 情绪分 — 情绪基调是否平衡(不过度乐观 / 不过度消极)\n"
-            "4. 权威分 — 数据点、案例、来源是否充分\n"
-            "5. 行动分 — 是否有明确的 CTA(点赞 / 收藏 / 关注 / 评论)\n\n"
-            "【评分规则】\n"
-            "每个维度 0-100 分,给出分数、简短理由(≤40 字)、1 条改进建议。\n\n"
-            "【输出格式(严格 JSON)】\n"
-            "{\n"
-            '  "dimensions": {\n'
-            '    "选题": {"score": 0, "reason": "", "suggestion": ""},\n'
-            '    "结构": {"score": 0, "reason": "", "suggestion": ""},\n'
-            '    "情绪": {"score": 0, "reason": "", "suggestion": ""},\n'
-            '    "权威": {"score": 0, "reason": "", "suggestion": ""},\n'
-            '    "行动": {"score": 0, "reason": "", "suggestion": ""}\n'
-            "  },\n"
-            '  "overall_score": 0,\n'
-            '  "top3_actions": ["", "", ""]\n'
-            "}\n\n"
-            "【内容】\n{{ content }}",
-        ),
-    ),
-    "cognition.audience_persona": PromptDef(
-        name="cognition.audience_persona",
-        tier="cloud",
-        version="1.0.0",
-        description="受众画像:从内容反推目标人群 + 语言风格偏好",
-        variables=("content",),
-        template=(
-            "你是一位用户研究分析师。基于下面这篇内容,推断最可能的目标受众。\n\n"
-            "【任务】从四个角度刻画受众:\n"
-            "1. 主领域(tech / business / lifestyle / academic / entertainment 之一)\n"
-            "2. 年龄段(如 25-35 岁)\n"
-            "3. 语言风格偏好(专业术语多 / 生活化 / 均衡)\n"
-            "4. 互动偏好(引导评论 / 点赞收藏 / 私域转发)\n\n"
-            "【输出格式(严格 JSON)】\n"
-            "{\n"
-            '  "primary_domain": "",\n'
-            '  "age_group": "",\n'
-            '  "language_style": "",\n'
-            '  "engagement_strategy": "",\n'
-            '  "confidence": 0.0\n'
-            "}\n\n"
-            "【内容】\n{{ content }}",
-        ),
-    ),
-    "platform_style.match": PromptDef(
-        name="platform_style.match",
-        tier="cloud",
-        version="1.0.0",
-        description="平台风格适配:根据平台生成符合调性的标题 + 结构 + tag",
-        variables=("platform", "topic", "constraints"),
-        template=(
-            "你是一位多平台内容策略专家,深度掌握以下平台的语气、结构与排版规则:\n"
-            "  - xiaohongshu(小红书):种草感、emoji 密集、1200 字内、竖版封面、10 个标签上限\n"
-            "  - douyin(抖音):网感强、节奏快、前 3 秒抓人、9:16、8 个标签上限\n"
-            "  - zhihu(知乎):专业理性、深度分析、观点表达、5 个标签上限\n"
-            "  - wechat(公众号):深度长文、叙事性强、封面+标题决定打开率\n"
-            "  - bilibili(B 站):UP 主风格、梗文化、三连引导\n"
-            "  - toutiao(头条):资讯风、三段式标题、信息密度高\n"
-            "  - kuaishou(快手):接地气、老铁文化、口语化\n"
-            "  - xigua(西瓜):长视频脚本、结构严谨、16:9\n\n"
-            "【任务】针对目标平台 `{{ platform }}`,为选题 `{{ topic }}` 生成一版发布包。\n"
-            "【附加约束】{{ constraints }}\n\n"
-            "【输出格式(严格 JSON)】\n"
-            "{\n"
-            '  "platform": "",\n'
-            '  "titles": ["", "", ""],\n'
-            '  "opening": "",\n'
-            '  "body_outline": ["", "", ""],\n'
-            '  "closing": "",\n'
-            '  "tags": [],\n'
-            '  "cover_hint": "",\n'
-            '  "emoji_density": ""\n'
-            "}",
-        ),
-    ),
-    "hot_topic.mining": PromptDef(
-        name="hot_topic.mining",
-        tier="cloud",
-        version="1.0.0",
-        description="热点挖掘:从话题簇中挑选高潜力选题 + 差异化角度",
-        variables=("topic_cluster", "audience"),
-        template=(
-            "你是一位热点编辑。基于下面这组近期话题/关键词簇,选出最有内容潜力的选题,并给出差异化切入角度。\n\n"
-            "【目标受众】{{ audience }}\n\n"
-            "【话题簇】\n{{ topic_cluster }}\n\n"
-            "【评估维度】\n"
-            "1. 搜索热度(是否具备大众基础)\n"
-            "2. 讨论空间(是否有多种视角,不是一锤定音)\n"
-            "3. 差异化空间(与已有爆款标题的差异点)\n"
-            "4. 时效窗口(建议发布时长)\n\n"
-            "【输出格式(严格 JSON)】\n"
-            "{\n"
-            '  "top_topics": [\n'
-            '    {"topic": "", "reason": "", "angle": "", "urgency": "hot|warm|cold"}\n'
-            "  ],\n"
-            '  "avoid": [""]\n'
-            "}",
-        ),
-    ),
-    "moderator.review": PromptDef(
-        name="moderator.review",
-        tier="cloud",
-        version="1.0.0",
-        description="内容合规审核:识别平台红线 + 敏感表达",
-        variables=("content", "platform"),
-        template=(
-            "你是一位内容合规审核员,熟悉中国大陆主流平台(小红书、抖音、B 站、公众号、知乎、快手、头条)的社区规则。\n\n"
-            "【任务】审核下面这段 `{{ platform }}` 平台的内容,标记潜在违规点并给出改写建议。\n\n"
-            "【审核维度】\n"
-            "1. 违禁词 / 极限词(最、第一、绝对、100% 等)\n"
-            "2. 医疗 / 金融 / 政务 敏感表述\n"
-            "3. 诱导性话术(点击、私信、返利)\n"
-            "4. 版权 / 肖像 / 商标 风险\n"
-            "5. 平台专属红线(如小红书医疗美妆、抖音金融)\n\n"
-            "【输出格式(严格 JSON)】\n"
-            "{\n"
-            '  "risk_level": "none|low|medium|high",\n'
-            '  "flags": [\n'
-            '    {"keyword": "", "category": "", "severity": "low|medium|high", "rewrite_hint": ""}\n'
-            "  ],\n"
-            '  "suggestions": [""]\n'
-            "}",
-        ),
-    ),
-}
+    - 支持 `{{ key }}` 占位符(空格可选)。
+    - 未提供的变量渲染为字面量占位符,便于观察遗漏。
+    - 值会 `str()` 后去除首尾空白,避免多行变量污染布局。
+    """
+    if variables is None:
+        variables = {}
+
+    class _StringifyDict(_MissingKey):
+        def __getitem__(self, key):  # type: ignore[override]
+            try:
+                raw = super().__getitem__(key)
+            except KeyError:
+                return super().__missing__(key)
+            return str(raw).strip()
+
+    ctx = _StringifyDict(**variables)
+
+    def _sub(match: Any) -> str:
+        return ctx[match.group(1).strip()]
+
+    import re
+
+    return re.sub(r"\{\{\s*([^{}\n]+?)\s*\}\}", _sub, template)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -278,49 +144,162 @@ BASIC_PROMPTS: dict[str, PromptDef] = {
 }
 
 
-ALL_PROMPTS: dict[str, PromptDef] = {**BASIC_PROMPTS, **CLOUD_PROMPTS}
-
-
 # ──────────────────────────────────────────────────────────────
-# 渲染
+# Cloud tier — 清单(公开) + 正文(Pro 私有,运行时注入)
+# ──────────────────────────────────────────────────────────────
+# 变量占位符:
+#   topic         — 主题/选题关键词
+#   tone          — 语气(专业 / 幽默 / 情绪饱满 ...)
+#   style         — 风格补充(平台/领域)
+#   audience      — 目标受众
+#   content       — 输入正文(评审类 prompt)
+#   platform      — 目标平台(xiaohongshu / douyin / zhihu ...)
+#   constraints   — 约束(字数、tag 上限 ...)
+#
+# `CLOUD_PROMPT_MANIFEST` 只登记 **API 契约**(名字 / 版本 / 描述 / 变量列表),
+# 不含任何提示词正文 —— 客户端需要它来构建表单,服务端需要它来判定
+# "这个名字是存在的,只是开源版拿不到模板"。
 # ──────────────────────────────────────────────────────────────
 
-class _MissingKey(dict):
-    """渲染时若变量缺失,渲染出字面量 `{{ name }}` 而不是抛 KeyError。
+CLOUD_PROMPT_MANIFEST: dict[str, dict[str, Any]] = {
+    "cognition.matrix_evaluate": {
+        "version": "1.0.0",
+        "description": "认知矩阵:5 维度评估内容(选题/结构/情绪/权威/行动)",
+        "variables": ["content", "audience"],
+    },
+    "cognition.audience_persona": {
+        "version": "1.0.0",
+        "description": "受众画像:从内容反推目标人群 + 语言风格偏好",
+        "variables": ["content"],
+    },
+    "platform_style.match": {
+        "version": "1.0.0",
+        "description": "平台风格适配:根据平台生成符合调性的标题 + 结构 + tag",
+        "variables": ["platform", "topic", "constraints"],
+    },
+    "hot_topic.mining": {
+        "version": "1.0.0",
+        "description": "热点挖掘:从话题簇中挑选高潜力选题 + 差异化角度",
+        "variables": ["topic_cluster", "audience"],
+    },
+    "moderator.review": {
+        "version": "1.0.0",
+        "description": "内容合规审核:识别平台红线 + 敏感表达",
+        "variables": ["content", "platform"],
+    },
+}
 
-    好处:模板调试期看到占位符原文,而不是断在中间。
+
+#: 云端模板正文所在的私有资产目录(被 .gitignore 排除,Pro 部署时注入)
+_PRO_ASSETS_DIRNAME = "_pro_assets"
+_PRO_ASSET_FILENAME = "prompts_cloud.py"
+
+#: 开源仓下调用云端模板时统一返回的提示
+PRO_REQUIRED_DETAIL = (
+    "该 prompt 属于 Pro 版云端能力,开源版本不包含其模板。"
+    "请升级到 Pro 版后重试,或改用 basic tier prompt。"
+)
+
+
+def _default_asset_path() -> Path:
+    return Path(__file__).resolve().parent / _PRO_ASSETS_DIRNAME / _PRO_ASSET_FILENAME
+
+
+def _read_asset_module(asset_path: Path) -> dict[str, Any]:
+    """按文件路径加载私有资产模块,取其中的 `CLOUD_PROMPT_ASSETS` 字典。
+
+    资产文件是**纯数据**(不 import 任何模块),所以用 `importlib` 按路径加载
+    既不会形成循环依赖,也便于在 Pro 打包时整体替换。
     """
+    spec = importlib.util.spec_from_file_location("_prism_pro_prompts_cloud", asset_path)
+    if spec is None or spec.loader is None:  # pragma: no cover - 防御
+        raise ImportError(f"cannot load pro asset spec from {asset_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assets = getattr(module, "CLOUD_PROMPT_ASSETS", None)
+    if not isinstance(assets, dict):
+        raise ImportError(
+            f"{asset_path} must define a dict named CLOUD_PROMPT_ASSETS"
+        )
+    return assets
 
-    def __missing__(self, key: str) -> str:  # pragma: no cover - trivial
-        return "{{ " + key + " }}"
 
+def _build_cloud_prompts(raw: dict[str, Any]) -> dict[str, PromptDef]:
+    """把纯数据资产转成 `PromptDef` 字典。
 
-def render_template(template: str, variables: dict[str, Any] | None = None) -> str:
-    """Jinja2-lite 渲染。
-
-    - 支持 `{{ key }}` 占位符(空格可选)。
-    - 未提供的变量渲染为字面量占位符,便于观察遗漏。
-    - 值会 `str()` 后去除首尾空白,避免多行变量污染布局。
+    变量清单以**资产文件**为准;资产缺字段时回退到 manifest 里的声明。
     """
-    if variables is None:
-        variables = {}
+    out: dict[str, PromptDef] = {}
+    for name, item in raw.items():
+        if not isinstance(item, dict):
+            raise ValueError(f"cloud asset {name!r} must be a dict")
+        manifest_item = CLOUD_PROMPT_MANIFEST.get(name, {})
+        template = item.get("template")
+        if not isinstance(template, str) or not template.strip():
+            raise ValueError(f"cloud asset {name!r} has no non-empty template")
+        variables = item.get("variables")
+        if variables is None:
+            variables = manifest_item.get("variables", [])
+        out[name] = PromptDef(
+            name=name,
+            template=template,
+            tier="cloud",
+            variables=tuple(variables),
+            version=str(item.get("version") or manifest_item.get("version") or "1.0.0"),
+            description=str(item.get("description") or manifest_item.get("description") or ""),
+        )
+    return out
 
-    class _StringifyDict(_MissingKey):
-        def __getitem__(self, key):  # type: ignore[override]
-            try:
-                raw = super().__getitem__(key)
-            except KeyError:
-                return super().__missing__(key)
-            return str(raw).strip()
 
-    ctx = _StringifyDict(**variables)
+def reload_cloud_prompts(asset_path: str | Path | None = None) -> bool:
+    """(重新)加载云端模板正文,返回是否加载成功。
 
-    def _sub(match: Any) -> str:
-        return ctx[match.group(1).strip()]
+    - Pro 部署:资产文件存在 → 成功,`CLOUD_PROMPTS` 被就地填充。
+    - 开源仓:资产文件不存在 → 返回 `False`,`CLOUD_PROMPTS` 为空,
+      调用云端模板会得到明确的「需 Pro 版」提示。
 
-    import re
+    幂等:重复调用安全。加载失败(文件存在但内容坏)不抛异常,
+    只记日志并降级为空 —— 服务不应因为资产损坏而整体起不来。
+    """
+    path = Path(asset_path) if asset_path is not None else _default_asset_path()
+    global CLOUD_PROMPTS
+    if not path.is_file():
+        logger.info(
+            "[prompts] cloud tier 资产未注入(%s),云端模板不可用(开源版预期行为)", path
+        )
+        CLOUD_PROMPTS = {}
+        _rebuild_all_prompts()
+        return False
+    try:
+        raw = _read_asset_module(path)
+        built = _build_cloud_prompts(raw)
+    except Exception as exc:  # noqa: BLE001 - 资产损坏不应拖垮服务
+        logger.error("[prompts] 云端资产加载失败(%s): %s", path, exc)
+        CLOUD_PROMPTS = {}
+        _rebuild_all_prompts()
+        return False
+    CLOUD_PROMPTS = built
+    _rebuild_all_prompts()
+    logger.info("[prompts] 已加载云端模板 %d 条(%s)", len(built), path)
+    return True
 
-    return re.sub(r"\{\{\s*([^{}\n]+?)\s*\}\}", _sub, template)
+
+def _rebuild_all_prompts() -> None:
+    """同步 `ALL_PROMPTS` = basic + 已加载的 cloud。"""
+    ALL_PROMPTS.clear()
+    ALL_PROMPTS.update(BASIC_PROMPTS)
+    ALL_PROMPTS.update(CLOUD_PROMPTS)
+
+
+#: 云端模板正文(Pro 私有,开源仓为空)
+CLOUD_PROMPTS: dict[str, PromptDef] = {}
+
+#: 全部 prompt(basic + 已加载的 cloud)
+ALL_PROMPTS: dict[str, PromptDef] = {**BASIC_PROMPTS}
+
+
+# 模块 import 时自动加载一次(Pro 部署能直接生效)
+reload_cloud_prompts()
 
 
 # ──────────────────────────────────────────────────────────────
@@ -331,6 +310,14 @@ def get_prompt(name: str) -> PromptDef | None:
     return ALL_PROMPTS.get(name)
 
 
+def is_pro_required(name: str) -> bool:
+    """该 prompt 名属于云端 tier,但当前部署没有它的模板正文。
+
+    用于把"开源版拿不到"和"名字不存在"区分开,给出可操作的错误提示。
+    """
+    return name in CLOUD_PROMPT_MANIFEST and name not in ALL_PROMPTS
+
+
 def list_prompt_names(tier: str | None = None) -> list[str]:
     if tier is None:
         return sorted(ALL_PROMPTS.keys())
@@ -339,6 +326,54 @@ def list_prompt_names(tier: str | None = None) -> list[str]:
     if tier == "basic":
         return sorted(BASIC_PROMPTS.keys())
     raise ValueError(f"unknown tier: {tier!r} (expect 'cloud' or 'basic')")
+
+
+def list_prompt_manifest(tier: str | None = None) -> list[dict[str, Any]]:
+    """列出 **声明存在** 的 prompt(含未注入正文、需 Pro 的那些)。
+
+    用途:让客户端能展示"有哪些云端能力",而不泄露模板正文。
+    返回项:`{name, tier, version, description, variables, available}`。
+    `available=False` 表示当前部署拿不到模板正文。
+    """
+    out: list[dict[str, Any]] = []
+    names: list[str]
+    if tier is None:
+        names = sorted(set(ALL_PROMPTS) | set(CLOUD_PROMPT_MANIFEST))
+    elif tier == "cloud":
+        names = sorted(CLOUD_PROMPT_MANIFEST)
+    elif tier == "basic":
+        names = sorted(BASIC_PROMPTS)
+    else:
+        raise ValueError(f"unknown tier: {tier!r} (expect 'cloud' or 'basic')")
+
+    for name in names:
+        pdef = ALL_PROMPTS.get(name)
+        if pdef is not None:
+            out.append(
+                {
+                    "name": pdef.name,
+                    "tier": pdef.tier,
+                    "version": pdef.version,
+                    "description": pdef.description,
+                    "variables": list(pdef.variables),
+                    "available": True,
+                }
+            )
+            continue
+        meta = CLOUD_PROMPT_MANIFEST.get(name)
+        if meta is None:
+            continue
+        out.append(
+            {
+                "name": name,
+                "tier": "cloud",
+                "version": str(meta.get("version") or "1.0.0"),
+                "description": str(meta.get("description") or ""),
+                "variables": list(meta.get("variables") or []),
+                "available": False,
+            }
+        )
+    return out
 
 
 def validate_variables(prompt_name: str, variables: dict[str, Any] | None) -> list[str]:
@@ -360,6 +395,7 @@ def sync_prompts_to_db(db: Session) -> dict[str, dict[str, int]]:
     语义:
       - 按 name 唯一键 upsert;模板或版本变更时更新。
       - 返回统计 `{tier: {"inserted": n, "updated": m}}`。
+      - 开源仓没有云端正文,`cloud` 一档会是 0 —— 这是预期,不是错误。
     """
     stats: dict[str, dict[str, int]] = {}
     for tier, registry in (("cloud", CLOUD_PROMPTS), ("basic", BASIC_PROMPTS)):
@@ -384,18 +420,35 @@ def sync_prompts_to_db(db: Session) -> dict[str, dict[str, int]]:
 
 
 def prompt_count_by_tier() -> dict[str, int]:
-    return {"cloud": len(CLOUD_PROMPTS), "basic": len(BASIC_PROMPTS), "total": len(ALL_PROMPTS)}
+    """各 tier 的 prompt 数量。
+
+    - `cloud`:当前部署**实际可渲染**的云端模板数(开源仓为 0)。
+    - `cloud_declared`:清单里声明的云端模板数(开源仓也是 5)。
+    - `pro_assets_loaded`:1/0,表示云端资产是否已注入。
+    """
+    return {
+        "cloud": len(CLOUD_PROMPTS),
+        "cloud_declared": len(CLOUD_PROMPT_MANIFEST),
+        "basic": len(BASIC_PROMPTS),
+        "total": len(ALL_PROMPTS),
+        "pro_assets_loaded": 1 if CLOUD_PROMPTS else 0,
+    }
 
 
 __all__ = [
     "PromptDef",
     "CLOUD_PROMPTS",
+    "CLOUD_PROMPT_MANIFEST",
     "BASIC_PROMPTS",
     "ALL_PROMPTS",
+    "PRO_REQUIRED_DETAIL",
     "render_template",
     "get_prompt",
+    "is_pro_required",
     "list_prompt_names",
+    "list_prompt_manifest",
     "validate_variables",
     "sync_prompts_to_db",
     "prompt_count_by_tier",
+    "reload_cloud_prompts",
 ]

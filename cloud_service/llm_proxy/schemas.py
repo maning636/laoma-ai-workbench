@@ -106,6 +106,13 @@ class PromptListItem(BaseModel):
     version: str
     variables: list[str]
     description: str = ""
+    available: bool = Field(
+        default=True,
+        description=(
+            "当前部署是否拿得到模板正文。"
+            "False = 该能力属于 Pro(开源仓不含云端模板正文)。"
+        ),
+    )
 
     model_config = {"extra": "forbid"}
 
