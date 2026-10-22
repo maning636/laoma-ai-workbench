@@ -583,6 +583,36 @@ flag→条目映射以**矩阵 §1「Flag 真源表」为准**（`max_platforms`
 
 **回归**：tsc `0` 错 ｜ vitest `355/355`（基线 336 → +19）。
 
+### 7.11 B5 落地（2026-10-23）：服务器工作副本快进同步
+
+服务器 `/opt/prism-fusion/app` 本来就是 `repo.git` 的 git 工作树，只是**落后 19 个提交**
+（HEAD `72d6b67`，工作树干净、无本地改动），所以是标准 `git merge --ff-only` 快进，
+不需要 rsync 覆盖、不需要重建目录。
+
+| 步骤 | 动作 | 结果 |
+|---|---|---|
+| 0 | 前置检查 | `git status --porcelain` = 0 条；不干净则直接 abort |
+| 1 | 备份 | `backups/app_pre_ff_20261022_170752.tar.gz`（145 MB，可整体回滚） |
+| 2 | 快进 | `72d6b67 → 59175d9`，behind=0，dirty=0，111 个文件变更 |
+| 3 | 注入 Pro 私有资产 | `cloud_service/llm_proxy/_pro_assets/prompts_cloud.py`（sha256 `da5a7ad6…d6e30`，与本地备份逐字节一致；该目录被 `.gitignore` 排除，**不进版本库**） |
+| 4 | `init_db` | 幂等建表，OK |
+| 5 | 部署后校验 | `cloud=5 / basic=4 / pro_assets_loaded=1`；`feature_gate.py` 第 54 行已有 `from sqlalchemy import select` |
+| 6 | 重启 | **只重启 `prism-cloud.service`**（PID 1903828 → 2176831），health 200 |
+
+**边界核对（本次同步严格遵守）**：
+
+| 对象 | 状态 |
+|---|---|
+| `payskill.service`（8090） | active，PID 未变 |
+| `fde-api.service`（8787） | active，PID 未变 |
+| MariaDB（3306）/ Redis（6379） | PID 未变 |
+| nginx | **未 reload、未改配置**（`/etc/nginx/conf.d/` 文件时间戳全部未变） |
+
+> ⚠️ **P0 修复线上无「待补偿用户」**：同步时线上共 4 条 Subscription，
+> **active + pro 的为 0 条** —— 即 P0 缺陷（Pro 权限自 `ac8978e` 起未生效）
+> 尚未影响到任何真实付费用户，因此本轮**无需通知与补偿**。
+> 等真出现付费用户前，P0 已上线，不会再复发。
+
 ---
 
 ## 附：本文档的复现方式
