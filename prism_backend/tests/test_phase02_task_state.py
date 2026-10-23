@@ -89,22 +89,6 @@ LEGAL_TRANSITIONS: set = {
     (TaskStatus.FAILED_RETRYABLE, TaskStatus.CANCELLED),
 }
 
-# 旧状态名 → 新枚举（PLAN 验收：processing 等旧名自动映射）
-LEGACY_MAP_EXPECTED = {
-    "processing": TaskStatus.RUNNING,
-    "success": TaskStatus.SUCCEEDED,
-    "success": TaskStatus.SUCCEEDED,
-    "done": TaskStatus.SUCCEEDED,
-    "completed": TaskStatus.SUCCEEDED,
-    "failed": TaskStatus.FAILED_FINAL,
-    "retryable": TaskStatus.FAILED_RETRYABLE,
-    "pending": TaskStatus.DRAFT,
-    "review": TaskStatus.AWAITING_REVIEW,
-    "submit": TaskStatus.AWAITING_REVIEW,
-    "cancel": TaskStatus.CANCELLED,
-}
-
-
 # ──────────────────────────────────────────────────────────────
 # 1. 状态枚举完整性
 # ──────────────────────────────────────────────────────────────
@@ -298,12 +282,15 @@ class TestLegacyStatusMapping:
         cases = {
             "processing": TaskStatus.RUNNING,
             "success": TaskStatus.SUCCEEDED,
+            "successful": TaskStatus.SUCCEEDED,
             "done": TaskStatus.SUCCEEDED,
             "completed": TaskStatus.SUCCEEDED,
             "failed": TaskStatus.FAILED_FINAL,
             "retryable": TaskStatus.FAILED_RETRYABLE,
             "pending": TaskStatus.DRAFT,
             "review": TaskStatus.AWAITING_REVIEW,
+            "submit": TaskStatus.AWAITING_REVIEW,
+            "submitted": TaskStatus.AWAITING_REVIEW,
             "cancel": TaskStatus.CANCELLED,
         }
         for legacy_name, expected in cases.items():
