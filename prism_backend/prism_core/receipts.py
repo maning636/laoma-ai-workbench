@@ -9,15 +9,12 @@
 from __future__ import annotations
 
 import json
-import os
 import sqlite3
 import uuid
-from datetime import datetime, timezone
 from enum import Enum
-from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from fastapi_app.core.config import settings
 from fastapi_app.core.logger import logger
@@ -80,6 +77,22 @@ class PublishReceipt(BaseModel):
     artifacts: Optional[DiagnosticArtifact] = None
     created_at: str = Field(default_factory=now_beijing_iso)
     updated_at: str = Field(default_factory=now_beijing_iso)
+
+    @model_validator(mode="after")
+    def _check_conditional_required(self) -> "PublishReceipt":
+        """PLAN Phase 0.1 条件必填校验：
+        - status=succeeded  → platform_post_id / published_at 必须非空
+        - status=failed_retryable/failed_final → error_code 必须非空
+        """
+        if self.status == ReceiptStatus.SUCCEEDED:
+            if not self.platform_post_id:
+                raise ValueError("succeeded 回执必须包含 platform_post_id")
+            if not self.published_at:
+                raise ValueError("succeeded 回执必须包含 published_at")
+        if self.status in (ReceiptStatus.FAILED_RETRYABLE, ReceiptStatus.FAILED_FINAL):
+            if not self.error_code:
+                raise ValueError(f"{self.status.value} 回执必须包含 error_code")
+        return self
 
 
 # ── 平台名映射 ──
@@ -206,7 +219,7 @@ def save_receipt(receipt: PublishReceipt) -> str:
              published_at, video_url, error_code, error_message, retryable,
              requires_human_action, attempt, idempotency_key, artifacts_json,
              created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             receipt.task_id, receipt.status.value, receipt.platform, receipt.platform_name,
             receipt.account_id, receipt.platform_post_id, receipt.published_at,
@@ -342,7 +355,13 @@ def build_success_receipt(
     idempotency_key: Optional[str] = None,
     attempt: int = 1,
 ) -> PublishReceipt:
-    """构造成功回执"""
+    """构造成功回执。
+
+    若调用方未提供 platform_post_id（部分平台上传流程不返回 post_id），
+    生成占位符 `auto_{uuid12}` 以满足 schema 条件必填校验；调用方仍可显式传入真实值。
+    """
+    if not platform_post_id:
+        platform_post_id = f"auto_{uuid.uuid4().hex[:12]}"
     return PublishReceipt(
         status=ReceiptStatus.SUCCEEDED,
         platform=platform,
@@ -382,3 +401,102 @@ def build_error_receipt(
         idempotency_key=idempotency_key,
         attempt=attempt,
     )
+
+
+def build_receipt(
+    *,
+    status: Union[str, ReceiptStatus],
+    platform: int = 0,
+    platform_name: str = "",
+    account_id: str = "",
+    platform_post_id: Optional[str] = None,
+    published_at: Optional[str] = None,
+    video_url: Optional[str] = None,
+    error_code: Optional[Union[str, ErrorCode]] = None,
+    error_message: Optional[str] = None,
+    retryable: Optional[bool] = None,
+    requires_human_action: bool = False,
+    artifacts: Optional[DiagnosticArtifact] = None,
+    idempotency_key: Optional[str] = None,
+    attempt: int = 1,
+    task_id: Optional[str] = None,
+) -> PublishReceipt:
+    """统一回执工厂：按状态语义构造 PublishReceipt（Phase 0.1 验收项）。
+
+    支持状态：succeeded / failed_retryable / failed_final / cancelled / running。
+
+    条件必填校验（缺失则抛 ValueError 或 ValidationError）：
+      - succeeded → platform_post_id / published_at 必须非空
+      - failed_retryable / failed_final → error_code 必须非空
+
+    重试语义（status=failed_retryable 时）：
+      - retryable 默认 True
+    失败语义（status=failed_final 时）：
+      - retryable 默认 False
+
+    Args:
+        status: 状态（字符串或 ReceiptStatus 枚举）
+        platform_post_id: 平台帖子 ID（succeeded 必填）
+        published_at: 发布时间 ISO（succeeded 必填，缺省用当前北京时间）
+        error_code: 错误码（failed_* 必填，可传字符串自动转 ErrorCode）
+        retryable: 是否可重试；若状态为 failed_retryable 默认 True，否则默认 False
+    """
+    status_val: ReceiptStatus
+    if isinstance(status, ReceiptStatus):
+        status_val = status
+    elif isinstance(status, str):
+        try:
+            status_val = ReceiptStatus(status)
+        except ValueError as e:
+            valid = ", ".join(s.value for s in ReceiptStatus)
+            raise ValueError(f"非法回执状态 {status!r}（合法值：{valid}）") from e
+    else:
+        raise TypeError(f"status 必须是 str 或 ReceiptStatus，收到 {type(status).__name__}")
+
+    ec: Optional[ErrorCode] = None
+    if error_code is not None:
+        if isinstance(error_code, ErrorCode):
+            ec = error_code
+        elif isinstance(error_code, str):
+            try:
+                ec = ErrorCode(error_code)
+            except ValueError as e:
+                valid = ", ".join(c.value for c in ErrorCode)
+                raise ValueError(f"非法错误码 {error_code!r}（合法值：{valid}）") from e
+        else:
+            raise TypeError(f"error_code 必须是 str 或 ErrorCode，收到 {type(error_code).__name__}")
+
+    if retryable is None:
+        retryable = (status_val == ReceiptStatus.FAILED_RETRYABLE)
+
+    # 前置校验，给调用方更早的语义错误信息
+    if status_val == ReceiptStatus.SUCCEEDED and not platform_post_id:
+        raise ValueError("succeeded 回执必须提供 platform_post_id")
+    if status_val in (ReceiptStatus.FAILED_RETRYABLE, ReceiptStatus.FAILED_FINAL) and ec is None:
+        raise ValueError(f"{status_val.value} 回执必须提供 error_code")
+
+    if status_val == ReceiptStatus.SUCCEEDED:
+        pub_at = published_at or now_beijing_iso()
+    else:
+        pub_at = published_at
+
+    kwargs: Dict[str, Any] = dict(
+        status=status_val,
+        platform=platform,
+        platform_name=platform_name,
+        account_id=account_id,
+        platform_post_id=platform_post_id,
+        published_at=pub_at,
+        video_url=video_url,
+        error_code=ec,
+        error_message=error_message,
+        retryable=retryable,
+        requires_human_action=requires_human_action,
+        artifacts=artifacts,
+        idempotency_key=idempotency_key,
+        attempt=attempt,
+    )
+    # task_id 有 default_factory；若未显式传入则让 Pydantic 自动生成
+    if task_id is not None:
+        kwargs["task_id"] = task_id
+    return PublishReceipt(**kwargs)
