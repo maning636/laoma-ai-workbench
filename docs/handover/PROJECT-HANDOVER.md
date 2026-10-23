@@ -432,8 +432,8 @@ TikHub key 是**用户自己在设置页填**的（存 `ai_model_configs`），�
 | # | 缺口 | 说明 |
 |---|---|---|
 | 1 | `docs/dev-reports/` 缺 10-17~10-24 收官报告 | 本文档 §3 可作初稿。**已于 2026-10-24 补齐**（`docs/dev-reports/2026-10-24-final-sprint-handover.md`，本文档 §3 压缩改写进 dev-report 体例） |
-| 2 | `PROJECT_DEVELOPMENT_HISTORY.md` 缺 round18 章节 | 备份目录内 |
-| 3 | 备份 `_verify/` 缺 round18 最终核实脚本 | round17 有 `final_verify_round17.py` 可参照 |
+| 2 | `PROJECT_DEVELOPMENT_HISTORY.md` 缺 round18 章节 | 备份目录内。**已于 2026-10-24 补齐**（HISTORY 第二十六章 + `_verify/final_verify_round18.py` 74/74 PASS） |
+| 3 | 备份 `_verify/` 缺 round18 最终核实脚本 | round17 有 `final_verify_round17.py` 可参照。**已于 2026-10-24 补齐**（HISTORY 第二十六章 + `_verify/final_verify_round18.py` 74/74 PASS） |
 
 ---
 
