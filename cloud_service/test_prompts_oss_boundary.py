@@ -185,6 +185,10 @@ def _run_runtime_checks() -> None:
 
     # 3.5 资产损坏 → 降级为空,不抛异常(服务不能因为资产坏就起不来)
     broken = Path(__file__).resolve().parent / "llm_proxy" / "_pro_assets" / "__broken__.py"
+    # _pro_assets/ 被 .gitignore 排除(Pro 资产是私有注入物),开源仓的干净检出里
+    # 根本没有这个目录 → 直接 write_text 会 FileNotFoundError(CI 上已实测复现)。
+    # 这里先把父目录建出来,测完只留一个空目录,不影响 git。
+    broken.parent.mkdir(parents=True, exist_ok=True)
     broken.write_text("CLOUD_PROMPT_ASSETS = 'not a dict'\n", encoding="utf-8")
     try:
         ok2 = P.reload_cloud_prompts(broken)

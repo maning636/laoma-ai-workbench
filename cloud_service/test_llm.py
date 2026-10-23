@@ -463,10 +463,19 @@ def run() -> int:
                 headers=H2,
             ) as sresp:
                 stream_statuses.append(sresp.status_code)
+                # 必须把 body 读完再退出 with:不读完就断开连接 → 服务端生成器收到
+                # GeneratorExit → 触发 F-G 的「预消费补偿回滚」→ 本次不扣额度。
+                # 那样 dave2 的 used 会变成时序相关(1/2/3 随机),后面 18d
+                # 「额度耗尽 → 402」的断言就会随机挂(CI 上已实测复现)。
+                # 读完 body 让流正常结束,计费才是确定的。
+                _sse_body = "".join(sresp.iter_text())
                 if sresp.status_code == 402:
                     break
         check("stream 前置额度检查:free quota=3 触发 402",
               402 in stream_statuses, f"statuses={stream_statuses}")
+        _used_after_15 = client.get("/cloud/subscription", headers=H2).json().get("used", 0)
+        check("stream 前置额度检查后 free 额度已耗尽 (used == 3)",
+              _used_after_15 == 3, f"used={_used_after_15}")
         # 402 时 content-type 应是 JSON,不应是 event-stream
         ct_402 = None
         for status_code in stream_statuses:
@@ -479,6 +488,8 @@ def run() -> int:
                     headers=H2,
                 ) as sresp:
                     ct_402 = sresp.headers.get("content-type", "")
+                    # 同样读完 body,避免半截连接影响后续额度状态
+                    _ = "".join(sresp.iter_text())
                     sresp.close()
                 break
         check("stream 402 返回 JSON(不进入 SSE)",
