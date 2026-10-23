@@ -1,10 +1,17 @@
 # ============================================================
 # 老马AI工作台桌面版发布流水线：打包 Windows / macOS 并发布到 GitHub Releases
 #
-# 更新通道：electron-updater github provider（见 desktop-electron/package.json build.publish）
-#   - 主通道：GitHub Releases latest（latest.yml / latest-mac.yml + 安装包 + blockmap）
-#   - 回滚/历史版本：GitHub API 拉 release 列表 + generic feed 指向
-#     https://github.com/<owner>/<repo>/releases/download/<tag>/
+# 更新通道（**客户端自动更新**）：electron-updater **generic** provider
+#   - 见 desktop-electron/package.json build.publish → https://maning789link.top/downloads
+#   - 客户端自动更新查自建通道的 latest.yml，**不查 GitHub**；
+#   - 2026-10-23 马哥在《开源发布收尾 · 待决表》P3 选 A：暂留 generic 自建通道，本版不动
+#     （切 GitHub provider 对国内用户是净退化 —— 自动更新走 GitHub 直连 0.12 MB/s，
+#      639 MB 约 89 分钟）。
+#
+# 本 workflow 自己发布到 **GitHub Releases**（ncipollo/release-action）：
+#   - 资产：latest.yml / latest-mac.yml + 安装包 + blockmap，挂在 tag 上；
+#   - 历史版本下载：https://github.com/<owner>/<repo>/releases/download/<tag>/
+#   注意：这条是「人下安装包」的通道，与上面的「客户端自动更新」是两条独立链路。
 #
 # 版本一致性（自动处理）：
 #   - push tag v<版本>：workflow 自动把 desktop-electron/package.json 的 version 同步为 <版本>
