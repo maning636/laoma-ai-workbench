@@ -1,7 +1,9 @@
 """
 Test other module endpoints
+
+注意：/api/v1/campaigns/ping 与 /api/v1/ai/status 这两个接口从来没有被实现过
+（请求返回 404），属于照着没写的设计写的测试。已改挂到真实存在的等价接口。
 """
-import pytest
 
 
 def test_recovery_health(client):
@@ -24,12 +26,13 @@ def test_scripts_list(client):
     assert isinstance(data["scripts"], list)
 
 
-def test_campaigns_ping(client):
-    """Test campaigns ping"""
-    response = client.get("/api/v1/campaigns/ping")
+def test_campaigns_list(client):
+    """计划列表（原来测的 /campaigns/ping 不存在）"""
+    response = client.get("/api/v1/campaigns/list")
     assert response.status_code == 200
     data = response.json()
-    assert "message" in data
+    assert data["status"] == "success"
+    assert isinstance(data["result"]["items"], list)
 
 
 def test_tasks_health(client):
@@ -41,8 +44,10 @@ def test_tasks_health(client):
     assert "enabled" in data
 
 
-def test_ai_status(client):
-    """Test AI status endpoint"""
-    response = client.get("/api/v1/ai/status")
-    # May return 400 if AI not configured, or 200 if it is
-    assert response.status_code in [200, 400]
+def test_ai_model_configs(client):
+    """AI 模型配置列表（原来测的 /ai/status 不存在）"""
+    response = client.get("/api/v1/ai/model-configs")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert isinstance(data["data"], list)

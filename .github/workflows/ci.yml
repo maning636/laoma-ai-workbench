@@ -12,8 +12,8 @@
 #     - backend-selftest  : M1 / M2 / M3 自运行脚本测试（不启动服务）
 #     - cloud-service-tests: cloud_service/ 下 5 个自运行脚本的 pytest 包装
 #     - deps-gate         : 依赖声明闸门（模块级 import ⊆ requirements*.txt）+ 双向自测
+#     - test              : pytest fastapi_app/tests/（2026-10-23 测试隔离补齐后转硬门）
 #   ⚠️  软门（continue-on-error，仅告警）：
-#     - test              : pytest fastapi_app/tests/（待测试隔离补齐后转硬门）
 #     - e2e-packaged      : 需要 self-hosted Windows runner + 打包产物，仅 workflow_dispatch 触发
 #
 # 打包/发布走 release.yml（tag v* 触发）；本地集成验证走 scripts/tests/。
@@ -368,16 +368,28 @@ jobs:
           python tests/test_c17_subscription_tier.py
 
   # ============================================================
-  # test: pytest 后端测试（软门，保留兼容）
-  # 现状：conftest.py 直接 import fastapi_app.main（依赖 hermes-agent / .env），
-  #       在无完整运行时的 CI 上大概率收集失败或执行失败；先以 continue-on-error
-  #       软门运行，避免阻塞主 CI。等 SaaS 化改造补齐测试隔离后改为硬失败。
+  # test: pytest 后端测试（硬门，2026-10-23 由软门转硬门）
+  #
+  # 转硬门的条件（原注释）：「待测试隔离补齐」。
+  # 2026-10-23 已补齐：
+  #   - requirements.txt 正式声明 cryptography（之前启动链路就缺它，
+  #     pytest 收集期 ModuleNotFoundError → exit 4，测试根本没跑起来）
+  #   - 测试自身修掉陈旧断言与陈旧接口：
+  #     · test_core：标题/版本改对着 settings 断言（之前硬编码了一个
+  #       全仓从未被设置过的中文字面量）
+  #     · test_data / test_other_modules：4+2 个用例打的是从未实现的接口
+  #       （/data/center、/data/videos、/data/trends、/data/publish-status、
+  #        /campaigns/ping、/ai/status），已改挂到真实存在的等价接口
+  #     · test_hermes_config：monkeypatch 目标跟着 A1 迁移改到 safe_run
+  #     · conftest：先关连接池再删临时库文件（Windows 文件锁）
+  #   本地全量：35 passed / 2 skipped / 0 failed
+  #
+  # 注意：不再加 -x —— 一次把全部失败打出来，别只报第一个。
   # ============================================================
   test:
-    name: Pytest (backend tests, soft)
+    name: Pytest (backend tests)
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    continue-on-error: true
 
     steps:
       - uses: actions/checkout@v4
@@ -400,12 +412,12 @@ jobs:
           python -m pip install --quiet -r requirements.txt
           python -m pip install --quiet -r requirements-dev.txt
 
-      - name: pytest（软门：收集/执行失败不阻塞，等待测试隔离补齐）
+      - name: pytest（硬门:后端接口测试全量）
         shell: bash
         working-directory: prism_backend
         run: |
           set -euo pipefail
-          python -m pytest fastapi_app/tests/ -x --tb=short -q
+          python -m pytest fastapi_app/tests/ --tb=short -q
 
   # ============================================================
   # cloud-service-tests: cloud_service/ 下 5 个自运行脚本的 pytest 包装(硬门)

@@ -58,14 +58,16 @@ def test_get_gateway_platform_status_uses_isolated_subprocess(monkeypatch, tmp_p
     def fake_run(cmd, **kwargs):
         captured["cmd"] = cmd
         captured["cwd"] = kwargs["cwd"]
-        captured["env"] = kwargs["env"]
+        # safe_run 用 env_extra 传额外环境变量（不是 subprocess.run 的 env）
+        captured["env"] = kwargs["env_extra"]
 
         class Result:
             stdout = json.dumps({"platforms": ["discord"]}, ensure_ascii=False)
 
         return Result()
 
-    monkeypatch.setattr(hermes_config.subprocess, "run", fake_run)
+    # A1 迁移后 hermes_config 走 subprocess_safe.safe_run，不再直接用 subprocess
+    monkeypatch.setattr(hermes_config, "safe_run", fake_run)
 
     status = hermes_config.get_gateway_platform_status()
     pythonpath = str(captured["env"]["PYTHONPATH"]).split(";")

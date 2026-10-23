@@ -4,6 +4,7 @@ Test configuration and fixtures
 import pytest
 import sqlite3
 import tempfile
+import time
 from pathlib import Path
 from fastapi.testclient import TestClient
 from fastapi_app.main import app
@@ -74,7 +75,14 @@ def test_db():
     yield db_path
 
     # Cleanup
-    Path(db_path).unlink(missing_ok=True)
+    # Windows 上 sqlite 句柄释放有延迟，直接 unlink 会报 WinError 32（文件被占用）；
+    # POSIX 下首个 unlink 即成功。重试几次再放弃，别让清理失败盖掉真实断言结果。
+    for _ in range(5):
+        try:
+            Path(db_path).unlink(missing_ok=True)
+            break
+        except PermissionError:
+            time.sleep(0.2)
 
 
 @pytest.fixture
@@ -86,4 +94,8 @@ def client():
 @pytest.fixture
 def test_db_pool(test_db):
     """Create test database connection pool"""
-    return ConnectionPool(test_db, pool_size=2)
+    pool = ConnectionPool(test_db, pool_size=2)
+    yield pool
+    # 必须先关连接池，再让 test_db fixture 去删库文件：
+    # 连接池里的 sqlite 句柄不释放时，Windows 上文件被锁住，unlink 直接失败。
+    pool.close_all()
