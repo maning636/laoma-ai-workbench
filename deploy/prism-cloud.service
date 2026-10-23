@@ -15,7 +15,7 @@
 
 [Unit]
 Description=Prism-Fusion Cloud Service (FastAPI + uvicorn on 127.0.0.1:8091)
-Documentation=file:///opt/prism-fusion/app/docs/deploy-README.md
+Documentation=file://docs/dev-reports/2026-10-13-deployment-guide.md
 # 依赖 MariaDB;若 MariaDB 未就绪,systemd 会等它起来或按 TimeoutStartSec 超时
 After=network-online.target mariadb.service
 Wants=network-online.target

@@ -2,7 +2,7 @@
 
 > **交接对象**：接手开发的工作组（AI Agent / 工程师均可）
 > **交接日期**：2026-10-24
-> **代码基线**：`6af4768`（`main`，与 `origin/main`、服务器 `/opt/prism-fusion/app/` 三处一致）
+> **代码基线**：`c24a11d`（`6af4768` 之后追加了交接文档提交）
 > **已发布版本**：GitHub Release `v1.1.5`
 > **对外口径唯一权威**：[`docs/release-delivery-statement.md`](../release-delivery-statement.md)
 
@@ -310,10 +310,10 @@ TikHub key 是**用户自己在设置页填**的（存 `ai_model_configs`），�
 
 | 项 | 值 |
 |---|---|
-| 本地 HEAD | `6af4768`（`main`，工作区干净） |
-| `origin/main` | `6af4768` |
-| `prism-server/main` | `6af4768` |
-| 服务器 `/opt/prism-fusion/app/` | HEAD=`6af4768`，dirty 计数 = 0 |
+| 本地 HEAD | `c24a11d`（`main`，工作区干净，**[待推送]** 三处同步以 CI run 为准） |
+| `origin/main` | `c24a11d` **[待推送]** 三处同步以 CI run 为准 |
+| `prism-server/main` | `c24a11d` **[待推送]** 三处同步以 CI run 为准 |
+| 服务器 `/opt/prism-fusion/app/` | HEAD=`c24a11d` **[待推送]**，dirty 计数 = 0，三处同步以 CI run 为准 |
 | CI 最新 run | success，**8 硬门全绿**（E2E packaged 按预期 skipped） |
 | `upstream` remote | `Laihiujin/Prism`（只读参考，不合并、不 force-push） |
 
@@ -406,7 +406,7 @@ TikHub key 是**用户自己在设置页填**的（存 `ai_model_configs`），�
 | 2 | 1.1.5 安装器发布者仍是旧署名 | `desktop-electron/package.json`（`adec916` 之后才改） | 包内元数据与仓库 NOTICE 不一致，1.1.6 才解决 |
 | 3 | P7 中文「未配置」提示不在已发布包内 | 已发布前端产物 P7 标记命中 0 次 | 1.1.6 才解决 |
 | 4 | `release.yml` tag 触发分支从未实跑 | `.github/workflows/release.yml` | 下次发版是「盲发」 |
-| 5 | 仓库缺 `CODE_OF_CONDUCT` / `SECURITY` / `CHANGELOG` / ISSUE 模板 | 仓库根 / `.github/` | 开源社区合规缺件 |
+| 5 | ~~仓库缺 `CODE_OF_CONDUCT` / `SECURITY` / `CHANGELOG`~~ **已于 2026-10-24 补齐**（本次收尾批），ISSUE_TEMPLATE 三件套经核实早已存在（commit `2328999` 引入），本行原口径过时 | 仓库根 / `.github/` | 开源社区合规缺件 |
 | 6 | `prism-cloud.service` 的 `Documentation=` 指向 `docs/deploy-README.md`，但该文件**仓库与服务器都不存在** | `/etc/systemd/system/prism-cloud.service` | 悬空指针，服务运维人员点不到手册。修法：补该文件，或把 `Documentation=` 指向 `docs/dev-reports/2026-10-13-deployment-guide.md` |
 
 ### 7.2 决策「不做」（不是缺陷，别去"修"）
