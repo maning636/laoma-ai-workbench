@@ -22,7 +22,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from fastapi_app.core.config import settings
 from fastapi_app.core.logger import logger
@@ -43,6 +43,34 @@ class TaskStatus(str, Enum):
     FAILED_RETRYABLE = "failed_retryable"
     FAILED_FINAL = "failed_final"
     CANCELLED = "cancelled"
+
+
+# ── 状态机异常 ──
+
+class InvalidTransition(ValueError):
+    """非法状态转换（PLAN Phase 0.2 契约）。
+
+    继承 ValueError 保持向后兼容：既有调用点 catch ValueError 仍生效。
+    """
+    pass
+
+
+# ── 旧状态名映射（回归：processing 等旧名自动映射到新枚举）──
+
+LEGACY_STATUS_MAP: Dict[str, TaskStatus] = {
+    "processing": TaskStatus.RUNNING,
+    "success": TaskStatus.SUCCEEDED,
+    "successful": TaskStatus.SUCCEEDED,
+    "done": TaskStatus.SUCCEEDED,
+    "completed": TaskStatus.SUCCEEDED,
+    "failed": TaskStatus.FAILED_FINAL,
+    "retryable": TaskStatus.FAILED_RETRYABLE,
+    "pending": TaskStatus.DRAFT,
+    "review": TaskStatus.AWAITING_REVIEW,
+    "submit": TaskStatus.AWAITING_REVIEW,
+    "submitted": TaskStatus.AWAITING_REVIEW,
+    "cancel": TaskStatus.CANCELLED,
+}
 
 
 # 合法状态转换表
@@ -81,6 +109,20 @@ class TaskState(BaseModel):
     updated_at: str = Field(default_factory=now_beijing_iso)
     completed_at: Optional[str] = None
 
+    @field_validator("status", mode="before")
+    @classmethod
+    def _coerce_legacy_status(cls, v: Any) -> Any:
+        """旧状态名（processing/success/failed/…）自动映射到新枚举。
+
+        回归保障：PLAN Phase 0.2 要求旧状态名自动映射。
+        未识别字符串保持原样让 Pydantic 抛 ValidationError。
+        """
+        if isinstance(v, TaskStatus) or v is None:
+            return v
+        if isinstance(v, str):
+            return LEGACY_STATUS_MAP.get(v.lower(), v)
+        return v
+
 
 # ── 幂等键生成 ──
 
@@ -114,8 +156,38 @@ def can_transition(current: TaskStatus, target: TaskStatus) -> bool:
 
 def transition_state(current: TaskStatus, target: TaskStatus) -> TaskStatus:
     if not can_transition(current, target):
-        raise ValueError(f"非法状态转换: {current.value} → {target.value}")
+        raise InvalidTransition(f"非法状态转换: {current.value} → {target.value}")
     return target
+
+
+def retry_task(state: TaskState, error_message: Optional[str] = None) -> TaskState:
+    """failed_retryable → running 重入（PLAN Phase 0.2 验收项）。
+
+    契约：
+      - task_id 保持不变
+      - attempt + 1
+      - 状态变为 running，error_message 清空
+      - 若 attempt 已达 max_attempts → 转 failed_final（防止无限重试）
+      - 非 failed_retryable 状态调用 → InvalidTransition
+    """
+    if state.status != TaskStatus.FAILED_RETRYABLE:
+        raise InvalidTransition(
+            f"retry_task 只能在 failed_retryable 状态调用，当前: {state.status.value}"
+        )
+    if state.attempt >= state.max_attempts:
+        # 重试次数耗尽 → 转为 failed_final
+        return state.model_copy(update={
+            "status": TaskStatus.FAILED_FINAL,
+            "error_message": state.error_message or error_message,
+            "updated_at": now_beijing_iso(),
+            "completed_at": state.completed_at or now_beijing_iso(),
+        })
+    return state.model_copy(update={
+        "status": TaskStatus.RUNNING,
+        "attempt": state.attempt + 1,
+        "error_message": None,
+        "updated_at": now_beijing_iso(),
+    })
 
 
 # ── 持久化 ──
