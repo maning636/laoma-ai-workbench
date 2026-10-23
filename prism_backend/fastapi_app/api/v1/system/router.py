@@ -5,12 +5,16 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Body
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
+from loguru import logger
 import asyncio
 import os
 import subprocess
 import sys
 from pathlib import Path
 from datetime import datetime, timedelta
+
+# 子进程统一走 wrapper（注入 UTF8 / no_window / cwd 校验），禁止裸 subprocess.run/Popen
+from fastapi_app.utils.subprocess_safe import safe_run, safe_popen
 
 # 导入子路由
 from .browser_profiles import router as browser_profiles_router

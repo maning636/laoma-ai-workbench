@@ -52,6 +52,7 @@ except ImportError:  # pragma: no cover - Windows
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from loguru import logger
 
 # ──────────────────────────────────────────────────────────────
 # 常量

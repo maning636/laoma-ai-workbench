@@ -96,7 +96,7 @@ def _fill_user_info_from_cookie(platform: str, cookie_data: dict, user_info: dic
 def _lookup_name_by_user_id(user_id: str, platform: str) -> Optional[str]:
     """Look up an existing account name by platform and user_id."""
     try:
-        db_path = Path(BASE_DIR) / "db" / "cookie_store.db"
+        db_path = Path(settings.COOKIE_DB_PATH)
         with sqlite3.connect(db_path) as conn:
             conn.row_factory = sqlite3.Row
             cur = conn.execute(
