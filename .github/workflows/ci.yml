@@ -8,7 +8,7 @@
 #     - python-smoke      : py_compile 全后端 + 关键模块 import 烟测
 #     - lint              : ruff（最小规则集 E9/F63/F7/F82）
 #     - lint-frontend     : ESLint 全量
-#     - frontend-lint-test: tsc --noEmit + vitest run（Node 20 / npm ci）
+#     - frontend-lint-test: tsc --noEmit + vitest run（Node 22 / npm ci）
 #     - backend-selftest  : M1 / M2 / M3 自运行脚本测试（不启动服务）
 #     - cloud-service-tests: cloud_service/ 下 5 个自运行脚本的 pytest 包装
 #   ⚠️  软门（continue-on-error，仅告警）：
@@ -209,7 +209,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: prism_frontend/package-lock.json
 
@@ -229,7 +229,9 @@ jobs:
   # frontend-lint-test: 前端 tsc + vitest（硬门）
   #
   # 独立于 lint-frontend（ESLint），专注于类型与单元/集成测试。
-  # Node 20 由 Next.js 16 强制要求。
+  # Node 22 是硬性下限：jsdom 30.1.3 内嵌 undici 8.12.3，其 engines 要求
+  # node >= 22.19.0；Node 20 下 jsdom 加载即抛
+  # "Cannot read properties of undefined (reading 'bind')"，6 个 DOM 测试文件全挂。
   # ============================================================
   frontend-lint-test:
     name: Frontend tsc + vitest (prism_frontend)
@@ -243,7 +245,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: prism_frontend/package-lock.json
 
@@ -409,7 +411,10 @@ jobs:
             "bcrypt>=4.0" \
             "loguru>=0.7" \
             "openai>=1.30" \
-            "httpx>=0.26"
+            "httpx>=0.26" \
+            "cryptography>=42.0" \
+            "redis>=5.0" \
+            "uvicorn>=0.30"
 
       - name: pytest cloud_service（硬门:5 脚本 → 177 check → 全绿）
         shell: bash
