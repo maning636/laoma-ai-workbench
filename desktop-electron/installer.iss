@@ -1,7 +1,7 @@
 ; 老马AI工作台 Inno Setup Script
 #define MyAppName "老马AI工作台"
-#define MyAppPublisher "Laihiujin"
-#define MyAppURL ""
+#define MyAppPublisher "maning636"
+#define MyAppURL "https://github.com/maning636/laoma-ai-workbench"
 #define MyAppExeName "LaomaAI.exe"
 #define APP_VERSION "1.1.0"
 

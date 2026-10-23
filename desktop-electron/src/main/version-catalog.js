@@ -8,10 +8,10 @@
  * - 回滚/历史版本：GitHub API 拉 release 列表 + generic feed 指向
  *   https://github.com/<owner>/<repo>/releases/download/<tag>/（allowDowngrade 可回滚）。
  *
- * 仓库可通过 env LAOMA_GITHUB_REPO（默认 Laihiujin/laoma-ai-workbench）覆盖。
+ * 仓库可通过 env LAOMA_GITHUB_REPO（默认 maning636/laoma-ai-workbench）覆盖。
  */
 
-const REPOSITORY = (process.env.LAOMA_GITHUB_REPO || 'Laihiujin/laoma-ai-workbench').replace(/^https?:\/\/github\.com\//, '').replace(/\.git$/, '');
+const REPOSITORY = (process.env.LAOMA_GITHUB_REPO || 'maning636/laoma-ai-workbench').replace(/^https?:\/\/github\.com\//, '').replace(/\.git$/, '');
 const [OWNER, REPO] = REPOSITORY.split('/').map((part) => part.trim()).filter(Boolean);
 const GH_API_RELEASES = `https://api.github.com/repos/${OWNER}/${REPO}/releases?per_page=100`;
 const GH_RELEASES_DOWNLOAD = `https://github.com/${OWNER}/${REPO}/releases/download`;

@@ -97,6 +97,20 @@ jobs:
           fi
           node -p "require('./desktop-electron/package.json').version"
 
+      - name: 解析云端地址 (注入 NEXT_PUBLIC_CLOUD_URL)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # 单一真值：desktop-electron/package.json 的 laomaCloudUrl（云端根地址，不含 /cloud 后缀）
+          # 与本地打包脚本 scripts/packaging/resolve_cloud_url.ps1 读同一个字段，两边不会漂移。
+          CLOUD_URL=$(node -p "require('./desktop-electron/package.json').laomaCloudUrl")
+          if [ -z "$CLOUD_URL" ]; then
+            echo "::error::desktop-electron/package.json 缺少 laomaCloudUrl，无法构建前端"
+            exit 1
+          fi
+          echo "laomaCloudUrl = ${CLOUD_URL}"
+          echo "NEXT_PUBLIC_CLOUD_URL=${CLOUD_URL}" >> "$GITHUB_ENV"
+
       - name: 构建前端 (Next.js standalone)
         working-directory: prism_frontend
         run: |
@@ -198,6 +212,20 @@ jobs:
             echo "⚠️ 手动触发未填版本，使用 package.json 现有版本"
           fi
           node -p "require('./desktop-electron/package.json').version"
+
+      - name: 解析云端地址 (注入 NEXT_PUBLIC_CLOUD_URL)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # 单一真值：desktop-electron/package.json 的 laomaCloudUrl（云端根地址，不含 /cloud 后缀）
+          # 与本地打包脚本 scripts/packaging/resolve_cloud_url.ps1 读同一个字段，两边不会漂移。
+          CLOUD_URL=$(node -p "require('./desktop-electron/package.json').laomaCloudUrl")
+          if [ -z "$CLOUD_URL" ]; then
+            echo "::error::desktop-electron/package.json 缺少 laomaCloudUrl，无法构建前端"
+            exit 1
+          fi
+          echo "laomaCloudUrl = ${CLOUD_URL}"
+          echo "NEXT_PUBLIC_CLOUD_URL=${CLOUD_URL}" >> "$GITHUB_ENV"
 
       - name: 构建前端 (Next.js standalone)
         working-directory: prism_frontend

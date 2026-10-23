@@ -337,7 +337,7 @@ pip install -r requirements.txt
   ```bat
   git fetch --unshallow
   ```
-  remote 是 `https://github.com/Laihiujin/laoma-ai-workbench.git`，需要有写权限才能推送。
+  remote 是 `https://github.com/maning636/laoma-ai-workbench.git`，需要有写权限才能推送。
 - **`prism_backend/biliup` 是空的 submodule**，用到 B 站发布时才需要：
   ```bat
   git submodule update --init prism_backend/biliup

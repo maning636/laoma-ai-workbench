@@ -4,7 +4,7 @@
   "description": "老马AI工作台",
   "main": "src/main/index.js",
   "laomaCloudUrl": "https://fusion.maning789link.top",
-  "author": "Laihiujin",
+  "author": "maning636",
   "license": "AGPL-3.0",
   "scripts": {
     "start": "electron .",
@@ -170,8 +170,8 @@
     ],
     "win": {
       "icon": "build/icon.ico",
-      "publisherName": "Laihiujin",
-      "legalTrademarks": "Laihiujin",
+      "publisherName": "maning636",
+      "legalTrademarks": "maning636",
       "target": [
         {
           "target": "nsis",
@@ -272,5 +272,5 @@
       ]
     }
   },
-  "repository": "https://github.com/Laihiujin/laoma-ai-workbench.git"
+  "repository": "https://github.com/maning636/laoma-ai-workbench.git"
 }
