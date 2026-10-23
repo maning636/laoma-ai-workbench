@@ -65,6 +65,15 @@ segno>=1.6.6
 # ---- 办公/文档 ----
 openpyxl
 
+# ---- 授权签名 / JSON 修复 ----
+# cryptography：fastapi_app/core/license.py 顶层 import（Ed25519 注册码验签），
+#   它在启动链路上（api/v1/router.py → license/router.py → core/license.py），
+#   漏装会导致 `pip install -r requirements.txt` 之后后端根本起不来。
+cryptography
+# json-repair：video_pipeline/orchestrator.py 的 AI JSON salvage 路径（缺逗号/
+#   尾逗号/未闭合括号）。缺了会降级（记 warning 后走纠正重试），但装上才有兜底。
+json-repair
+
 # ---- 工具 ----
 loguru
 psutil

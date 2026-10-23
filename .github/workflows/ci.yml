@@ -11,6 +11,7 @@
 #     - frontend-lint-test: tsc --noEmit + vitest run（Node 22 / npm ci）
 #     - backend-selftest  : M1 / M2 / M3 自运行脚本测试（不启动服务）
 #     - cloud-service-tests: cloud_service/ 下 5 个自运行脚本的 pytest 包装
+#     - deps-gate         : 依赖声明闸门（模块级 import ⊆ requirements*.txt）+ 双向自测
 #   ⚠️  软门（continue-on-error，仅告警）：
 #     - test              : pytest fastapi_app/tests/（待测试隔离补齐后转硬门）
 #     - e2e-packaged      : 需要 self-hosted Windows runner + 打包产物，仅 workflow_dispatch 触发
@@ -191,6 +192,46 @@ jobs:
           python -m ruff check prism_backend/ \
             --select E9,F63,F7,F82 \
             --extend-exclude 'dist-build,node_modules,prismenv,build,dist,.venv,__pycache__,hermes-agent'
+
+  # ============================================================
+  # deps-gate: 依赖声明闸门（硬门）
+  #
+  # 背景：cryptography 一直没在 requirements.txt 里声明，可
+  #   prism_backend/fastapi_app/core/license.py 顶层 import 它（Ed25519 验签），
+  #   且它在启动链路上（api/v1/router.py → license/router.py → core/license.py），
+  #   于是「按 README 装依赖」的人装完根本起不来后端，CI 里 pytest 收集阶段
+  #   直接 ModuleNotFoundError。
+  #   本闸门把「模块级 import 的第三方包」与「requirements*.txt 的声明」对齐。
+  #
+  # 反向自测是必须的：闸门若因本地目录影子（打包产物里整份拷贝的第三方包目录）
+  # 而永远返回 OK，就是个假闸门。--self-test 会逐个删掉候选包的声明，
+  # 要求它们必须被重新报出来，否则闸门失灵 → job 红。
+  # ============================================================
+  deps-gate:
+    name: Dependency declaration gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 依赖声明闸门（模块级第三方 import 必须在 requirements*.txt 声明）
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/tests/check_requirements_cover_imports.py
+
+      - name: 闸门反向自测（证明它不是「永远 OK」的假闸门）
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/tests/check_requirements_cover_imports.py --self-test
 
   # ============================================================
   # lint-frontend: 前端 ESLint 全量检查（硬门）
