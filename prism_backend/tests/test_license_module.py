@@ -99,7 +99,14 @@ def test_empty_token_is_missing(keys):
 def test_tampered_signature_is_invalid(keys):
     priv, pub = keys
     token = _issue(priv, ["core"])
-    tampered = token[:-4] + ("aaaa" if not token.endswith("aaaa") else "bbbb")
+    head, body, sig = token.split(".")
+    # 解码 → 翻一个 bit → 重新编码：保证签名字节真的变了。
+    # 直接改 base64 字符串（末几位换成 "aaaa"）不保证有效 ——
+    # 末位字符有 4 位是无效位，解码时被丢弃，可能改了个寂寞。
+    raw = L._b64u_decode(sig)
+    tampered_sig = L._b64u_encode(bytes([raw[0] ^ 0x01]) + raw[1:])
+    assert L._b64u_decode(tampered_sig) != raw
+    tampered = f"{head}.{body}.{tampered_sig}"
     state = L.verify_license(tampered, public_key_hex=pub)
     assert state.status == L.STATUS_INVALID
     assert state.valid is False

@@ -138,11 +138,30 @@ def test_verify_token_without_credits_is_zero() -> None:
     assert claims.credits == 0
 
 
+def _tamper_signature(sig_b64: str) -> str:
+    """把签名字节真的改掉（解码 → 翻一个 bit → 重新编码）。
+
+    为什么不能直接用字符串替换（例：把 base64 末 2 个字符换成 "AA"）：
+    base64 末位字符有 4 位是**无效位**（Python 的 urlsafe_b64decode 会直接丢弃），
+    所以那种改法**并不保证**签名字节真的变了 —— 当原签名末字节恰好是 0 时，
+    改前改后解码出的 64 字节完全一样，注册码照样验签通过。
+    Ed25519 签名的末字节只可能取 [0, 0x0F]（S 标量 < L，高 4 位恒为 0），
+    于是这种写法有 **1/16 ≈ 6.25% 的概率**变成"根本没篡改" -> 用例随机红。
+    （2026-10-23 CI 上就是这么炸的：test_verify_token_rejects_tampered_signature。）
+    """
+    raw = lv._b64u_decode(sig_b64)
+    return lv._b64u_encode(bytes([raw[0] ^ 0x01]) + raw[1:])
+
+
 def test_verify_token_rejects_tampered_signature() -> None:
     private_key, public_hex = _make_keypair()
     token = _issue(private_key)
     head, body, sig = token.split(".")
-    tampered = f"{head}.{body}.{sig[:-2]}AA"
+    tampered_sig = _tamper_signature(sig)
+    tampered = f"{head}.{body}.{tampered_sig}"
+
+    # 前提自检：篡改必须真的改掉了字节，否则这个用例测的是"没篡改能不能过"
+    assert lv._b64u_decode(tampered_sig) != lv._b64u_decode(sig)
 
     try:
         lv.verify_token(tampered, public_key_hex=public_hex)
@@ -150,6 +169,32 @@ def test_verify_token_rejects_tampered_signature() -> None:
         assert "签名校验不通过" in str(exc)
     else:
         raise AssertionError("篡改后的注册码必须被拒绝")
+
+
+def test_verify_token_rejects_tampered_payload() -> None:
+    """篡改载荷（改客户名）也必须被拒绝 —— 签名是盖在载荷 base64 上的。
+
+    这条攻击路径原来没被覆盖：签名用例只动了签名段，没动载荷段。
+    """
+    private_key, public_hex = _make_keypair()
+    token = _issue(private_key)
+    head, body, sig = token.split(".")
+
+    payload = lv.json.loads(lv._b64u_decode(body))
+    payload["cust"] = "攻击者"
+    body2 = lv._b64u_encode(
+        lv.json.dumps(
+            payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+    )
+    tampered = f"{head}.{body2}.{sig}"
+
+    try:
+        lv.verify_token(tampered, public_key_hex=public_hex)
+    except lv.LicenseVerifyError as exc:
+        assert "签名校验不通过" in str(exc)
+    else:
+        raise AssertionError("篡改载荷后的注册码必须被拒绝")
 
 
 def test_verify_token_rejects_bad_format() -> None:
