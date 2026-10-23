@@ -386,6 +386,13 @@ def run() -> int:
               not hasattr(_billing_schemas, "PointsRechargeCreateRequest"))
         check("PointsRechargeCreateResponse schema 已移除",
               not hasattr(_billing_schemas, "PointsRechargeCreateResponse"))
+        # 防回归:__all__ 里声明的每个名字都必须真实存在。
+        # 残留(已删除的 schema 名留在 __all__)会让 from ... import * 抛 AttributeError,
+        # ruff F822 也会报 "Undefined name in __all__"。
+        _missing = [n for n in getattr(_billing_schemas, "__all__", [])
+                    if not hasattr(_billing_schemas, n)]
+        check("billing.schemas.__all__ 无残留名字", not _missing,
+              f"missing={_missing}")
 
         # ── 问题3 & 问题4 · 人工充值到账可审计(流水 + 余额) ──
         from cloud_service.billing.models import CreditLedger, TX_RECHARGE

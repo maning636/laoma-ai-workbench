@@ -331,8 +331,10 @@ __all__ = [
     "PointsAccountResponse",
     "PointsRechargePreset",
     "PointsRechargeOptionsResponse",
-    "PointsRechargeCreateRequest",
-    "PointsRechargeCreateResponse",
+    # 注意：PointsRechargeCreateRequest / PointsRechargeCreateResponse 已随平台支付
+    # 彻底删除而移除（见 test_points.py 的「schema 已移除」断言）。
+    # 这两个名字曾残留在 __all__ 里 —— from ... import * 会直接抛 AttributeError，
+    # 且 ruff F822 会报 "Undefined name in __all__"。故此处不再声明。
     "PointsLedgerItem",
     "PointsHistoryResponse",
     "PointsPricingItem",
