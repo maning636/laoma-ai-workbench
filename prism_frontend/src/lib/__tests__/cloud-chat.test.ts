@@ -404,6 +404,94 @@ describe("chatViaCloud / Abort", () => {
 })
 
 // ══════════════════════════════════════════════════════════════
+// chatViaCloud —— skipCloud(P7:云端明确未配置时跳过云端两层)
+// ══════════════════════════════════════════════════════════════
+describe("chatViaCloud / skipCloud", () => {
+  it("★ skipCloud=true → 不发任何云端请求,直接落到本地", async () => {
+    const seq = mockFetchSequence([
+      jsonResponse(200, { content: "local reply" }),
+    ])
+    const r = await chatViaCloud({
+      messages: [{ role: "user", content: "hi" }],
+      skipCloud: true,
+    })
+    expect(r.ok).toBe(true)
+    expect(r.source).toBe("local-chat")
+    expect(r.target).toBe("local")
+    expect(r.text).toBe("local reply")
+    // 只有一次请求 —— 打到本地 /api/v1/ai/chat,云端两层都没走
+    expect(seq).toHaveBeenCalledTimes(1)
+    expect(String(seq.mock.calls[0][0])).toContain("/api/v1/ai/chat")
+  })
+
+  it("★ skipCloud=true → 云端 URL 完全没被访问", async () => {
+    const urls: string[] = []
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        urls.push(String(input))
+        return new Response(JSON.stringify({ content: "ok" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      }),
+    )
+    await chatViaCloud({
+      messages: [{ role: "user", content: "hi" }],
+      skipCloud: true,
+    })
+    expect(urls.some((u) => u.includes("/cloud/llm/stream"))).toBe(false)
+    expect(urls.some((u) => u.includes("/cloud/llm/chat"))).toBe(false)
+  })
+
+  it("★ skipCloud=false(默认)→ 仍然走云端三层回落", async () => {
+    const seq = mockFetchSequence([
+      jsonResponse(503, { detail: "upstream down" }),
+      jsonResponse(503, { detail: "upstream down" }),
+      jsonResponse(200, { content: "local reply" }),
+    ])
+    const r = await chatViaCloud({
+      messages: [{ role: "user", content: "hi" }],
+      skipCloud: false,
+    })
+    expect(seq).toHaveBeenCalledTimes(3)
+    expect(r.source).toBe("local-chat")
+  })
+
+  it("★ skipCloud=true + 只有 promptName 无 messages → 无法回落本地,明确失败", async () => {
+    const seq = mockFetchSequence([])
+    const r = await chatViaCloud({
+      promptName: "p1",
+      variables: { a: 1 },
+      skipCloud: true,
+    })
+    expect(r.ok).toBe(false)
+    expect(r.source).toBe("local-chat")
+    expect(r.detail).toContain("no messages")
+    expect(seq).toHaveBeenCalledTimes(0)
+  })
+
+  it("★ skipCloud=true 时 detail 说明是「云端 AI 未配置」而非网络错误", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ content: "ok" }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+      ),
+    )
+    const r = await chatViaCloud({
+      promptName: "p1",
+      variables: {},
+      skipCloud: true,
+    })
+    expect(r.detail).toContain("云端 AI 未配置")
+  })
+})
+
+// ══════════════════════════════════════════════════════════════
 // chatViaCloud —— 云端 4xx 硬失败,不回落
 // ══════════════════════════════════════════════════════════════
 describe("chatViaCloud / 云端硬失败不回落", () => {

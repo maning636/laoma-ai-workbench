@@ -40,6 +40,11 @@ import {
   type SubscriptionStatus,
 } from "@/lib/cloud-auth"
 import { backendBaseUrl } from "@/lib/env"
+import {
+  describeCloudLlmAvailability,
+  probeCloudLlmAvailability,
+  type CloudLlmAvailability,
+} from "@/lib/cloud-llm-availability"
 import { useLicenseHeartbeat } from "@/hooks/useLicenseHeartbeat"
 
 const REASON_LABELS: Record<string, string> = {
@@ -73,6 +78,26 @@ export function CloudSubscriptionCard() {
   const [clearingKeys, setClearingKeys] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
   const [logoutOpen, setLogoutOpen] = useState(false)
+  // P7:云端 LLM 是否已配置。只有明确"未配置"才调整文案;
+  // 探测失败(unknown)保持原样,不让一次网络抖动改变用户看到的信息。
+  const [cloudAvailability, setCloudAvailability] =
+    useState<CloudLlmAvailability>("unknown")
+  const [cloudAvailabilityMessage, setCloudAvailabilityMessage] = useState("")
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const r = await probeCloudLlmAvailability()
+      if (cancelled) return
+      setCloudAvailability(r.availability)
+      setCloudAvailabilityMessage(
+        describeCloudLlmAvailability(r.availability, r.message),
+      )
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     let mounted = true
@@ -189,11 +214,18 @@ export function CloudSubscriptionCard() {
           订阅与云端账号
         </CardTitle>
         <CardDescription className="text-muted-foreground">
-          登录后使用云端 AI 与高级 Prompt;未登录时以离线模式运行。
+          {cloudAvailability === "unavailable"
+            ? "云端订阅与账号仍然可用;云端 AI 未配置,AI 对话当前走本地模型。"
+            : "登录后使用云端 AI 与高级 Prompt;未登录时以离线模式运行。"}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
+          {cloudAvailability === "unavailable" ? (
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs leading-5 text-amber-600">
+              {cloudAvailabilityMessage}
+            </div>
+          ) : null}
           {/* 状态行 */}
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <div className="rounded-xl border border-border/70 bg-card p-4">

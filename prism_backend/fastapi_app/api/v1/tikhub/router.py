@@ -6,7 +6,7 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from myUtils.tikhub_client import get_tikhub_client
+from myUtils.tikhub_client import TIKHUB_NOT_CONFIGURED_DETAIL, get_tikhub_client
 
 router = APIRouter(prefix="/tikhub", tags=["tikhub"])
 
@@ -24,17 +24,24 @@ class TikHubTestRequest(BaseModel):
 def _require_client():
     client = get_tikhub_client()
     if not client:
-        raise HTTPException(status_code=400, detail="TikHub API key not configured")
+        raise HTTPException(status_code=400, detail=TIKHUB_NOT_CONFIGURED_DETAIL)
     return client
 
 
 @router.get("/health", summary="Check TikHub configuration")
 async def tikhub_health():
     client = get_tikhub_client()
+    configured = bool(client)
     return {
         "status": "success",
-        "configured": bool(client),
-        "message": "TikHub API key configured" if client else "TikHub API key not configured",
+        "configured": configured,
+        # 机器可读:客户端据此隐藏 TikHub 相关入口(仅在明确未配置时)。
+        "tikhub_enabled": configured,
+        "message": (
+            "TikHub 数据接口已配置。"
+            if configured
+            else TIKHUB_NOT_CONFIGURED_DETAIL
+        ),
     }
 
 
@@ -138,7 +145,7 @@ async def wechat_channels_video_detail(id: Optional[str] = None, export_id: Opti
 async def collect_videos_via_tikhub(payload: TikHubCollectRequest):
     client = get_tikhub_client()
     if not client:
-        raise HTTPException(status_code=400, detail="TikHub API key not configured")
+        raise HTTPException(status_code=400, detail=TIKHUB_NOT_CONFIGURED_DETAIL)
 
     from myUtils.video_collector import collector
 

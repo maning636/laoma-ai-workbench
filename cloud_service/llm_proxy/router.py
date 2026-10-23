@@ -56,6 +56,23 @@ router = APIRouter()
 
 
 # ──────────────────────────────────────────────────────────────
+# 常量:对外的「未配置」提示文案
+# ──────────────────────────────────────────────────────────────
+
+# 云端 LLM 未配置时,统一用这段文案回给客户端。
+#
+# 为什么要有它:
+#   1. 用户端是中文界面,英文 "not configured (server-side)" 用户看不懂;
+#   2. 明确指出**怎么办**(改用本地模型 / 联系管理员),而不是只说"错了";
+#   3. 客户端据此隐藏云端 AI 入口 —— 只有服务端明确说"没配"才隐藏,
+#      网络抖动导致的探测失败一律按"未知"处理,不能误伤正常用户。
+LLM_NOT_CONFIGURED_DETAIL = (
+    "云端 AI 未配置：服务端未设置 CLOUD_LLM_API_KEY，云端对话与云端高级 Prompt 暂不可用。"
+    "请改用本地模型（Settings → AI 服务商配置），或联系管理员开通云端 AI。"
+)
+
+
+# ──────────────────────────────────────────────────────────────
 # 内部工具
 # ──────────────────────────────────────────────────────────────
 
@@ -281,7 +298,7 @@ async def llm_chat(
     except _llm.LLMKeyNotConfiguredError:
         raise HTTPException(
             status_code=503,
-            detail="cloud LLM not configured (server-side)",
+            detail=LLM_NOT_CONFIGURED_DETAIL,
         )
     except HTTPException:
         raise
@@ -506,8 +523,12 @@ async def llm_chat_stream(
 
         except _llm.LLMKeyNotConfiguredError:
             # 服务端未配置 LLM key —— 语义上"没跑成",回滚预消费。
+            # 文案与 HTTP 503 分支保持一致(同一常量),客户端两处都能识别。
             yield _sse_frame(
-                json.dumps({"error": "cloud LLM not configured (server-side)", "code": "server"}),
+                json.dumps(
+                    {"error": LLM_NOT_CONFIGURED_DETAIL, "code": "server"},
+                    ensure_ascii=False,
+                ),
                 event="error",
             )
             yield _sse_frame("[DONE]")
@@ -612,10 +633,25 @@ def list_prompts(
     response_model=dict[str, Any],
 )
 def llm_health() -> dict[str, Any]:
-    """运维探针(不校验 JWT):只暴露配置状态,不泄露 key 明文。"""
+    """运维探针(不校验 JWT):只暴露配置状态,不泄露 key 明文。
+
+    客户端据此决定**是否展示云端 AI 入口**:
+      - `available` 为 False → 服务端明确说"没配 key",客户端隐藏云端 AI 入口;
+      - 探测请求本身失败(网络抖动 / 服务不可达)→ 客户端必须按"未知"处理,
+        保持原有入口不变 —— 否则一次抖动就把入口误伤掉。
+    """
     vault = _llm.get_vault()
+    api_key_configured = bool(vault["api_key_configured"])
     return {
-        "api_key_configured": vault["api_key_configured"],
+        "api_key_configured": api_key_configured,
+        # 机器可读:只有服务端明确未配置时才是 False。
+        "available": api_key_configured,
+        # 中文说明:运维探针给人和日志看的。
+        "message": (
+            "云端 AI 已配置，可正常使用。"
+            if api_key_configured
+            else LLM_NOT_CONFIGURED_DETAIL
+        ),
         "base_url": vault["base_url"],
         "model": vault["model"],
         "prompt_count": _prompts.prompt_count_by_tier(),

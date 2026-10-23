@@ -42,7 +42,11 @@ except ImportError:
 from myUtils.analytics_db import ensure_analytics_schema, upsert_video_analytics_by_key
 from myUtils.functional_route_manager import functional_route_manager
 from myUtils.cookie_manager import cookie_manager
-from myUtils.tikhub_client import get_tikhub_client, TikHubClient
+from myUtils.tikhub_client import (
+    TIKHUB_NOT_CONFIGURED_DETAIL,
+    get_tikhub_client,
+    TikHubClient,
+)
 
 WAIT_TIMEOUT = int(os.getenv("COLLECT_WAIT_MS", "45000"))
 HEADLESS = PLAYWRIGHT_HEADLESS
@@ -1228,9 +1232,22 @@ class VideoDataCollector:
         platform_name = platform_filter.lower() if platform_filter else None
 
         accounts = cookie_manager.list_flat_accounts()
-        results: Dict[str, Any] = {"total": 0, "success": 0, "failed": 0, "details": []}
+        results: Dict[str, Any] = {
+            "total": 0,
+            "success": 0,
+            "failed": 0,
+            "details": [],
+            # 本次采集是否拿到了 TikHub 客户端(读 TIKHUB_API_KEY 或 ai_model_configs)。
+            # 客户端据此显示"当前走浏览器采集"的提示,而不是让用户去猜为什么慢。
+            "tikhub_enabled": False,
+            # 仅在未配置时才有值;配置成功时为 None,避免无意义地占用响应体。
+            "tikhub_notice": None,
+        }
 
         tikhub_client = get_tikhub_client()
+        results["tikhub_enabled"] = tikhub_client is not None
+        if tikhub_client is None:
+            results["tikhub_notice"] = TIKHUB_NOT_CONFIGURED_DETAIL
 
         @asynccontextmanager
         async def _maybe_tikhub(client: Optional[TikHubClient]):
@@ -1311,7 +1328,7 @@ class VideoDataCollector:
                             result = {"success": False, "error": f"tikhub: {exc}"}
                         # TikTok 无浏览器回退（需海外网络），TikHub 失败即失败
                     else:
-                        result = {"success": False, "error": "TikHub API key not configured (TikTok requires TikHub)"}
+                        result = {"success": False, "error": TIKHUB_NOT_CONFIGURED_DETAIL + "（TikTok 必须依赖 TikHub，无浏览器回退）"}
                 elif platform == "youtube":
                     if tikhub:
                         try:
@@ -1321,7 +1338,7 @@ class VideoDataCollector:
                             result = {"success": False, "error": f"tikhub: {exc}"}
                         # YouTube 无浏览器回退（需海外网络），TikHub 失败即失败
                     else:
-                        result = {"success": False, "error": "TikHub API key not configured (YouTube requires TikHub)"}
+                        result = {"success": False, "error": TIKHUB_NOT_CONFIGURED_DETAIL + "（YouTube 必须依赖 TikHub，无浏览器回退）"}
 
                 if result:
                     results["total"] += 1

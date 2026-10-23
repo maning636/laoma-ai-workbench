@@ -214,6 +214,12 @@ export function TikHubApiKeyCard({ defaultOpen = false }: TikHubApiKeyCardProps)
               <p className="text-xs leading-5 text-muted-foreground">
                 用于快手、小红书、视频号（及 B 站）等平台的作品数据采集。密钥保存在 ai_model_configs 的 tikhub 配置中。
               </p>
+              {!saved ? (
+                <p className="text-[11px] leading-5 text-muted-foreground/80">
+                  未配置时：快手 / 小红书 / 视频号采集走浏览器方式；TikTok / YouTube
+                  的反查补全与数据采集需要 TikHub,未配置时不可用。
+                </p>
+              ) : null}
             </div>
             <ChevronDown
               className={cn(

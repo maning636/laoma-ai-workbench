@@ -70,6 +70,17 @@ export interface ChatViaCloudOptions {
   signal?: AbortSignal
   /** 每收到一个 delta 文本时的回调。仅云端流式生效。 */
   onDelta?: (delta: string) => void
+  /**
+   * 跳过云端两层(Tier1 流式 / Tier2 非流式),直接走本地(Tier3)。
+   *
+   * P7 用法:探测到云端 LLM **明确未配置**(`api_key_configured === false`)时置 true,
+   * 这样用户就不会先吃两次必然失败的云端请求(每次都带网络往返 + 额度校验),
+   * 而是一步落到本地对话。
+   *
+   * 注意:只有"明确未配置"才该置 true。探测失败/网络抖动属于 unknown,
+   * 此时**保持 false**(走原有三层回落),不能因为一次抖动就降级到本地。
+   */
+  skipCloud?: boolean
 }
 
 export type ChatViaCloudSource = "cloud-stream" | "cloud-chat" | "local-chat"
@@ -158,6 +169,16 @@ export async function chatViaCloud(
   opts: ChatViaCloudOptions,
 ): Promise<ChatViaCloudResult> {
   const payload = buildCloudPayload(opts)
+
+  // ═══════ Tier 0: 明确跳过云端 ═══════
+  // 服务端明确回「云端 LLM 未配置」时,云端两层必然失败 —— 直接落到本地,
+  // 省掉两次注定失败的往返(Tier1 流式 + Tier2 非流式)。
+  if (opts.skipCloud) {
+    return chatViaLocalFallback(opts, {
+      cloudCode: "server",
+      cloudDetail: "云端 AI 未配置，已跳过云端对话",
+    })
+  }
 
   // ═══════ Tier 1: 云端流式 ═══════
   type StreamErrInfo = { code: GatewayErrorCode; status: number; detail?: string }

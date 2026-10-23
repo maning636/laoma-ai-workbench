@@ -7,6 +7,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { chatViaCloud } from "@/lib/cloud-chat"
+import {
+  describeCloudLlmAvailability,
+  probeCloudLlmAvailability,
+  type CloudLlmAvailability,
+} from "@/lib/cloud-llm-availability"
 
 interface Thread {
   id: string
@@ -28,6 +33,24 @@ export default function ChatPage() {
   const [loadingThreads, setLoadingThreads] = useState(true)
   const [configError, setConfigError] = useState("")
   const [lastSource, setLastSource] = useState<string | null>(null)
+  // P7:云端 LLM 可用性。只有明确"未配置"(unavailable)才跳过云端;
+  // 探测失败(unknown)一律保持原有行为,不能因网络抖动误伤正常用户。
+  const [cloudAvailability, setCloudAvailability] =
+    useState<CloudLlmAvailability>("unknown")
+  const [cloudAvailabilityMessage, setCloudAvailabilityMessage] = useState("")
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const r = await probeCloudLlmAvailability()
+      if (cancelled) return
+      setCloudAvailability(r.availability)
+      setCloudAvailabilityMessage(describeCloudLlmAvailability(r.availability, r.message))
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const loadThreads = useCallback(async () => {
     setLoadingThreads(true)
@@ -104,6 +127,8 @@ export default function ChatPage() {
 
       const res = await chatViaCloud({
         messages: history,
+        // 云端明确未配置 → 跳过云端两层,直接本地。
+        skipCloud: cloudAvailability === "unavailable",
         onDelta: (delta) => {
           setMessages((prev) => {
             if (prev.length <= placeholderIdx) return prev
@@ -233,7 +258,15 @@ export default function ChatPage() {
             <div className="text-right text-[10px] text-muted-foreground">
               {lastSource === "cloud-stream" && "云端流式 · 逐字"}
               {lastSource === "cloud-chat" && "云端非流式"}
-              {lastSource === "local-chat" && "本地对话"}
+              {lastSource === "local-chat" &&
+                (cloudAvailability === "unavailable"
+                  ? "本地对话 · 云端 AI 未配置"
+                  : "本地对话")}
+            </div>
+          )}
+          {cloudAvailability === "unavailable" && (
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs leading-5 text-amber-600">
+              {cloudAvailabilityMessage}
             </div>
           )}
         </div>

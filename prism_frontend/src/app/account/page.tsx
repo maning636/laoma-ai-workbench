@@ -38,6 +38,11 @@ import { useToast } from "@/components/ui/use-toast"
 import { DataTable } from "@/components/ui/data-table"
 import { backendBaseUrl } from "@/lib/env"
 import { formatBeijingDateTime } from "@/lib/time"
+import {
+  probeTikHubAvailability,
+  shouldHideTikHubEntry,
+  type TikHubAvailability,
+} from "@/lib/tikhub-availability"
 import { type Account, type PlatformKey } from "@/lib/mock-data"
 import { type ColumnDef } from "@tanstack/react-table"
 import { Progress } from "@/components/ui/progress"
@@ -183,7 +188,23 @@ function AccountPageContent() {
   const [youtubeChannelInput, setYoutubeChannelInput] = useState("")
   const [youtubeResolved, setYoutubeResolved] = useState<{ channel_id: string; name?: string; original_name?: string; avatar?: string } | null>(null)
   const [youtubeResolving, setYoutubeResolving] = useState(false)
+  // P7:TikHub 未配置时,隐藏「补全」入口(该功能必然失败)。
+  // 探测失败(unknown)保持显示 —— 不因一次抖动把入口误伤掉。
+  const [tikhubAvailability, setTikHubAvailability] =
+    useState<TikHubAvailability>("unknown")
   const { toast } = useToast()
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const r = await probeTikHubAvailability()
+      if (cancelled) return
+      setTikHubAvailability(r.availability)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
   const keywordInputRef = useRef<HTMLInputElement | null>(null)
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -901,18 +922,19 @@ function AccountPageContent() {
       enableSorting: false,
       cell: ({ row }) => (
         <div className="flex justify-end gap-2">
-          {(row.original.platform === "tiktok" || row.original.platform === "youtube") && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 rounded-xl px-3 text-xs border-border/70 bg-popover hover:bg-accent/50"
-              onClick={() => handleEnrichTikhub(row.original)}
-              title="用 TikHub 反查补全账号名/头像"
-            >
-              <RefreshCcw className="h-3.5 w-3.5 mr-1" />
-              补全
-            </Button>
-          )}
+          {(row.original.platform === "tiktok" || row.original.platform === "youtube") &&
+            !shouldHideTikHubEntry(tikhubAvailability) && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 rounded-xl px-3 text-xs border-border/70 bg-popover hover:bg-accent/50"
+                onClick={() => handleEnrichTikhub(row.original)}
+                title="用 TikHub 反查补全账号名/头像"
+              >
+                <RefreshCcw className="h-3.5 w-3.5 mr-1" />
+                补全
+              </Button>
+            )}
           <Button size="sm" variant="secondary" className="h-8 rounded-xl px-3 text-xs" onClick={() => openEditDialog(row.original)}>
             编辑
           </Button>

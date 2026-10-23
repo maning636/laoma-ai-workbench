@@ -92,6 +92,17 @@ def _normalize_base_url(value: str) -> str:
     return base.rstrip("/")
 
 
+# TikHub 未配置时的统一提示(中文)。
+#
+# 放在本模块(而不是 video_collector)的原因:
+#   本模块是**轻量**依赖(httpx + sqlalchemy),而 video_collector 依赖 Playwright;
+#   API 路由要 import 这段文案,不该顺带把浏览器自动化栈拉进来。
+TIKHUB_NOT_CONFIGURED_DETAIL = (
+    "TikHub 数据接口未配置：未找到 TIKHUB_API_KEY，也未在 ai_model_configs 的 tikhub 配置中保存密钥。"
+    "当前快手 / 小红书 / 视频号采集走浏览器方式；TikTok / YouTube 无浏览器回退，采集会失败。"
+)
+
+
 def load_tikhub_config() -> Optional[TikHubConfig]:
     api_key = (os.getenv("TIKHUB_API_KEY") or "").strip()
     base_url = _normalize_base_url(os.getenv("TIKHUB_BASE_URL") or "https://api.tikhub.io")

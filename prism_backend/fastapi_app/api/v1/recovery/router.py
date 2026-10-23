@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from myUtils.tikhub_client import get_tikhub_client
+from myUtils.tikhub_client import TIKHUB_NOT_CONFIGURED_DETAIL, get_tikhub_client
 
 router = APIRouter(prefix="/recovery", tags=["recovery"])
 
@@ -26,7 +26,7 @@ class RecoveryAddRequest(BaseModel):
 def _require_client():
     client = get_tikhub_client()
     if not client:
-        raise HTTPException(status_code=400, detail="TikHub API key not configured")
+        raise HTTPException(status_code=400, detail=TIKHUB_NOT_CONFIGURED_DETAIL)
     return client
 
 
