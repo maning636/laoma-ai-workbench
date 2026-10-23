@@ -68,6 +68,29 @@ Release 三件套（GitHub 资产、官网链接、磁盘文件同名同大小�
 > 按**实际落地**追认 —— 公开仓能 clone、能看历史、能提 issue，比一个静态 zip 更彻底，
 > 且 AGPL「提供对应源码」的义务由公开仓直接履行。
 
+> **已发布 1.1.5 安装包内的元数据仍是旧署名**：`desktop-electron/package.json` 的
+> `author` / `publisherName` / `repository` 是在发布**之后**才切到 maning636 的
+> （提交 `adec916`，2026-10-23 13:23），所以 1.1.5 安装包内嵌的那份 package.json
+> 仍写着 `Laihiujin`。仓库内的 `NOTICE.txt` 已是 `maning636`（P2=A，提交 `312e4ba`）；
+> **1.1.6 重打包后**，安装包内元数据才会与仓库一致。
+
+### 已发布二进制 ↔ 源码的对应关系
+
+AGPL 的义务是提供**所分发二进制对应的源码**，不是「仓库最新状态」。本项目的实际情况：
+
+| 事实 | 值 |
+|---|---|
+| 产出 1.1.5 安装包的提交 | `f36c620`（2026-10-23 03:52:51 提交；构建发生于该提交工作树的 03:31–03:38） |
+| 与二进制严格对应的源码包 | 备份目录 `Prism-Fusion-source.zip` = `git archive f36c620`（1423 个文件；1350 个与 git tree 逐字节一致，其余 73 个仅行尾差异，详见备份 `MANIFEST.txt`） |
+| 公开仓 main | `ffafd6a` —— **比已发布二进制新**，含发布之后才有的改动 |
+| 发布后但不在二进制内的改动 | `adec916` 归属切 maning636、`45e71e4` P7 关闭未配置入口、`312e4ba` NOTICE 署名、`ffafd6a` release.yml 注释 |
+
+> 核验方式：解包 `app.asar` 与 `git show f36c620:<path>` 逐行比对 ——
+> `src/main/index.js` 仅差 37 行（33 行是打包时尚未清理的中文注释乱码，2 行是 BOM 加固调用点），
+> `src/main/version-catalog.js` 与该提交完全一致；因 asar 内 package.json 实测**无 BOM**
+> （首字节即 `{`），那 2 行差异运行时无功能影响 —— 三处客户端真缺陷的修复本身**确已在包内**。
+> 反向可证：已发布前端产物里 P7 标记命中 **0 次**，即 P7 不在 1.1.5 包内。
+
 ---
 
 ## 4 商业与解锁口径
@@ -103,7 +126,7 @@ Release 三件套（GitHub 资产、官网链接、磁盘文件同名同大小�
 | 不切 GitHub provider（自动更新） | P3=A | 自动更新走 GitHub 直连 0.12 MB/s → 639 MB 约 89 分钟，对国内用户是净退化 |
 | 不升服务器带宽、不上腾讯云 COS | P1=A | 现状双通道保留，0 成本；等真有用户反馈再动 |
 | 不在官网公开微信号文字 | P5=B | 防爬号批量加好友 |
-| 不做 1.1.4 → 1.1.5 升级安装验收 | P6=C | 本轮只做备份 round18，升级验收暂缓 |
+| 不做 1.1.4 → 1.1.5 升级安装验收 | P6=C | 备份 round18 已完成（1.1.5 三件套 + 对齐源码包 + MANIFEST 已刷进 `D:\Prism-Fusion-Backup`）；升级安装验收暂缓（需一台干净机） |
 | 不提供 `CLOUD_LLM_API_KEY` / `TIKHUB_API_KEY` | P7=B | 走「功能关掉 + 明确提示」兜底 |
 
 ---
@@ -122,5 +145,7 @@ Release 三件套（GitHub 资产、官网链接、磁盘文件同名同大小�
 | 判档与 flag | `docs/feature-gate-matrix.md` |
 | D1–D5 确认结果 | `docs/client-release-decision-form.docx`（回读脚本 `scripts/docs/read_client_release_decision_form.py`） |
 | P1–P7 决策原文 | `docs/release-finalize-decision-form.docx`（回读脚本 `scripts/docs/read_release_finalize_decision_form.py`） |
+| 源码包 ↔ 二进制对应关系 | 备份 `MANIFEST.txt` 说明第 5–7 条；`scripts/backup/build_backup_manifest.py --verify` 可随时复校 |
+| 备份清单完整性 | `python scripts/backup/build_backup_manifest.py --backup-root <备份目录> --verify`（逐文件重算 SHA-256 与清单比对） |
 
 > 凭据（注册码私钥、云端账号密码）**一律不写进本文件、不写进仓库、不进 git**。
