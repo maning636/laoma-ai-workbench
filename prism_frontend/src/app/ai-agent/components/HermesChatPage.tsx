@@ -365,7 +365,7 @@ export default function HermesChatPage() {
           {isRunning && (
             <div className="flex items-center gap-2 text-xs text-amber-600">
               <Eraser className="h-3.5 w-3.5" />
-              Hermes Agent 正在执行…如需停止请点右上角"停止"按钮。
+              Hermes Agent 正在执行…如需停止请点右上角“停止”按钮。
             </div>
           )}
           <div className="flex gap-2">

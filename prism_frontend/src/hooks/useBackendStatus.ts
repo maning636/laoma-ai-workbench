@@ -18,7 +18,6 @@ export function useBackendStatus() {
 
     useEffect(() => {
         let mounted = true
-        let checkInterval: NodeJS.Timeout
 
         const checkBackend = async () => {
             if (!mounted) return
@@ -58,11 +57,11 @@ export function useBackendStatus() {
         checkBackend()
 
         // 每30秒检查一次
-        checkInterval = setInterval(checkBackend, 30000)
+        const checkInterval = setInterval(checkBackend, 30000)
 
         return () => {
             mounted = false
-            if (checkInterval) clearInterval(checkInterval)
+            clearInterval(checkInterval)
         }
     }, [])
 

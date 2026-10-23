@@ -242,7 +242,7 @@ export function AgentStudioPanel() {
 
         {agents.length === 0 && !loading ? (
           <div className="text-center py-6 text-sm text-muted-foreground">
-            还没有智能体。点击"新建"训练第一个风格智能体。
+            还没有智能体。点击“新建”训练第一个风格智能体。
           </div>
         ) : (
           <div className="grid gap-3 md:grid-cols-2">

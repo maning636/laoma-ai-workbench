@@ -18,6 +18,7 @@ import { SpotlightCard } from "@/components/ui/sci-fi/spotlight-card"
 import { BorderBeam } from "@/components/ui/sci-fi/border-beam"
 import { ShimmerButton } from "@/components/ui/sci-fi/shimmer-button"
 import { ButtonMovingBorder } from "@/components/ui/sci-fi/moving-border"
+import Link from "next/link"
 
 export default function DashboardDemoPage() {
     return (
@@ -47,7 +48,7 @@ export default function DashboardDemoPage() {
             {/* 这是一页纯 UI 组件样例（硬编码假数据），不接任何后端接口。
                 真实业务数据请看首页「仪表盘」（/），不要把这里的数字当成平台实况。 */}
             <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
-                <span className="font-semibold">组件样例页</span>：本页仅演示 Sci-Fi 视觉组件（SpotlightCard / BorderBeam / ShimmerButton 等），所有数字均为硬编码假数据，不请求任何后端接口。平台实况请看 <a href="/" className="underline">仪表盘</a>。
+                <span className="font-semibold">组件样例页</span>：本页仅演示 Sci-Fi 视觉组件（SpotlightCard / BorderBeam / ShimmerButton 等），所有数字均为硬编码假数据，不请求任何后端接口。平台实况请看 <Link href="/" className="underline">仪表盘</Link>。
             </div>
 
             {/* Stats Cards with Spotlight */}

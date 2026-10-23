@@ -145,7 +145,7 @@ export default function AnalyticsPage() {
 
         const today = new Date()
         const end = today.toISOString().split('T')[0]
-        let start = new Date()
+        const start = new Date()
 
         switch (preset) {
             case "30d":
@@ -396,7 +396,7 @@ export default function AnalyticsPage() {
                             <div>
                                 <h3 className="text-lg font-semibold text-foreground/80 mb-2">请选择账号查看数据</h3>
                                 <p className="text-sm text-muted-foreground mb-4">
-                                    点击右上角"筛选账号"按钮选择要分析的账号
+                                    点击右上角“筛选账号”按钮选择要分析的账号
                                 </p>
                                 <Button
                                     variant="outline"

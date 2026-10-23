@@ -113,8 +113,8 @@ export default function StylesPage() {
                     <div><span className="font-medium text-foreground">标签：</span>≤{s.tags_max} · <span className="font-medium text-foreground">封面：</span>{s.cover_aspect}</div>
                   </div>
                   <div className="mt-2 flex items-center justify-between pt-2 border-t">
-                    <span className="text-xs text-muted-foreground italic">"
-                      {s.opening.slice(0, 30)}{s.opening.length > 30 ? "..." : ""}"</span>
+                    <span className="text-xs text-muted-foreground italic">“
+                      {s.opening.slice(0, 30)}{s.opening.length > 30 ? "..." : ""}”</span>
                     <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); reset(key) }}>
                       <Trash2 className="h-3 w-3" />重置
                     </Button>

@@ -239,7 +239,7 @@ export default function CatalogToolsSection() {
         <div className="space-y-4">
             <div className="flex items-center justify-between">
                 <p className="text-xs text-muted-foreground">
-                    由「声明式工具注册中心」登记，自动同步到 MCP / API / CLI。点"调用"可在线执行真实后端能力。
+                    由「声明式工具注册中心」登记，自动同步到 MCP / API / CLI。点“调用”可在线执行真实后端能力。
                 </p>
                 <Button variant="outline" size="sm" className="rounded-lg text-xs" onClick={() => refetch()}>
                     <RefreshCcw className="mr-1.5 h-3.5 w-3.5" />

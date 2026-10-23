@@ -176,7 +176,6 @@ export function MaterialMetadataEditor({
         const sanitized = { ...localMetadata }
         if (sanitized.cover_image === null) delete sanitized.cover_image
         if (sanitized.coverPath === null) delete sanitized.coverPath
-        // @ts-ignore
         await onSave(sanitized)
         onClose()
     }

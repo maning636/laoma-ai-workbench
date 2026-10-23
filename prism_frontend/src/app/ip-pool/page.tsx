@@ -904,7 +904,6 @@ function BindAccountSheet({
 
         allAccounts.forEach(acc => {
             // 兼容 account_id (API返回) 和 id (类型定义)
-            // @ts-ignore
             const rawId = acc.account_id || acc.id
             if (rawId === undefined || rawId === null) return
             const idStr = String(rawId)
@@ -913,7 +912,6 @@ function BindAccountSheet({
 
             // Ensure ID is set on object for display
             if (!acc.id) {
-                // @ts-ignore
                 acc.id = idStr
             }
 
@@ -921,7 +919,7 @@ function BindAccountSheet({
             if (searchTerm) {
                 const term = searchTerm.toLowerCase()
 
-                // @ts-ignore
+                // @ts-expect-error 兼容 API 返回的 nickname 字段（类型定义里未声明）
                 const name = acc.name || acc.nickname || ''
                 const matchName = name.toLowerCase().includes(term)
 

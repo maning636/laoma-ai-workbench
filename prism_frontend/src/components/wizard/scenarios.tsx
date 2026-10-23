@@ -39,7 +39,9 @@ import {
   type VideoPipelineDraft,
 } from "./wizard-state-cache"
 
-export interface ScenarioStepDef extends WizardStepDefinition {}
+// 原为 `interface ScenarioStepDef extends WizardStepDefinition {}`，
+// 空接口等价于父类型本身，用 type 别名表达同一件事（ESLint no-empty-object-type）。
+export type ScenarioStepDef = WizardStepDefinition
 
 export interface ScenarioDefinition {
   id: string
