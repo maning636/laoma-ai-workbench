@@ -228,15 +228,27 @@ async function loadImagePreviews(files: File[]) {
 // 场景1 · AI 写稿发布
 // ──────────────────────────────────────────────────────────────
 
-export const PUBLISH_PLATFORMS: { id: string; label: string }[] = [
-  { id: "douyin", label: "抖音" },
-  { id: "kuaishou", label: "快手" },
-  { id: "bilibili", label: "B 站" },
-  { id: "xhs", label: "小红书" },
-  { id: "channels", label: "视频号" },
-  { id: "zhihu", label: "知乎" },
-  { id: "toutiao", label: "头条" },
-  { id: "xigua", label: "西瓜" },
+export interface PublishPlatform {
+  id: string
+  label: string
+  /**
+   * 后端是否已有真实发布通道（发布工具 + 登录适配器齐备）。
+   * false = 仅供文案风格参考，向导中禁选，避免走到发布会失败。
+   * 与后端对齐（fastapi publish_tools + platforms 登录适配器）：
+   *   douyin / kuaishou / bilibili / xhs / channels 为 true
+   */
+  publishable: boolean
+}
+
+export const PUBLISH_PLATFORMS: PublishPlatform[] = [
+  { id: "douyin", label: "抖音", publishable: true },
+  { id: "kuaishou", label: "快手", publishable: true },
+  { id: "bilibili", label: "B 站", publishable: true },
+  { id: "xhs", label: "小红书", publishable: true },
+  { id: "channels", label: "视频号", publishable: true },
+  { id: "zhihu", label: "知乎", publishable: false },
+  { id: "toutiao", label: "头条", publishable: false },
+  { id: "xigua", label: "西瓜", publishable: false },
 ]
 
 const AI_WRITING_SCENE_ID = "ai-writing"
@@ -281,9 +293,10 @@ function AiWritingPlatformStep() {
           <ToggleCard
             key={p.id}
             label={p.label}
-            hint={p.id}
+            hint={p.publishable ? p.id : "暂不支持发布（仅文案风格）"}
             checked={selected.includes(p.id)}
             onToggle={() => toggle(p.id)}
+            disabled={!p.publishable}
           />
         ))}
       </div>

@@ -64,6 +64,23 @@ describe("scenarios — 场景1 AI写稿发布", () => {
     const ids = PUBLISH_PLATFORMS.map((p) => p.id)
     expect(new Set(ids).size).toBe(8)
   })
+
+  it("publishable 集合恰为后端发布工具 + 登录适配器齐备的 5 平台（契约）", () => {
+    const publishableIds = PUBLISH_PLATFORMS.filter((p) => p.publishable).map(
+      (p) => p.id,
+    )
+    expect(publishableIds).toEqual([
+      "douyin",
+      "kuaishou",
+      "bilibili",
+      "xhs",
+      "channels",
+    ])
+    const nonPublishableIds = PUBLISH_PLATFORMS.filter((p) => !p.publishable).map(
+      (p) => p.id,
+    )
+    expect(nonPublishableIds).toEqual(["zhihu", "toutiao", "xigua"])
+  })
 })
 
 describe("scenarios — AI 写稿 Mock 函数", () => {
