@@ -15,6 +15,7 @@
 """
 import os
 import shutil
+import subprocess
 import sys
 
 from docx import Document
@@ -27,6 +28,8 @@ from read_release_finalize_decision_form import (  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DEFAULT = os.path.join(REPO, "docs", "release-finalize-decision-form.docx")
+BUILDER = os.path.join(REPO, "scripts", "docs", "build_release_finalize_decision_form.py")
+BLANK = os.path.join(REPO, "tmp", "_blank_release_finalize_form.docx")
 TMP = os.path.join(REPO, "tmp", "_roundtrip_finalize_filled.docx")   # 落在 gitignore 的 tmp/ 下
 
 # 模拟马哥的填写：勾第几个框（按小节内出现顺序）、选择行写什么、批注写什么
@@ -132,8 +135,60 @@ def inject_parallel_box(doc, no):
     assert replace_nth_box(new_p, 0), "并列行的第一个框没勾上"
 
 
+def build_blank_form():
+    """用 builder 重建一张**空白底表**。
+
+    为什么不能直接复制仓库里那份：那份已经被马哥填过（P1–P7 各勾了一个），
+    在已勾的底表上再填一遍，每个小节就会有两个勾，
+    回读断言「只应勾一个」必然全红 —— 那是**底表选错**，
+    不是回读逻辑坏了。2026-10-23 实测就是这么炸的（11 项 FAIL）。
+    """
+    os.makedirs(os.path.dirname(BLANK), exist_ok=True)
+    if os.path.exists(BLANK):
+        os.remove(BLANK)
+    r = subprocess.run(
+        [sys.executable, BUILDER, "--out", BLANK],
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
+    assert r.returncode == 0, "builder 失败:\n%s\n%s" % (r.stdout, r.stderr)
+    assert os.path.exists(BLANK), "builder 没产出空白表"
+    return BLANK
+
+
+def check_committed_form():
+    """回归：仓库里那份（马哥填好的）必须结构完好，且每项至多一个勾。
+
+    这里刻意**不**硬编码马哥的答案 —— 决策会变、表会再填，
+    闸门要拦的是「表被填坏了」（多个勾 / 结构损坏），不是「答案变了」。
+    """
+    fails = []
+    info = verify(DEFAULT)
+    if not (info.get("zip_ok") and not info.get("xml_parse_failures")
+            and info.get("footer_page_field")):
+        fails.append("已填表结构验收没过: %s" % info)
+    data = parse_sections(DEFAULT, SEC_RE, IDS, GLOBAL_HEADING, END_HEADING, TABLE_ROWS)
+    for no in sorted(IDS):
+        s = data["sections"].get(no)
+        if s is None:
+            fails.append("已填表里 %s 没被解析出来" % no)
+            continue
+        checked = [o for o in s.get("options", []) if o["checked"]]
+        if len(checked) > 1:
+            fails.append("%s 勾了 %d 个（至多应 1 个）: %s"
+                         % (no, len(checked), [o["label"][:26] for o in checked]))
+    return fails
+
+
 def main():
-    shutil.copyfile(DEFAULT, TMP)
+    fails = check_committed_form()
+    if fails:
+        for f in fails:
+            print("FAIL:", f)
+        print("结论: 已填表回归失败 %d 项" % len(fails))
+        sys.exit(1)
+    print("已填表回归: OK（结构完好，每项至多一个勾）")
+    print()
+
+    shutil.copyfile(build_blank_form(), TMP)
     doc = Document(TMP)
     for no, spec in FILL.items():
         fill(doc, no, spec)

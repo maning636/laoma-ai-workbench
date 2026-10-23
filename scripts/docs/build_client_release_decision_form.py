@@ -8,8 +8,22 @@
   D4 完整版怎么解锁（注册码 / 云端账号 / 两者）
   D5 合并后约 610 MB 的安装包体积能不能接受
 
+两种生成态：
+  默认（确认态）—— 2026-10-23 马哥在《开源发布收尾 · 待决表》P4 选了 A，
+  「全部按实际落地确认（D1=A　D2=A　D3=B　D4=A　D5=A）」。
+  代码早已按选项落地并对公网生效，这张表当时只差一句追认，
+  所以现在生成的是**已确认记录**：选项框按结果打勾，每项下面写明
+  实际落地的事实（可当场核对的字节数 / 链接 / 配置值）。
+  --blank（空白态）—— 重建当初的空白待决表，往返测试与历史对照用。
+
 用法：
   D:\\dev\\python\\python.exe scripts\\docs\\build_client_release_decision_form.py
+  D:\\dev\\python\\python.exe scripts\\docs\\build_client_release_decision_form.py --blank
+  D:\\dev\\python\\python.exe scripts\\docs\\build_client_release_decision_form.py --blank --out <路径.docx>
+
+为什么确认态写进 builder 而不是直接改 .docx 二进制：
+  表要能随时重建、能回读自证，而且「哪天拍的、依据哪张表拍的」必须
+  留在可审计的文本里 —— 直接改二进制会让这两件事都无从查证。
 
 依赖：python-docx（装在 D 盘 dev python，不写 C 盘、不动项目 venv）。
 """
@@ -30,7 +44,45 @@ from _decision_form_common import (
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OUT = os.path.join(REPO, "docs", "client-release-decision-form.docx")
-FOOTER = "Prism-Fusion 客户端发布形态 · 待决表　v1.0　2026-10-24"
+FOOTER = "Prism-Fusion 客户端发布形态 · 待决表（已确认）　v1.1　2026-10-24"
+BLANK_MODE = False
+
+# ---------------------------------------------------------------------------
+# 确认态数据（2026-10-23 追认）
+#
+# 依据：马哥在《开源发布收尾 · 待决表》P4 选 A —— 「全部按实际落地确认
+# （D1=A　D2=A　D3=B　D4=A　D5=A）」。其中 D3 与本表当初的建议不同
+# （当初建议 A ＝ 官网下载区放源码包，实际落地选了 B ＝ 公开 GitHub 仓），
+# 按实际落地追认。
+# ---------------------------------------------------------------------------
+CONFIRMED = {
+    "D1": "A",
+    "D2": "A",
+    "D3": "B",
+    "D4": "A",
+    "D5": "A",
+}
+
+# 每项实际落地的事实（追认依据，全部来自 1.1.5 的真实产物与仓库配置）
+LANDING = {
+    "D1": "已落地：desktop-electron/package.json 的 build.artifactName = "
+         "LaomaAI-${version}-setup.${ext}；1.1.5 实际产物 LaomaAI-1.1.5-setup.exe"
+         "（639,437,816 B，纯 ASCII，官网按钮、Release 资产、latest.yml 三处同名）。",
+    "D2": "已落地：客户端 license 字段 AGPL-3.0，LICENSE.txt 为 AGPL 全文，"
+         "NOTICE.txt 版权署名 maning636；Hermes（Nous Research，MIT）随包分发并在 NOTICE.txt 归属。",
+    "D3": "已落地（按 B，比当初建议的 A 更彻底）：源码走公开 GitHub 仓库 "
+         "github.com/maning636/laoma-ai-workbench，官网下载区已有源码与 Releases 入口，"
+         "AGPL 的「提供对应源码」义务由公开仓履行。",
+    "D4": "已落地：本地注册码（Ed25519 验签）决定功能档位，云端订阅只给额度"
+         "（账号数 / 平台数 / Agent 配额）；两者取交集派生「完整版 / 限制功能版」。",
+    "D5": "已落地：单包 639,437,816 B（约 610 MiB），官网按 640 MB 量级提示并给出 SHA-512 校验值。",
+}
+
+CONFIRM_SOURCE = (
+    "2026-10-23 马哥在《开源发布收尾 · 待决表》P4 选 A —— 「全部按实际落地确认"
+    "（D1=A　D2=A　D3=B　D4=A　D5=A）」。代码早已按选项落地并对公网生效，"
+    "这张表当时只差一句追认。"
+)
 
 DECISIONS = [
     dict(
@@ -128,7 +180,11 @@ SHORT = {
 
 
 def build():
-    doc = new_document(FOOTER)
+    # 空白态用当初的页脚，确认态用「已确认」页脚 —— 两者不能混，
+    # 否则历史空白表和当前确认表在页脚上分不出来。
+    footer = FOOTER if not BLANK_MODE else \
+        "Prism-Fusion 客户端发布形态 · 待决表　v1.0　2026-10-24"
+    doc = new_document(footer)
 
     # ---------------- 封面
     para(doc, "", space_after=26)
@@ -136,24 +192,42 @@ def build():
          align=WD_ALIGN_PARAGRAPH.CENTER, space_after=6)
     para(doc, "客户端发布形态 · 待决表", size=25, bold=True, color=C_DARK,
          align=WD_ALIGN_PARAGRAPH.CENTER, space_after=8, name=FONT_HEAD)
-    para(doc, "单一客户端已落地，5 处岔路口等你拍板", size=12, color=C_MID,
-         align=WD_ALIGN_PARAGRAPH.CENTER, space_after=22)
-    para(doc, "版本 v1.0　|　日期 2026-10-24　|　对应代码 e6c1925", size=10,
-         color=C_GRAY, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=3)
+    if BLANK_MODE:
+        para(doc, "单一客户端已落地，5 处岔路口等你拍板", size=12, color=C_MID,
+             align=WD_ALIGN_PARAGRAPH.CENTER, space_after=22)
+        para(doc, "版本 v1.0　|　日期 2026-10-24　|　对应代码 e6c1925", size=10,
+             color=C_GRAY, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=3)
+    else:
+        para(doc, "D1–D5 已全部确认并落地（这张表不用再填了）", size=12, color=C_MID,
+             align=WD_ALIGN_PARAGRAPH.CENTER, space_after=22)
+        para(doc, "版本 v1.1（已确认）　|　日期 2026-10-24　|　对应交付 v1.1.5", size=10,
+             color=C_GRAY, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=3)
     para(doc, "支付已下线（个人微信收款 + 人工发注册码）；社区版双安装器已合并为单一客户端 1.1.4",
          size=9.5, color=C_GRAY, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=26)
 
     t = doc.add_table(rows=0, cols=2)
     t.alignment = WD_TABLE_ALIGNMENT.CENTER
     table_borders(t)
-    for k, v in [
-        ("这份表解决什么", "单一客户端已经打出来了（1.1.4），但发布前有 5 处必须你定：安装包叫什么、"
-                        "license 怎么写、源码怎么给、用户拿什么解锁、610 MB 能不能接受。"),
-        ("一共几处要你拍板", "5 项（D1–D5）。每一项我都写了「我已核实的事实」「选项」「我的建议」，你只需要勾。"),
-        ("填完怎么给我", "① 把这个 .docx 存回发给我；② 或者直接念勾选结果（「D1 选 A、D2 选 A、D3 选 A、D4 选 A、D5 选 A」）。两种都行。"),
-        ("填不完怎么办", "不想逐项勾，就在最下面的「总快速批注」区写一句总规则，例如「五项都按建议来」。"),
-        ("会影响已经做完的事吗", "D1 会改安装包文件名（要重打）；D2/D3 要动官网与源码包；D4/D5 动的是下一版的规划，不影响这一版上线。"),
-    ]:
+    if BLANK_MODE:
+        cover_rows = [
+            ("这份表解决什么", "单一客户端已经打出来了（1.1.4），但发布前有 5 处必须你定：安装包叫什么、"
+                            "license 怎么写、源码怎么给、用户拿什么解锁、610 MB 能不能接受。"),
+            ("一共几处要你拍板", "5 项（D1–D5）。每一项我都写了「我已核实的事实」「选项」「我的建议」，你只需要勾。"),
+            ("填完怎么给我", "① 把这个 .docx 存回发给我；② 或者直接念勾选结果（「D1 选 A、D2 选 A、D3 选 A、D4 选 A、D5 选 A」）。两种都行。"),
+            ("填不完怎么办", "不想逐项勾，就在最下面的「总快速批注」区写一句总规则，例如「五项都按建议来」。"),
+            ("会影响已经做完的事吗", "D1 会改安装包文件名（要重打）；D2/D3 要动官网与源码包；D4/D5 动的是下一版的规划，不影响这一版上线。"),
+        ]
+    else:
+        cover_rows = [
+            ("这份表解决什么", "单一客户端（1.1.5）已经打出来并发布，这张表记录发布形态 5 处岔路口的最终口径。"),
+            ("确认结果", "D1=A　D2=A　D3=B　D4=A　D5=A —— 五项全部按实际落地追认，选项框已按结果打勾。"),
+            ("确认依据", "2026-10-23《开源发布收尾 · 待决表》P4=A：代码早已按选项落地并对公网生效，"
+                       "这张表当时只差一句追认。"),
+            ("和当初建议的差异", "只有 D3 不同：当初建议 A（官网下载区放源码包），实际落地选了 B（公开 GitHub 仓），"
+                         "按实际落地追认。"),
+            ("还要你做什么吗", "不需要。已落地的部分不再改代码；要改的是下一版（安装包瘦身 / 云端账号体系）。"),
+        ]
+    for k, v in cover_rows:
         row = t.add_row()
         shade(row.cells[0], C_HDRBG)
         cell_text(row.cells[0], k, size=10, bold=True, color=C_DARK)
@@ -162,15 +236,26 @@ def build():
 
     doc.add_page_break()
 
-    # ---------------- §0 怎么填
-    heading(doc, "0　怎么填这份表", 1)
+    # ---------------- §0 确认记录
+    if BLANK_MODE:
+        heading(doc, "0　怎么填这份表", 1)
+        how_rows = [
+            ("选项行", "一行几个候选，前面带 □ 框。在框里打「√」，或者把 □ 改成 ☑（Word 里输入 2611 字符），也可以直接在框后写「选 A」。"),
+            ("「我的选择」行", "每个小节最后那行「→ 我的选择：____」，直接写 A/B/C 或一句话。"),
+            ("快速批注", "小节下面的横线区，或文末的总批注区。写一句总规则就够，我按它兜底。"),
+        ]
+    else:
+        heading(doc, "0　确认记录（这张表不用再填）", 1)
+        how_rows = [
+            ("这份表现在的状态", "已确认。五个选项框已按确认结果打勾，每项下面写明实际落地的事实"
+                           "（可当场核对的字节数 / 链接 / 配置值）。"),
+            ("还能改吗", "能，但要走流程：先改对应代码与对外文案，再同步更新本表，并在当轮提交里写明改了什么。"),
+            ("空白版怎么要回来", "builder 支持 --blank：重跑 scripts/docs/build_client_release_decision_form.py "
+                         "--blank 可重建当初的空白待决表（往返测试用的就是它）。"),
+        ]
     how = doc.add_table(rows=0, cols=2)
     table_borders(how)
-    for k, v in [
-        ("选项行", "一行几个候选，前面带 □ 框。在框里打「√」，或者把 □ 改成 ☑（Word 里输入 2611 字符），也可以直接在框后写「选 A」。"),
-        ("「我的选择」行", "每个小节最后那行「→ 我的选择：____」，直接写 A/B/C 或一句话。"),
-        ("快速批注", "小节下面的横线区，或文末的总批注区。写一句总规则就够，我按它兜底。"),
-    ]:
+    for k, v in how_rows:
         row = how.add_row()
         shade(row.cells[0], C_HDRBG)
         cell_text(row.cells[0], k, size=10, bold=True, color=C_DARK)
@@ -179,8 +264,13 @@ def build():
 
     # ---------------- §1 速览
     heading(doc, "1　待决 5 项速览（一屏看完）", 1)
-    para(doc, "「当前建议」是我基于已核实事实给的推荐，不是结论；「我的选择」列留空给你填。",
-         size=10, color=C_GRAY, space_after=6)
+    if BLANK_MODE:
+        para(doc, "「当前建议」是我基于已核实事实给的推荐，不是结论；「我的选择」列留空给你填。",
+             size=10, color=C_GRAY, space_after=6)
+    else:
+        para(doc, "「当前建议」是当初我给的推荐；「我的选择」列是 2026-10-23 追认的结果"
+                  "（D1=A　D2=A　D3=B　D4=A　D5=A），五项各恰好一个。",
+             size=10, color=C_GRAY, space_after=6)
 
     cols = ["项", "要你定什么", "当前建议", "我的选择"]
     w = [1.4, 5.4, 6.8, 3.0]
@@ -201,12 +291,20 @@ def build():
                   align=WD_ALIGN_PARAGRAPH.CENTER)
         cell_text(row.cells[1], SHORT[d["no"]], size=9)
         cell_text(row.cells[2], d["rec"], size=8.5)
-        cell_text(row.cells[3], "", size=9)
+        if BLANK_MODE:
+            cell_text(row.cells[3], "", size=9)
+        else:
+            cell_text(row.cells[3], "%s ✅ 已落地" % CONFIRMED[d["no"]], size=9, bold=True)
     set_widths(ts, w)
 
     para(doc, "", space_after=6)
-    para(doc, "⚠️ D1 会改安装包文件名（要重打一次）；D2 / D3 要动官网与源码包，"
-              "其余两项影响的是下一版规划，不卡这一版上线。", size=9.5, color=C_MID, space_after=8)
+    if BLANK_MODE:
+        para(doc, "⚠️ D1 会改安装包文件名（要重打一次）；D2 / D3 要动官网与源码包，"
+                  "其余两项影响的是下一版规划，不卡这一版上线。", size=9.5, color=C_MID, space_after=8)
+    else:
+        para(doc, "✅ D1–D5 五项已按实际落地追认并写回本表；D3 采用公开 GitHub 仓"
+                  "（比当初建议的官网源码包更彻底），官网下载区已有源码入口。",
+             size=9.5, color=C_MID, space_after=8)
 
     doc.add_page_break()
 
@@ -216,35 +314,74 @@ def build():
         heading(doc, "%s　%s" % (d["no"], d["title"]), 3)
         if d["ctx"]:
             para(doc, d["ctx"].replace("**", ""), size=9.5, color=C_GRAY, space_after=4)
-        for o in d["opts"]:
-            para(doc, "%s %s" % (BOX, o), size=10, indent=0.4, space_after=3)
-        if d["rec"]:
-            para(doc, "💡 " + d["rec"], size=9.5, color=C_MID, indent=0.4, space_after=3)
-        para(doc, "→ " + d["mine"] + "_______________________________________________",
-             size=10, bold=True, space_before=2, space_after=6)
+        if BLANK_MODE:
+            for o in d["opts"]:
+                para(doc, "%s %s" % (BOX, o), size=10, indent=0.4, space_after=3)
+            if d["rec"]:
+                para(doc, "💡 " + d["rec"], size=9.5, color=C_MID, indent=0.4, space_after=3)
+            para(doc, "→ " + d["mine"] + "_______________________________________________",
+                 size=10, bold=True, space_before=2, space_after=6)
+        else:
+            # 确认态：先写实际落地的事实，再逐项打勾
+            para(doc, "✅ 确认落地：" + LANDING[d["no"]], size=9.5, color=C_MID,
+                 indent=0.4, space_after=4)
+            for o in d["opts"]:
+                mark = "☑" if o.lstrip().startswith(CONFIRMED[d["no"]] + ".") else BOX
+                para(doc, "%s %s" % (mark, o), size=10, indent=0.4, space_after=3)
+            if d["rec"]:
+                para(doc, "💡 " + d["rec"], size=9.5, color=C_MID, indent=0.4, space_after=3)
+            para(doc, "→ " + d["mine"] + CONFIRMED[d["no"]] + "　（已按此落地）"
+                       + "_______________________",
+                 size=10, bold=True, space_before=2, space_after=6)
         blank_lines(doc, 2, "小节批注（可留空）：")
 
     doc.add_page_break()
 
     # ---------------- §3 总批注
-    heading(doc, "3　总快速批注", 1)
-    para(doc, "任何一项不想细勾，就在这里写一句总规则，我按它兜底（并会在回执里标明哪些是兜底的）。",
-         size=10, color=C_GRAY, space_after=6)
-    blank_lines(doc, 8)
+    heading(doc, "3　总快速批注" + ("（已确认）" if not BLANK_MODE else ""), 1)
+    if BLANK_MODE:
+        para(doc, "任何一项不想细勾，就在这里写一句总规则，我按它兜底（并会在回执里标明哪些是兜底的）。",
+             size=10, color=C_GRAY, space_after=6)
+        blank_lines(doc, 8)
+    else:
+        para(doc, "原为「不想逐项勾就写一句总规则」的兜底区；现已追认确认，记录如下：",
+             size=10, color=C_GRAY, space_after=6)
+        para(doc, CONFIRM_SOURCE, size=10, indent=0.3, space_after=4)
+        para(doc, "D1=A　D2=A　D3=B　D4=A　D5=A —— 五项各恰好一个选项被勾，无并列勾选、无总规则兜底。",
+             size=10, bold=True, indent=0.3, space_after=4)
+        para(doc, "对应交付 v1.1.5（Release tag v1.1.5）；对外口径全文见 docs/release-delivery-statement.md。",
+             size=10, indent=0.3, space_after=4)
+        blank_lines(doc, 5)
 
-    heading(doc, "4　填完之后我会做什么", 1)
-    for txt in [
-        "① 读出你的选择 → 写回 docs/PROJECT_OVERVIEW.md 与发布口径文档；",
-        "② D1 若改文件名 → 改 artifactName，重打安装器，并重跑「latest.yml 名字/大小/sha512 与磁盘一致」守卫；",
-        "③ D2 / D3 → 按你定的口径改 package.json 的 license 元数据、准备与安装包同版本的源码 zip、官网下载区补上源码入口；",
-        "④ D4 / D5 → 落到 feature gate 与下一版打包路线；",
-        "⑤ 全部改动跑回归（pytest / tsc / vitest / 产物守卫）后提交并推私有仓库 + 刷新备份 round17。",
-    ]:
+    heading(doc, "4　" + ("填完之后我会做什么" if BLANK_MODE else "确认落地清单"), 1)
+    if BLANK_MODE:
+        steps = [
+            "① 读出你的选择 → 写回 docs/PROJECT_OVERVIEW.md 与发布口径文档；",
+            "② D1 若改文件名 → 改 artifactName，重打安装器，并重跑「latest.yml 名字/大小/sha512 与磁盘一致」守卫；",
+            "③ D2 / D3 → 按你定的口径改 package.json 的 license 元数据、准备与安装包同版本的源码 zip、官网下载区补上源码入口；",
+            "④ D4 / D5 → 落到 feature gate 与下一版打包路线；",
+            "⑤ 全部改动跑回归（pytest / tsc / vitest / 产物守卫）后提交并推私有仓库 + 刷新备份 round17。",
+        ]
+    else:
+        steps = [
+            "① 读出你的选择 → 写回 docs/PROJECT_OVERVIEW.md 与发布口径文档（docs/release-delivery-statement.md）；",
+            "② D1 安装包命名 → artifactName = LaomaAI-${version}-setup.${ext}，"
+            "1.1.5 产物已按此发布（639,437,816 B），latest.yml 与磁盘同名同大小；",
+            "③ D2 / D3 license 与源码交付 → package.json license=AGPL-3.0、NOTICE.txt 署名 maning636；"
+            "源码走公开 GitHub 仓，官网下载区已有源码与 Releases 入口；",
+            "④ D4 / D5 → 已落到 feature gate（注册码 ∩ 云端订阅）与 1.1.5 单包体积；",
+            "⑤ 全部改动跑回归（pytest / tsc / vitest / 产物守卫）后提交并推仓库 + 刷新备份 round18。",
+        ]
+    for txt in steps:
         para(doc, txt, size=10, indent=0.3, space_after=4)
 
     doc.save(OUT)
-    print("已生成:", OUT, os.path.getsize(OUT), "bytes")
+    print("已生成:", OUT, os.path.getsize(OUT), "bytes", "(blank)" if BLANK_MODE else "(confirmed)")
 
 
 if __name__ == "__main__":
+    BLANK_MODE = "--blank" in sys.argv
+    for i, a in enumerate(sys.argv):
+        if a == "--out" and i + 1 < len(sys.argv):
+            OUT = sys.argv[i + 1]
     build()

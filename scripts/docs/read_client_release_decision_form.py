@@ -25,7 +25,9 @@ DEFAULT = os.path.join(REPO, "docs", "client-release-decision-form.docx")
 IDS = {"D1", "D2", "D3", "D4", "D5"}
 SEC_RE = re.compile(r"^(D[1-5])[\s　]")
 GLOBAL_HEADING = "3　总快速批注"
-END_HEADING = "4　填完之后"
+# 结尾标题有两种：空白待决表是「4　填完之后我会做什么」，
+# 2026-10-23 追认后重建的确认表是「4　确认落地清单」。两种都要能读。
+END_HEADINGS = ("4　填完之后", "4　确认落地清单")
 TABLE_ROWS = 6          # 表头 + 5 个待决项
 
 
@@ -42,7 +44,7 @@ def main():
     print()
     print("== 回读结果 ==")
     print(json.dumps(parse_sections(path, SEC_RE, IDS, GLOBAL_HEADING,
-                                    END_HEADING, TABLE_ROWS),
+                                    END_HEADINGS, TABLE_ROWS),
                      ensure_ascii=False, indent=1))
 
 

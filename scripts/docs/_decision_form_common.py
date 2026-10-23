@@ -255,8 +255,19 @@ def verify(path):
     out["tables"] = len(doc.tables)
     out["table_rows"] = [len(t.rows) for t in doc.tables]
     out["table_cells"] = [sum(len(r.cells) for r in t.rows) for t in doc.tables]
+    # 页脚 PAGE 域
+    #
+    # PAGE 域有两种等价形态，只认一种会误判：
+    #   ① 简单域 <w:fldSimple w:instr=" PAGE ">  —— python-docx 生成
+    #   ② 复杂域 fldChar begin / instrText " PAGE " / separate / end —— Word / WPS 重存后
+    # 马哥用 WPS 存过的表就是 ②，原判定会把好文档报成「结构验收有问题」。
+    # 实测页脚可见文本里页码占位仍在（…第 1 页），所以按「域在位 + 页脚含页码占位」判。
     xml = doc.sections[0].footer._element.xml
-    out["footer_page_field"] = 'w:instr=" PAGE "' in xml and "<w:t>1</w:t>" in xml
+    simple = bool(re.search(r'w:instr="\s*PAGE\s*"', xml))
+    complex_ = bool(re.search(r"<w:instrText[^>]*>\s*PAGE\s*</w:instrText>", xml))
+    footer_text = " ".join(p.text for p in doc.sections[0].footer.paragraphs)
+    out["footer_page_field"] = (simple or complex_) and "页" in footer_text
+    out["footer_page_field_form"] = "fldSimple" if simple else ("complex" if complex_ else "missing")
     return out
 
 
@@ -284,6 +295,16 @@ def parse_sections(path, sec_re, ids, global_heading, end_heading, table_rows=No
     in_global = False
     global_first = True
 
+    # end_heading 可以是单个标题，也可以是若干个标题（元组）。
+    # 为什么要兼容多个：待决表从「空白待决」转成「已确认记录」后，
+    # 结尾标题从「4　填完之后我会做什么」改成了「4　确认落地清单」，
+    # 而仓库里还留着当初的空白表 —— 两种表都要能读回，
+    # 只认一个标题会让另一种表的正文漏进总批注区。
+    if isinstance(end_heading, str):
+        end_headings = (end_heading,)
+    else:
+        end_headings = tuple(end_heading)
+
     for p in doc.paragraphs:
         text = p.text.strip()
         if not text:
@@ -301,7 +322,7 @@ def parse_sections(path, sec_re, ids, global_heading, end_heading, table_rows=No
             global_first = True
             cur = None
             continue
-        if text.startswith(end_heading):
+        if any(text.startswith(h) for h in end_headings):
             in_global = False
             continue
 

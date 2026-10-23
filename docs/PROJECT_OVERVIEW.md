@@ -179,8 +179,9 @@ GitHub 下载 → 3 账号试玩 → 想更多 → 注册 → 2000 免费积分
 | Community 打包（NSIS） | ⏸️ 未验证 | 551 MB 耗时过长，未跑端到端（脚本语法已通过，Inno 未编译） |
 | 前端 standalone | ✅ 45.49 MB | 29 routes 已 prerendered |
 | Pro 版打包 | ⏸️ 未受影响 | `package.json` / `installer.iss` 未改动 |
-| GitHub CI | ✅ 就绪 | 6 硬门 job 并行，预计 8-12 分钟 |
+| GitHub CI | ✅ 就绪 | 8 硬门 job 并行（ruff / 后端自测 / 依赖声明闸门 / 前端 tsc+vitest / ESLint / pytest×2 / py_compile+smoke） |
 | Open Core 前端 flags | ✅ 消费完成 | 12 flag + Badge（完整版/限制功能版）+ Agent 下拉 |
+| 对外发布（v1.1.5） | ✅ 已发布 | 公开仓 `maning636/laoma-ai-workbench` + GitHub Release；官网下载主按钮指 Release、自建镜像兜底。**对外口径以 [release-delivery-statement](./release-delivery-statement.md) 为准** |
 
 **关键路径产物（历史）**：`desktop-electron/package.community.json` · `desktop-electron/build-community.ps1` · `desktop-electron/installer-community.iss` —— 三者已于 2026-10-24「合并为单一客户端」时删除，历史细节见 [community-packaging](./dev-reports/2026-10-16-community-packaging.md)。
 
@@ -191,6 +192,16 @@ GitHub 下载 → 3 账号试玩 → 想更多 → 注册 → 2000 免费积分
 `docs/dev-reports/` 下共 **39 份 .md 报告**（另有 1 份 `nsis-build-raw.log` 原始日志）：`2026-10-16-*` 30 份、`2026-10-13-*` 7 份、`2026-10-14-*` 1 份、`2026-10-15-*` 1 份。
 
 > 2026-10-21 核实修正：本节原写"25 份"，是用 `glob docs/dev-reports/2026-10-16-*.md` 当时的快照统计的；该日期前缀下实际已有 **30 份**，且有 9 份其它日期的报告未列入索引。下表已补全。
+
+### 对外口径与决策（不在 dev-reports 下）
+
+| 文档 | 一句话说明 |
+|------|-----------|
+| [release-delivery-statement](./release-delivery-statement.md) | **对外交付口径的唯一权威出处**：下载地址 / 字节数 / SHA-512 / D1–D5 确认结果 / 商业与解锁口径 / 本版明确不做的事 |
+| [client-release-decision-form.docx](./client-release-decision-form.docx) | 客户端发布形态待决表（2026-10-23 追认为**已确认态**：D1=A　D2=A　D3=B　D4=A　D5=A） |
+| [release-finalize-decision-form.docx](./release-finalize-decision-form.docx) | 开源发布收尾待决表（P1–P7，2026-10-23 已填并执行） |
+| [feature-gate-matrix.md](./feature-gate-matrix.md) | flag 真源表：注册码 ∩ 云端订阅 的判定模型与每个 flag 的实际取值 |
+| [feature-inventory-and-oss-boundary.md](./feature-inventory-and-oss-boundary.md) | 功能盘点与开源边界（含 D1–D10 拍板记录与落地情况） |
 
 按主题聚类：
 

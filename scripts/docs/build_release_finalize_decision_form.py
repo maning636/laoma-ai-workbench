@@ -354,4 +354,11 @@ def build():
 
 
 if __name__ == "__main__":
+    # --out <路径>：把生成结果写到别处。
+    # 为什么需要：仓库里的 docs/release-finalize-decision-form.docx 已经被马哥填过
+    # （P1–P7 的答案就在里面），往返测试要的是一张**空白底表**来填 ——
+    # 直接重跑 builder 覆盖仓库那份会把他的填写结果冲掉。
+    for _i, _a in enumerate(sys.argv):
+        if _a == "--out" and _i + 1 < len(sys.argv):
+            OUT = sys.argv[_i + 1]
     build()
