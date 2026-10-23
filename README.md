@@ -7,6 +7,8 @@
 
 ## 快速开始
 
+**Windows 一键安装包** → [Releases 下载最新版 LaomaAI-1.1.5-setup.exe](https://github.com/maning636/laoma-ai-workbench/releases/latest)（国内直连 GitHub 可能很慢，备用通道：[官网下载](https://maning789link.top)）
+
 ```
 ① 下载 GitHub 仓库    →  ② 安装依赖     →  ③ start.bat 启动
 ④ 打开 http://localhost:3000  →  ⑤ 注册账号（免费额度）
