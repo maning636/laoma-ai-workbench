@@ -167,6 +167,13 @@ def git_meta(repo: str, commit: str) -> dict:
     }
 
 
+def repo_head(repo: str) -> str:
+    """仓库当前 HEAD（仅作对照，避免把「源码包对应提交」与「仓库最新提交」混为一谈）。"""
+    proc = subprocess.run(["git", "-C", repo, "rev-parse", "--short", "HEAD"],
+                          capture_output=True, text=True, encoding="utf-8", errors="replace")
+    return proc.stdout.strip() if proc.returncode == 0 else "(未知)"
+
+
 def render(backup_root: str, repo: str, commit: str, round_no: str) -> str:
     meta = git_meta(repo, commit)
     files = collect_deliverables(backup_root)
@@ -176,11 +183,12 @@ def render(backup_root: str, repo: str, commit: str, round_no: str) -> str:
     out.append("Prism-Fusion Backup MANIFEST")
     out.append(EQ)
     out.append("Generated        : %s" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-    out.append("Git commit       : %s" % meta["commit"])
-    out.append("Git short sha    : %s" % meta["short"])
+    out.append("Source commit    : %s" % meta["commit"])
+    out.append("Source short sha : %s" % meta["short"])
     out.append("Author           : %s" % meta["author"])
     out.append("Commit date      : %s" % meta["date"])
     out.append("Subject          : %s" % meta["subject"])
+    out.append("Repo HEAD now    : %s" % repo_head(repo))
     out.append("Backup root      : %s" % backup_root)
     out.append("Deliverable files: %d" % len(files))
     out.append("")
@@ -229,7 +237,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="生成/校验 Prism-Fusion 备份 MANIFEST")
     parser.add_argument("--backup-root", required=True, help="备份根目录")
     parser.add_argument("--repo", default=None, help="仓库根目录（默认取本脚本所在仓库）")
-    parser.add_argument("--commit", default="HEAD", help="清单头部记录的 git 提交")
+    parser.add_argument("--commit", default="HEAD", help="清单头部记录的源码包对应提交（见 Source commit）")
     parser.add_argument("--source-commit", default=None,
                         help="源码包对应的提交（默认与 --commit 相同）")
     parser.add_argument("--round", default="18", help="本轮轮次号（写进说明段）")
