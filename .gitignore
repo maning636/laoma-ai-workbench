@@ -121,6 +121,7 @@ syn_backend/config/hermes_agent.toml
 /.tmp-*
 /.tmp-channels-debug/
 /.tmp-hibbiki/
+/.tmp/
 tmp/
 browsers/.links/
 browsers/chromium/hibbiki-*/
