@@ -36,7 +36,7 @@
 | **前端** | Next.js 16（App Router）+ React 19 + TypeScript strict + Tailwind + shadcn/ui | 100+ 页面，282 vitest 用例 |
 | **后端 API** | FastAPI + SQLAlchemy async + Celery + patchright | 40+ 子路由 |
 | **云服务** | FastAPI + SQLAlchemy + Redis + Pydantic | 注册 / 登录 / 计费 / 支付 / LLM 代理 / feature gate |
-| **桌面** | Electron 28.0.0 + electron-builder 24.13.3 + Inno Setup | Supervisor 管理 4 个后端服务 + Redis |
+| **桌面** | Electron 39.2.7 + electron-builder 24.9.1 + Inno Setup | Supervisor 管理 4 个后端服务 + Redis |
 | **数据** | PostgreSQL 生产 / SQLite 本地 · Redis 用于限流与幂等 | 无 ORM 之外的复杂依赖 |
 | **AI** | LiteLLM + LangChain + OpenAI SDK + LangGraph | 云端代理，客户端只暴露 API |
 | **开源依赖** | ComfyUI（可选，独立进程）· fabric.js · react-image-crop · Unlayer | 客户端侧全部 MIT/Apache |
@@ -198,6 +198,7 @@ GitHub 下载 → 3 账号试玩 → 想更多 → 注册 → 2000 免费积分
 | 文档 | 一句话说明 |
 |------|-----------|
 | [release-delivery-statement](./release-delivery-statement.md) | **对外交付口径的唯一权威出处**：下载地址 / 字节数 / SHA-512 / D1–D5 确认结果 / 商业与解锁口径 / 本版明确不做的事 |
+| [handover/PROJECT-HANDOVER](./handover/PROJECT-HANDOVER.md) | **交棒入口（2026-10-24）**：项目全过程（10-13 → 10-24）/ 交付清单 / 未来计划 / 踩坑清单 / 可复跑命令 |
 | [client-release-decision-form.docx](./client-release-decision-form.docx) | 客户端发布形态待决表（2026-10-23 追认为**已确认态**：D1=A　D2=A　D3=B　D4=A　D5=A） |
 | [release-finalize-decision-form.docx](./release-finalize-decision-form.docx) | 开源发布收尾待决表（P1–P7，2026-10-23 已填并执行） |
 | [feature-gate-matrix.md](./feature-gate-matrix.md) | flag 真源表：注册码 ∩ 云端订阅 的判定模型与每个 flag 的实际取值 |

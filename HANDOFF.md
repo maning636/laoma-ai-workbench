@@ -3,6 +3,8 @@
 > 面向接手 agent 的一站式指南。读完本文应该可以在 30 分钟内理解项目定位、启动方式、代码结构和主要约定。
 >
 > **项目一句话**：AI 驱动的多平台内容矩阵发布与分发中台，覆盖"投-管-回"闭环。技术栈：FastAPI + Next.js + Celery/Redis + Playwright + Electron。
+>
+> 🆕 **首次接手请先读 [`docs/handover/PROJECT-HANDOVER.md`](docs/handover/PROJECT-HANDOVER.md)** —— 那是 2026-10-24 的交棒入口，补上了本文件与 dev-reports 都缺的「2026-10-17 ~ 10-24 收官段」：项目全过程、交付清单、未来计划、以及一份踩坑清单（§8）。本文继续作为**技术细节**参考（目录结构、API 路由、启动方式、风格约定）。
 
 ---
 
@@ -547,6 +549,8 @@ tools/hermes-home/auth.json / .env
 | 文件 | 用途 |
 |---|---|
 | `README.md` | 项目定位、SOP、API 示例 |
+| `docs/handover/PROJECT-HANDOVER.md` | **交棒入口（2026-10-24）**：项目全过程 + 交付清单 + 未来计划 + 踩坑清单 |
+| `docs/handover/DELIVERY-CHECKLIST.md` | 交付确认单：接手工作组逐项核对回执 |
 | `STARTUP.md` | 首次启动、常见坑 |
 | `AGENT.md` | AI agent 上下文、仓库卫生 |
 | `DEVELOPMENT-RECORD.md` | 近期开发记录 |
