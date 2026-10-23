@@ -59,6 +59,8 @@ def _parse_status(raw: str):
     if not m:
         raise ValueError("状态列无法解析: %r（合法：pending/partial/passed <date> by <owner>）" % raw)
     state, date, owner = m.group(1), m.group(2), m.group(3)
+    if state in ("pending", "partial") and date:
+        raise ValueError("%s 不允许附日期与执行人: %r" % (state, raw))
     if state == "passed" and not date:
         raise ValueError("passed 必须附日期与执行人: %r" % raw)
     return {"state": state, "date": date, "owner": owner, "raw": raw.strip()}

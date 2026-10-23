@@ -114,7 +114,9 @@ def main():
         builder.write_md(md_path, mutated3)
         r3 = reader.parse(md_path)
         b5 = next(i for i in r3["items"] if i["no"] == "B5")
-        assert b5["expect"] != builder.ITEMS[15][3], "篡改未被读出（假闸门）"
+        b5_baseline_expect = next(it[3] for it in builder.ITEMS if it[0] == "B5")
+        assert b5["expect"] != b5_baseline_expect, "篡改未被读出（假闸门）"
+        assert b5["expect"] == "ALL TESTS PASSED（被篡改）", b5["expect"]
         print("[3] PASS —— 篡改能被读出，读取器不是假闸门")
 
         # ── 4) 坏表拒识（宁可报错不能吞） ────────────────────
@@ -131,7 +133,9 @@ def main():
         # 4d 非法状态
         bad4 = good.replace("| auto | speculated | pending |", "| auto | speculated | done |", 1)
         _expect_parse_error(md_path, bad4, "状态列无法解析", "4d 非法状态")
-        print("[4] PASS —— 列数/枚举/重复编号/坏状态 全部拒识")
+        # 4e 带 BOM 的 md 必须被拒识（BOM 走独立于状态解析的编码纪律检查）
+        _expect_parse_error(md_path, "\ufeff" + good, "BOM", "4e BOM")
+        print("[4] PASS —— 列数/枚举/重复编号/坏状态/BOM 全部拒识")
 
         # ── 5) 转义压力样例全链路 ────────────────────────────
         # 替换 A1 整行为含管道/反斜杠的压力内容（编号保持 A1，组计数不受影响）
