@@ -44,8 +44,34 @@ env:
   LAOMA_VERSION: ${{ (github.ref_type == 'tag' && github.ref_name) || inputs.version }}
 
 jobs:
+  check:
+    name: 检查 Release 是否已存在
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      should_build: ${{ steps.decide.outputs.should_build }}
+    steps:
+      # tag 已被手工发布过（资产已验收）时不再重复打包，避免 CI 用未验收产物覆盖已发布资产
+      - id: decide
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: |
+          if [ -z "$TAG" ]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists - skip rebuild."
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          fi
+
   build-windows:
     name: Windows x64 (NSIS)
+    needs: check
+    if: needs.check.outputs.should_build == 'true'
     runs-on: windows-latest
     timeout-minutes: 150
     steps:
@@ -146,6 +172,8 @@ jobs:
 
   build-macos:
     name: macOS (dmg + zip)
+    needs: check
+    if: needs.check.outputs.should_build == 'true'
     runs-on: macos-latest
     timeout-minutes: 150
     steps:
