@@ -12,7 +12,8 @@
 #     - backend-selftest  : M1 / M2 / M3 自运行脚本测试（不启动服务）
 #     - cloud-service-tests: cloud_service/ 下 5 个自运行脚本的 pytest 包装
 #     - deps-gate         : 依赖声明闸门（模块级 import ⊆ requirements*.txt）+ 双向自测
-#     - test              : pytest fastapi_app/tests/（2026-10-23 测试隔离补齐后转硬门）
+#     - test              : pytest fastapi_app/tests/ + tests/test_license_*.py
+#                          （2026-10-23 测试隔离补齐后转硬门；同日补上 license 护栏覆盖）
 #   ⚠️  软门（continue-on-error，仅告警）：
 #     - e2e-packaged      : 需要 self-hosted Windows runner + 打包产物，仅 workflow_dispatch 触发
 #
@@ -412,12 +413,20 @@ jobs:
           python -m pip install --quiet -r requirements.txt
           python -m pip install --quiet -r requirements-dev.txt
 
-      - name: pytest（硬门:后端接口测试全量）
+      - name: pytest（硬门:后端接口测试全量 + license 护栏测试）
         shell: bash
         working-directory: prism_backend
         run: |
           set -euo pipefail
-          python -m pytest fastapi_app/tests/ --tb=short -q
+          # fastapi_app/tests/  : 后端接口测试
+          # tests/test_license_*.py : 注册码签发/验签/只读护栏 —— 商业护栏核心，
+          #   2026-10-23 之前**完全不在 CI 里**（零覆盖）。
+          #   这三个文件是 pytest 风格（不是自运行脚本），可直接被 pytest 收集。
+          python -m pytest fastapi_app/tests/ \
+            tests/test_license_module.py \
+            tests/test_license_plan_derive.py \
+            tests/test_license_readonly_guard.py \
+            --tb=short -q
 
   # ============================================================
   # cloud-service-tests: cloud_service/ 下 5 个自运行脚本的 pytest 包装(硬门)

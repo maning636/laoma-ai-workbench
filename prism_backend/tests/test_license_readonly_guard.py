@@ -277,10 +277,16 @@ def test_rules_match_real_routes():
     """拦截表不许腐烂:每条规则都要对得上真实路由。
 
     路由被改名/删除而规则没跟上 → 这条测试会红,提醒同步。
+
+    ⚠️ 真实路由必须从 `app.openapi()["paths"]` 取,**不能**用 `app.routes`:
+    新版 FastAPI 把 include_router 的子路由收进 `_IncludedRouter`,
+    `app.routes` 里只剩 app 级路由(实测 8 条 path:`/`、`/api/docs`、`/health`…),
+    子路由一条都看不到 —— 那样 73 条规则会被全部误判成"不存在"。
+    对照:app.openapi()["paths"] 有 490 条,用它比是零缺失(护栏没漂移)。
     """
     from fastapi_app.main import app
 
-    real = {getattr(r, "path", "") for r in app.routes}
+    real = set(app.openapi()["paths"])
     missing = [
         (m, t) for (m, t) in guard_mod.READ_ONLY_RULES if t not in real
     ]
