@@ -1,12 +1,32 @@
 """
 Test configuration and fixtures
 """
+import os
+
 import pytest
 import sqlite3
 import tempfile
 import time
 from pathlib import Path
 from fastapi.testclient import TestClient
+
+# -- 测试会话数据隔离（必须在 import fastapi_app 之前生效）--------------
+# Settings 的 DATABASE_PATH / COOKIE_DB_PATH / AI_LOGS_DB_PATH 等默认值
+# 在类定义（即 import fastapi_app.core.config 时）就被求值绑定，
+# 之后再改环境变量已经来不及 -> 这段必须放在 fastapi_app 的 import 之前。
+#
+# 为什么要隔离：
+#   1) 不污染开发机 / CI 检出目录里的真实数据目录（CI 会在 checkout 内落 data/）；
+#   2) 让测试真正复现「全新安装」场景：空的 SQLite 库，
+#      建表完全依赖应用启动时的 ensure_main_db_schema。
+#
+# 想指定落盘位置（别写 C 盘）就设 PRISM_TEST_DATA_DIR，例如：
+#   PRISM_TEST_DATA_DIR=D:\cache\tmp\pytest_data
+_TEST_DATA_DIR = (os.environ.get("PRISM_TEST_DATA_DIR") or "").strip()
+if not _TEST_DATA_DIR:
+    _TEST_DATA_DIR = tempfile.mkdtemp(prefix="prism-pytest-")
+os.environ["LAOMA_DATA_DIR"] = _TEST_DATA_DIR
+
 from fastapi_app.main import app
 from fastapi_app.db.session import ConnectionPool
 
@@ -85,9 +105,25 @@ def test_db():
             time.sleep(0.2)
 
 
+def _ensure_main_db_schema() -> None:
+    """建出应用启动时保证存在的主库表结构。
+
+    生产环境里这些表由 main.py 的 startup 事件调用 ensure_main_db_schema 建立。
+    测试用的 TestClient 没有走 lifespan（不 with 就不会触发 startup），
+    所以这里必须补上同样的前置条件 —— 否则空库下
+    /api/v1/publish/stats、/api/v1/ai/model-configs 会因 "no such table" 返回 500。
+    """
+    from fastapi_app.db.schema import ensure_main_db_schema
+    from fastapi_app.db.session import main_db_pool
+
+    with main_db_pool.get_connection() as conn:
+        ensure_main_db_schema(conn)
+
+
 @pytest.fixture
 def client():
     """Create test client"""
+    _ensure_main_db_schema()
     return TestClient(app)
 
 
