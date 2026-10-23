@@ -164,6 +164,13 @@ jobs:
         working-directory: desktop-electron
         run: npx electron-builder --win --x64 --publish never
 
+      - name: 生成 latest.yml (finalize)
+        working-directory: desktop-electron
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          node scripts/finalize-windows-release.mjs dist-build "${VERSION}"
+
       - name: 校验 Windows 产物
         working-directory: desktop-electron
         shell: bash
