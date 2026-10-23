@@ -402,12 +402,12 @@ TikHub key 是**用户自己在设置页填**的（存 `ai_model_configs`），�
 
 | # | 问题 | 位置 | 影响 |
 |---|---|---|---|
-| 1 | 前端向导多列 3 个后端无发布通道的平台 | `prism_frontend/src/components/wizard/scenarios.tsx:231-240` | 用户选了知乎/头条/西瓜，走到发布会失败 |
+| 1 | 前端向导多列 3 个后端无发布通道的平台 | `prism_frontend/src/components/wizard/scenarios.tsx:231-240` | 用户选了知乎/头条/西瓜，走到发布会失败。 **已于 2026-10-24 修复**（`f8f54d1`，无通道平台禁用+标注；baijiahao/tiktok/youtube 有工具无登录适配器仍不入向导） |
 | 2 | 1.1.5 安装器发布者仍是旧署名 | `desktop-electron/package.json`（`adec916` 之后才改） | 包内元数据与仓库 NOTICE 不一致，1.1.6 才解决 |
 | 3 | P7 中文「未配置」提示不在已发布包内 | 已发布前端产物 P7 标记命中 0 次 | 1.1.6 才解决 |
 | 4 | `release.yml` tag 触发分支从未实跑 | `.github/workflows/release.yml` | 下次发版是「盲发」 |
 | 5 | ~~仓库缺 `CODE_OF_CONDUCT` / `SECURITY` / `CHANGELOG`~~ **已于 2026-10-24 补齐**（本次收尾批），ISSUE_TEMPLATE 三件套经核实早已存在（commit `2328999` 引入），本行原口径过时 | 仓库根 / `.github/` | 开源社区合规缺件 |
-| 6 | `prism-cloud.service` 的 `Documentation=` 指向 `docs/deploy-README.md`，但该文件**仓库与服务器都不存在** | `/etc/systemd/system/prism-cloud.service` | 悬空指针，服务运维人员点不到手册。修法：补该文件，或把 `Documentation=` 指向 `docs/dev-reports/2026-10-13-deployment-guide.md` |
+| 6 | `prism-cloud.service` 的 `Documentation=` 指向 `docs/deploy-README.md`，但该文件**仓库与服务器都不存在** | `/etc/systemd/system/prism-cloud.service` | 悬空指针，服务运维人员点不到手册。修法：补该文件，或把 `Documentation=` 指向 `docs/dev-reports/2026-10-13-deployment-guide.md`。**仓库文件已于 2026-10-24 修复**（`5bc03d5` + `f0fd95d`，Documentation= 已改指 `docs/dev-reports/2026-10-13-deployment-guide.md`；服务器 unit 同步在收尾批） |
 
 ### 7.2 决策「不做」（不是缺陷，别去"修"）
 
@@ -431,7 +431,7 @@ TikHub key 是**用户自己在设置页填**的（存 `ai_model_configs`），�
 
 | # | 缺口 | 说明 |
 |---|---|---|
-| 1 | `docs/dev-reports/` 缺 10-17~10-24 收官报告 | 本文档 §3 可作初稿 |
+| 1 | `docs/dev-reports/` 缺 10-17~10-24 收官报告 | 本文档 §3 可作初稿。**已于 2026-10-24 补齐**（`docs/dev-reports/2026-10-24-final-sprint-handover.md`，本文档 §3 压缩改写进 dev-report 体例） |
 | 2 | `PROJECT_DEVELOPMENT_HISTORY.md` 缺 round18 章节 | 备份目录内 |
 | 3 | 备份 `_verify/` 缺 round18 最终核实脚本 | round17 有 `final_verify_round17.py` 可参照 |
 
