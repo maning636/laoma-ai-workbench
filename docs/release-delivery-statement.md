@@ -1,6 +1,6 @@
 # 老马AI工作台 · 开源发布交付口径
 
-> **版本** v1.1　|　**日期** 2026-10-24　|　**对应交付** v1.1.5（Release tag `v1.1.5`）
+> **版本** v1.1.6　|　**日期** 2026-10-24　|　**对应交付** v1.1.6（Release tag `v1.1.6`）
 > **依据** 马哥 2026-10-23 在《开源发布收尾 · 待决表》P1–P7 的 7 项决策；
 > 以及客户端发布形态表 D1–D5 的追认（该表 P4=A：「全部按实际落地确认」）。
 > **性质** 这是**对外口径**的唯一权威出处 —— 官网文案、README 首屏、客服话术、
@@ -11,7 +11,7 @@
 ## 1 一句话
 
 老马AI工作台（Prism-Fusion）以 **AGPL-3.0** 开源，Windows 端交付**单一安装包**
-`LaomaAI-1.1.5-setup.exe`（639,437,816 B），**源码走公开 GitHub 仓库**，
+`LaomaAI-1.1.6-setup.exe`（424,671,438 B），**源码走公开 GitHub 仓库**，
 **完整版由本地注册码解锁**。
 
 ---
@@ -21,38 +21,69 @@
 | 项 | 值 |
 |---|---|
 | 公开仓库 | https://github.com/maning636/laoma-ai-workbench |
-| Release（v1.1.5） | https://github.com/maning636/laoma-ai-workbench/releases/tag/v1.1.5 |
-| 安装包 · GitHub 主通道 | https://github.com/maning636/laoma-ai-workbench/releases/download/v1.1.5/LaomaAI-1.1.5-setup.exe |
-| 安装包 · 国内镜像兜底 | https://maning789link.top/downloads/LaomaAI-1.1.5-setup.exe |
+| Release（v1.1.6） | https://github.com/maning636/laoma-ai-workbench/releases/tag/v1.1.6 |
+| 安装包 · GitHub 主通道 | https://github.com/maning636/laoma-ai-workbench/releases/download/v1.1.6/LaomaAI-1.1.6-setup.exe |
+| 安装包 · 国内镜像兜底 | https://maning789link.top/downloads/LaomaAI-1.1.6-setup.exe |
 | 官网 | https://maning789link.top |
-| 安装包字节数 | 639,437,816 B（约 610 MiB；官网文案写「约 610 MB」） |
-| SHA-512（base64） | `5SE3g3MLWgym+OcYomVkU3BM8U9pIY/a7u++KS1yTpFKS3gzSwWelAAQg6Q/y+LeuAAn6XDxI9bytAPs0vL0FA==` |
-| 校验命令 | `Get-FileHash .\LaomaAI-1.1.5-setup.exe -Algorithm SHA512` |
+| 安装包字节数 | 424,671,438 B（约 405 MiB；官网文案写「约 405 MB」） |
+| SHA-512（base64） | `QMtUXm5wYieYoO1TGruttifTZLQ2F2qwz5o4ZkpsNaxwl9Mw8gD6IFdN9e534i3WnxMVfizGXIIyfKbKiNWvYg==` |
+| 校验命令 | `Get-FileHash .\LaomaAI-1.1.6-setup.exe -Algorithm SHA512` |
 
-Release 三件套（GitHub 资产、官网链接、磁盘文件同名同大小）：
+Release 三件套（Windows 资产，GitHub 主通道 / 官网链接 / 磁盘文件同名同大小）：
 
 | 文件 | 字节数 | SHA-256 |
 |---|---|---|
-| `LaomaAI-1.1.5-setup.exe` | 639,437,816 | `e99fb5bff4ba3b5ea7690b6f7e7e2a5840a14980cf2829c1f7abcfa9b4baad19` |
-| `LaomaAI-1.1.5-setup.exe.blockmap` | 650,420 | `3c80f99de6609e69a94e728f0f67e3eb140b7bf534fdbd0fc8b2e60c681a6182` |
-| `latest.yml` | 347 | `333c773104dfdcba83ac1ee70e5e75c21a66d8860a22c6f94e2f60df0cbfa987` |
+| `LaomaAI-1.1.6-setup.exe` | 424,671,438 | `798c468d908eda2020a39a68598fcdc42a83fc6a5c981ce2edfbf88538cae68d` |
+| `LaomaAI-1.1.6-setup.exe.blockmap` | 420,890 | `bc6a0df4234bb762b2ca217c57df2a6f6990417e3e6afbae94418b115145d8a1` |
+| `latest.yml` | 347 | `9dc32e3259b00de952f018682ec1eb1fd79d7045fb0224934a9b57f9f693224e` |
 
-`latest.yml` 内记录的 `size: 639437816` 与 `sha512` 与磁盘、官网展示值三方一致。
+Release 另含 macOS x64 / arm64 的 `.dmg`、`.zip` 与两个 `.blockmap`、以及 `latest-mac.yml`，共 12 项资产；本口径只覆盖 Windows 主通道，macOS 资产的校验以 Release 页为准。
+
+`latest.yml` 内记录的 `size: 424671438` 与 `sha512` 与磁盘、官网展示值三方一致。
 
 **下载速度实测**（2026-10-23 实测，非估算）：
 
-| 通道 | 实测速率 | 639 MB 理论耗时 |
+| 通道 | 实测速率 | 425 MB 理论耗时 |
 |---|---|---|
-| GitHub 直连 | 0.12 MB/s | ≈ 89 分钟 |
-| GitHub 走代理 | 2.25 MB/s | ≈ 4.7 分钟 |
-| 自建镜像直连 | 0.36 MB/s | ≈ 29 分钟 |
+| GitHub 直连 | 0.12 MB/s | ≈ 59 分钟 |
+| GitHub 走代理 | 2.25 MB/s | ≈ 3.1 分钟 |
+| 自建镜像直连 | 0.36 MB/s | ≈ 20 分钟 |
 
 > 官网主按钮指 GitHub Release，旁边挂自建镜像兜底（P1=A 保留现状双通道）。
 > **不要在没实测的情况下承诺任何速度数字。**
 
 ---
 
-## 3 客户端发布形态 D1–D5（2026-10-23 追认确认）
+## 3 本版说明（v1.1.6）
+
+**产出方式**：本版由 CI 全链路产出（`release.yml`：三服务 PyInstaller 构建 + 400 MiB 体积守卫），不再走本地手动构建。
+
+**体积变化**：单包 610 → **405 MiB**（-34%）；官网文案同步为「约 405 MB」。
+
+**与 1.1.5 的差异**：
+
+- **未含 pyarmor 混淆** —— CI 无授权（`SKIP_OBFUSCATE=1`），功能无差；混淆本就形同虚设（源码走公开仓），保留混淆只增加包体与运行开销。
+- **体积 -34%**（610 → 405 MiB）。
+- **未删 1.1.5**：镜像 `maning789link.top/downloads/` 内 1.1.5 三件套仍在（历史下载不断链），`latest.yml` 已换版指 1.1.6。
+- **元数据修正**：先前 1.1.5 安装包内嵌 `package.json` 仍为旧署名 `Laihiujin`（见 §4 说明）；本版重打包后安装包内元数据与仓库一致（`author` / `publisherName` / `repository` 均为 `maning636`）。
+
+**对应源码提交**：`b98c95d`（Release tag `v1.1.6` 指向）；源码包 `D:\Prism-Fusion-Backup\Prism-Fusion-source.zip` 已按该提交重出。
+
+**备份**：round19 已完成（MANIFEST 14/14 verify 通过）。
+
+**本版主要内容**：
+
+- 向导平台对齐（知乎 / 头条 / 西瓜禁用标注）；
+- 模型供应商注册表与 OpenRouter 风格管理页；
+- toast 去重限流；
+- 请求 30s 超时 + 骨架屏 + 懒加载（应用感批）；
+- 模块联通 L1–L3（37 表 bootstrap / 归因列 / 审核回写 / 数据归因 / 选题建议 / campaigns 接向导 / 供应商导入通道）；
+- 包体瘦身 610 → 405 MiB；
+- CI 发版链补全。
+
+---
+
+## 4 客户端发布形态 D1–D5（2026-10-23 追认确认）
 
 追认表：`docs/client-release-decision-form.docx`（v1.1 已确认态）。
 
@@ -93,7 +124,7 @@ AGPL 的义务是提供**所分发二进制对应的源码**，不是「仓库�
 
 ---
 
-## 4 商业与解锁口径
+## 5 商业与解锁口径
 
 | 项 | 口径 |
 |---|---|
@@ -119,7 +150,7 @@ AGPL 的义务是提供**所分发二进制对应的源码**，不是「仓库�
 
 ---
 
-## 5 本版明确不做的事
+## 6 本版明确不做的事
 
 | 不做 | 决策 | 原因 |
 |---|---|---|
@@ -131,7 +162,7 @@ AGPL 的义务是提供**所分发二进制对应的源码**，不是「仓库�
 
 ---
 
-## 6 事实来源与复核方式
+## 7 事实来源与复核方式
 
 本文件里的每个数字都有出处，改动前请现查现验：
 
