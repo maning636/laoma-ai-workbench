@@ -19,7 +19,7 @@
 | A2 | 社区文件三件存在 | git ls-files CODE_OF_CONDUCT.md SECURITY.md CHANGELOG.md | 恰三行输出（三个文件均被 git 跟踪） | auto | verified | passed 2026-10-24 by controller |
 | A3 | SECURITY 渠道口径 | 人工通读 SECURITY.md 全文 | 全文无微信号文字、无邮箱，仅官网二维码渠道 | manual | confirmed | passed 2026-10-24 by controller |
 | A4 | CHANGELOG 事实核对 | head -60 CHANGELOG.md && git log --date=short --format="%h %ad %s" -20 | 1.1.1→1.1.5 各版本日期与 commit 归属和 git log 一致 | auto | verified | passed 2026-10-24 by controller |
-| A5 | systemd Documentation 修复 | grep -n "Documentation=" deploy/prism-cloud.service | Documentation=file:///opt/prism-fusion/app/docs/dev-reports/2026-10-13-deployment-guide.md（服务器侧同步由收尾批验证，本项只验仓库文件） | auto | verified | passed 2026-10-24 by controller |
+| A5 | systemd Documentation 修复 | grep -n "Documentation=" deploy/prism-cloud.service | Documentation=file:///opt/prism-fusion/app/docs/dev-reports/2026-10-13-deployment-guide.md（仓库与服务器 unit 均已验证，2026-10-24） | auto | verified | passed 2026-10-24 by controller |
 | A6 | 收官 dev-report 存在 | ls docs/dev-reports/ \| grep 2026-10-24 | 恰 1 份，内容覆盖 2026-10-17～10-24 | auto | verified | passed 2026-10-24 by controller |
 | A7 | 备份 HISTORY round18 章节 | grep round18 D:/Prism-Fusion-Backup/PROJECT_DEVELOPMENT_HISTORY.md | 命中（round18 章节已写入备份侧开发史） | auto | verified | passed 2026-10-24 by controller |
 | A8 | 备份 verify | python scripts/backup/build_backup_manifest.py --backup-root D:/Prism-Fusion-Backup --verify | 校验完成：通过 14 个，不符/缺失 0 个 | auto | verified | passed 2026-10-24 by controller |

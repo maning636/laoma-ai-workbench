@@ -51,7 +51,7 @@ ITEMS = [
      "auto", "speculated", "pending"),
     ("A5", "systemd Documentation 修复",
      'grep -n "Documentation=" deploy/prism-cloud.service',
-     "Documentation=file:///opt/prism-fusion/app/docs/dev-reports/2026-10-13-deployment-guide.md（服务器侧同步由收尾批验证，本项只验仓库文件）",
+     "Documentation=file:///opt/prism-fusion/app/docs/dev-reports/2026-10-13-deployment-guide.md（仓库与服务器 unit 均已验证，2026-10-24）",
      "auto", "speculated", "pending"),
     ("A6", "收官 dev-report 存在",
      "ls docs/dev-reports/ | grep 2026-10-24",
