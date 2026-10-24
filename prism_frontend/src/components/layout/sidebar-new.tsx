@@ -101,6 +101,9 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string; suppressHydrationWarning?: boolean }>
   disabled?: boolean
   external?: boolean
+  // 仅从侧边栏折叠入口，不删路由。demo / guide 类辅助页可设为 false
+  // 隐藏入口但仍可从直达 URL 访问。
+  visible?: boolean
   children?: NavItem[]
 }
 
@@ -123,7 +126,8 @@ const navSections: NavSection[] = [
     label: "概览",
     items: [
       { label: "仪表盘", href: "/", icon: LayoutDashboard },
-      { label: "快速开始", href: "/guide", icon: Sparkles },
+      // L3-2：guide 页折叠入口，代码与路由保留（/guide 直达可用）
+      { label: "快速开始", href: "/guide", icon: Sparkles, visible: false },
     ],
   },
   {
@@ -232,7 +236,8 @@ const navSections: NavSection[] = [
     label: "开发者工具",
     items: [
       { label: "工具中心", href: "/tools", icon: Boxes },
-      { label: "演示控制台", href: "/dashboard-demo", icon: LayoutGrid },
+      // L3-2：dashboard-demo 折叠入口，代码与路由保留（/dashboard-demo 直达可用）
+      { label: "演示控制台", href: "/dashboard-demo", icon: LayoutGrid, visible: false },
     ],
   },
   {
@@ -245,9 +250,11 @@ const navSections: NavSection[] = [
 
 // 外置模块（external-modules.ts）里已经被上面的原生分组覆盖的条目不再重复展示，
 // 避免同一个页面在侧边栏出现两次。
+// visible: false 的原生项不算「已覆盖」——它们不占入口，允许外部模块补位。
 const nativeHrefs = new Set<string>()
 for (const section of navSections) {
   for (const item of section.items) {
+    if (item.visible === false) continue
     if (item.href) nativeHrefs.add(item.href)
     for (const child of item.children ?? []) {
       if (child.href) nativeHrefs.add(child.href)
@@ -346,7 +353,7 @@ export function SidebarNew({
                 </AnimatePresence>
 
                 <div className="space-y-1">
-                  {section.items.map((item) => {
+                  {section.items.filter((item) => item.visible !== false).map((item) => {
                     const Icon = item.icon
                     const isActive = item.href ? pathname === item.href : false
                     const hasChildren = (item.children?.length ?? 0) > 0

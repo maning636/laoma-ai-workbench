@@ -4,12 +4,14 @@ import { useCallback, useEffect, useState } from "react"
 import {
   CheckCircle2,
   Clock,
+  Flame,
   Loader2,
   NotebookPen,
   Pencil,
   Plus,
   RefreshCw,
   Send,
+  Sparkles,
   TriangleAlert,
   Trash2,
 } from "lucide-react"
@@ -29,6 +31,23 @@ interface Idea {
   source?: string
   status?: string
   created?: number
+}
+
+interface PerfSuggestion {
+  id?: string
+  title: string
+  note?: string
+  heat: number
+  platform?: string
+}
+
+type PerfState =
+  | { kind: "hint"; hint: string }
+  | { kind: "suggestions"; suggestions: PerfSuggestion[] }
+
+function clampHeat(h: number | undefined | null): number {
+  if (typeof h !== "number" || Number.isNaN(h)) return 0
+  return Math.max(0, Math.min(1, h))
 }
 
 const STATUSES = [
@@ -82,6 +101,37 @@ export default function IdeasPage() {
   const [title, setTitle] = useState("")
   const [note, setNote] = useState("")
   const [source, setSource] = useState("")
+
+  const [perfLoading, setPerfLoading] = useState(false)
+  const [perf, setPerf] = useState<PerfState | null>(null)
+
+  const loadPerformance = useCallback(async () => {
+    setPerfLoading(true)
+    setPerf(null)
+    try {
+      const res = await fetch("/api/v1/content-library/ideas/from-performance", { cache: "no-store" })
+      if (!res.ok) throw new Error(`接口返回 ${res.status}`)
+      const data = await res.json()
+      const result = data?.result ?? {}
+      const raw = Array.isArray(result?.suggestions) ? (result.suggestions as PerfSuggestion[]) : []
+      const hint = typeof result?.hint === "string" ? result.hint : ""
+      if (result?.data_ready === false || raw.length === 0) {
+        setPerf({ kind: "hint", hint: hint || "暂无视频回收数据。请先在发布中心完成一次发布并触发数据回收，再回来生成选题建议。" })
+      } else {
+        setPerf({ kind: "suggestions", suggestions: raw })
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      toast({
+        variant: "destructive",
+        title: "表现数据读取失败",
+        description: msg,
+        dedupeKey: "ideas-performance-failed",
+      })
+    } finally {
+      setPerfLoading(false)
+    }
+  }, [toast])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -188,6 +238,71 @@ export default function IdeasPage() {
       />
 
       <div className="mx-auto max-w-5xl space-y-5 px-6 py-6">
+        <Card className="p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Flame className="h-4 w-4 text-primary" /> 从我的表现生成选题
+              </div>
+              <p className="text-xs text-muted-foreground">
+                基于已发布视频的互动数据（播放 / 点赞 / 评论 / 收藏）反推选题方向。
+              </p>
+            </div>
+            <Button onClick={() => void loadPerformance()} disabled={perfLoading}>
+              {perfLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+              从我的表现生成
+            </Button>
+          </div>
+
+          {perfLoading && (
+            <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground" aria-live="polite">
+              <Loader2 className="h-4 w-4 animate-spin" /> 正在读取你的视频表现…
+            </div>
+          )}
+
+          {!perfLoading && perf?.kind === "hint" && (
+            <div className="mt-3 flex items-start gap-2 rounded-md border border-border bg-accent/40 p-3 text-sm text-muted-foreground">
+              <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+              <p>{perf.hint}</p>
+            </div>
+          )}
+
+          {!perfLoading && perf?.kind === "suggestions" && perf.suggestions.length > 0 && (
+            <div className="mt-3 space-y-2">
+              {perf.suggestions.map((s, idx) => {
+                const heat = clampHeat(s.heat)
+                const pct = Math.round(heat * 100)
+                return (
+                  <div key={s.id ?? `${s.title}-${idx}`} className="rounded-md border border-border p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <p className="text-sm font-medium">{s.title}</p>
+                        {s.note && <p className="text-xs text-muted-foreground">{s.note}</p>}
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <span className="font-mono text-xs text-muted-foreground">{pct}%</span>
+                        <div
+                          className="h-1.5 w-24 overflow-hidden rounded-full bg-muted"
+                          role="progressbar"
+                          aria-valuenow={pct}
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-label={`热度 ${pct}%`}
+                        >
+                          <div
+                            className="h-full rounded-full bg-primary"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </Card>
+
         {showForm && (
           <Card className="p-4">
             <div className="space-y-3">
