@@ -270,7 +270,13 @@ export function HermesProviderCard() {
     try {
       const resp = await fetch(
         `${API_ENDPOINTS.base}/api/v1/ai/providers/${selectedProviderId}/apply-to/chat`,
-        { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          // 评审 C1：后端 ApplyToRequest.model_name 必填（providers_router.py:477），
+          // 传空 body 会 400；携带 selectedModel 才能通过契约。
+          body: JSON.stringify({ model_name: selectedModel }),
+        }
       )
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}))

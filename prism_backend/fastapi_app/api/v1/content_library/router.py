@@ -113,14 +113,11 @@ async def get_ideas_from_performance(
         conn = sqlite3.connect(settings.DATABASE_PATH)
         conn.row_factory = sqlite3.Row
     except sqlite3.Error as e:
-        return {
-            "status": "error",
-            "result": {
-                "suggestions": [],
-                "data_ready": False,
-                "hint": f"视频回收数据表不可用：{e}",
-            },
-        }
+        # 评审 I1：DB 不可用属服务故障，不能用 200+status:error 掩盖——
+        # 前端 ideas 区块只在 res.ok 判定后解析，非 2xx 会走 toast 分支，
+        # 这里返回 HTTP 503 让语义清晰、告警链路可观测。
+        logger.error(f"from-performance: 数据库连接失败 {e}")
+        raise HTTPException(status_code=503, detail="选题数据暂不可用")
 
     try:
         # 构造平台过滤（NULL 安全的 IN 子句）

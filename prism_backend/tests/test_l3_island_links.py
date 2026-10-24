@@ -225,6 +225,35 @@ def test_ideas_from_performance_platform_filter(tmp_db):
         assert s["platform"] == "douyin", f"platforms='douyin' 应只返回 douyin，实际: {s['platform']}"
 
 
+def test_ideas_from_performance_db_unavailable_raises_503(tmp_db, monkeypatch):
+    """评审 I1：DB 不可用（sqlite3.connect 抛错）→ HTTPException 503。
+
+    旧实现返回 HTTP 200 + status:error，前端 ideas 区块按 res.ok 判定不会走
+    错误分支，会把真实的后端故障当「无数据」展示，掩盖故障。修法后应返回
+    HTTPException(status_code=503)，让前端 res.ok=False 走 toast 分支。
+    """
+    import sqlite3 as sqlite3_mod
+    from fastapi import HTTPException
+    import fastapi_app.core.config as cfg_mod
+    from fastapi_app.api.v1.content_library.router import get_ideas_from_performance
+    import asyncio
+
+    cfg_mod.settings.DATABASE_PATH = str(tmp_db)
+
+    def boom(*_args, **_kwargs):
+        raise sqlite3_mod.OperationalError("unable to open database file")
+
+    monkeypatch.setattr(sqlite3_mod, "connect", boom)
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(get_ideas_from_performance(limit=10))
+    assert exc_info.value.status_code == 503
+    detail = exc_info.value.detail or ""
+    assert "选题数据" in detail or "暂不可用" in detail, (
+        f"503 detail 应含中文「选题数据暂不可用」，实际: {detail!r}"
+    )
+
+
 # ===========================================================================
 # ② campaigns 接向导产物 —— campaign_id 列迁移
 # ===========================================================================
