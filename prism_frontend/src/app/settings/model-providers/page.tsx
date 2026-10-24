@@ -48,10 +48,12 @@ export type ProviderRow = {
   id: number
   name: string
   base_url?: string | null
-  api_key_masked: string
+  // 后端 _row_to_provider 输出字段名 api_key（值已被 _mask_key 打码）
+  api_key?: string | null
   enabled: boolean
   remark?: string | null
-  available_models: string[]
+  // 后端未缓存模型时为 null；仅"拉取模型"成功后才是 string[]
+  available_models: string[] | null
   created_at?: string
   updated_at?: string
 }
@@ -201,13 +203,13 @@ export default function ModelProvidersPage() {
         name: formDraft.name.trim(),
         base_url: formDraft.base_url.trim(),
         remark: formDraft.remark.trim(),
-        enabled: true,
       }
-      // 编辑时只有用户填了新 key 才覆盖；否则不提交 api_key
+      // 创建时默认启用；编辑时不送 enabled，让后端保留原值（避免"停用→编辑"被静默重新启用）
       if (isEdit) {
         if (formDraft.api_key.trim()) body.api_key = formDraft.api_key.trim()
       } else {
         body.api_key = formDraft.api_key.trim()
+        body.enabled = true
       }
       const res = await fetch(url, {
         method: isEdit ? "PUT" : "POST",
@@ -325,7 +327,7 @@ export default function ModelProvidersPage() {
   const openApply = (row: ProviderRow) => {
     setApplyTarget(row)
     setApplyService("chat")
-    setApplyModel(row.available_models[0] || "")
+    setApplyModel(row.available_models?.[0] || "")
     setApplyOpen(true)
   }
 
@@ -514,7 +516,9 @@ export default function ModelProvidersPage() {
                           {row.enabled ? "已启用" : "已停用"}
                         </Badge>
                         <Badge variant="outline" className="border-border/70 bg-card text-muted-foreground">
-                          {row.available_models.length} 个模型
+                          {row.available_models
+                            ? `${row.available_models.length} 个模型`
+                            : "—"}
                         </Badge>
                       </div>
                       <div className="text-xs text-muted-foreground">
@@ -525,7 +529,7 @@ export default function ModelProvidersPage() {
                       </div>
                       <div className="text-xs text-muted-foreground">
                         API Key：
-                        <span className="font-mono text-foreground/80">{row.api_key_masked || "（未填写）"}</span>
+                        <span className="font-mono text-foreground/80">{row.api_key || "（未填写）"}</span>
                         {row.remark ? <span className="ml-3 text-muted-foreground">备注：{row.remark}</span> : null}
                       </div>
                     </div>
@@ -752,13 +756,17 @@ export default function ModelProvidersPage() {
                 value={applyModel}
                 onChange={(e) => setApplyModel(e.target.value)}
                 placeholder={
-                  applyTarget?.available_models.length
+                  applyTarget?.available_models && applyTarget.available_models.length > 0
                     ? "从下拉选择或手输"
                     : "先点「拉取模型」自动填充；也可手输模型名"
                 }
-                list={applyTarget?.available_models.length ? `models-${applyTarget.id}` : undefined}
+                list={
+                  applyTarget?.available_models && applyTarget.available_models.length > 0
+                    ? `models-${applyTarget.id}`
+                    : undefined
+                }
               />
-              {applyTarget?.available_models.length ? (
+              {applyTarget?.available_models && applyTarget.available_models.length > 0 ? (
                 <datalist id={`models-${applyTarget.id}`}>
                   {applyTarget.available_models.map((m) => (
                     <option key={m} value={m} />

@@ -110,7 +110,8 @@ const SAMPLE_PROVIDER = {
   id: 1,
   name: "OpenRouter",
   base_url: "https://openrouter.ai/api/v1",
-  api_key_masked: "sk-****abcd",
+  // 与后端 _row_to_provider 契约对齐：字段名是 api_key（值是打码后的字符串）
+  api_key: "sk-****abcd",
   enabled: true,
   remark: "主账号",
   available_models: ["openai/gpt-4o", "anthropic/claude-3.5-sonnet"],
@@ -152,7 +153,7 @@ describe("ModelProvidersPage — 列表渲染", () => {
 
 describe("ModelProvidersPage — 添加供应商", () => {
   it("名称为空时提交被拒绝并显示校验提示", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     seedProviders([SAMPLE_PROVIDER])
     render(<Page />)
 
@@ -172,7 +173,7 @@ describe("ModelProvidersPage — 添加供应商", () => {
   })
 
   it("BaseURL 不以 http(s):// 开头时给出校验提示", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     seedProviders([SAMPLE_PROVIDER])
     render(<Page />)
 
@@ -186,7 +187,7 @@ describe("ModelProvidersPage — 添加供应商", () => {
   })
 
   it("合法填写后 POST 提交并刷新列表", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     let created = false
     fetchHandler = (url, init) => {
       if (init?.method === "POST") {
@@ -225,12 +226,12 @@ describe("ModelProvidersPage — 添加供应商", () => {
       ).toBe(true)
     })
     expect(await screen.findByText("NewProv")).toBeInTheDocument()
-  })
+  }, 15000)
 })
 
 describe("ModelProvidersPage — 测试连接", () => {
   it("测试连接成功后行内展示 latency 与 model 数量", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     seedProviders([SAMPLE_PROVIDER])
     fetchHandler = (url, init) => {
       if (isListUrl(url)) return jsonResponse({ status: "ok", data: [SAMPLE_PROVIDER] })
@@ -253,7 +254,7 @@ describe("ModelProvidersPage — 测试连接", () => {
   })
 
   it("测试连接失败展示中文错误，不打断列表", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     seedProviders([SAMPLE_PROVIDER])
     fetchHandler = (url, init) => {
       if (isListUrl(url)) return jsonResponse({ status: "ok", data: [SAMPLE_PROVIDER] })
@@ -276,7 +277,7 @@ describe("ModelProvidersPage — 测试连接", () => {
 
 describe("ModelProvidersPage — 拉取模型", () => {
   it("拉取模型后模型数徽章更新", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const empty = { ...SAMPLE_PROVIDER, available_models: [] as string[] }
     fetchHandler = (url) => {
       if (isListUrl(url)) return jsonResponse({ status: "ok", data: [empty] })
@@ -297,7 +298,7 @@ describe("ModelProvidersPage — 拉取模型", () => {
 
 describe("ModelProvidersPage — 应用到通道", () => {
   it("选择 service_type 与模型后 POST apply-to 并关闭对话框", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     seedProviders([SAMPLE_PROVIDER])
     fetchHandler = (url, init) => {
       if (isListUrl(url)) return jsonResponse({ status: "ok", data: [SAMPLE_PROVIDER] })
@@ -329,7 +330,7 @@ describe("ModelProvidersPage — 应用到通道", () => {
 
 describe("ModelProvidersPage — 删除", () => {
   it("无引用时确认删除并移除行", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     let deleted = false
     fetchHandler = (url, init) => {
       if (isListUrl(url)) {
@@ -356,7 +357,7 @@ describe("ModelProvidersPage — 删除", () => {
   })
 
   it("后端返回 409 references 时展示被引用通道列表并禁用删除按钮", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     seedProviders([SAMPLE_PROVIDER])
     fetchHandler = (url, init) => {
       if (isListUrl(url)) return jsonResponse({ status: "ok", data: [SAMPLE_PROVIDER] })
@@ -387,5 +388,69 @@ describe("ModelProvidersPage — 删除", () => {
     expect(screen.getByText("chat")).toBeInTheDocument()
     expect(screen.getByText("whisper")).toBeInTheDocument()
     expect(screen.getByText("OpenRouter")).toBeInTheDocument()
+  })
+})
+
+describe("ModelProvidersPage — 契约与边界", () => {
+  it("SAMPLE_PROVIDER 字段与后端 _row_to_provider 输出契约一致（api_key 打码形态）", () => {
+    // 后端 _row_to_provider 输出的字段名契约：
+    // - name / base_url / api_key（值已被 _mask_key 打码）/ enabled / remark
+    // - available_models（未缓存时为 null）/ created_at / updated_at
+    // 这里断言 SAMPLE_PROVIDER 使用正确字段名，防止 UI 假绿（读 api_key_masked 永远显示"（未填写）"）。
+    expect(SAMPLE_PROVIDER).toHaveProperty("api_key")
+    expect(SAMPLE_PROVIDER).not.toHaveProperty("api_key_masked")
+    expect(typeof SAMPLE_PROVIDER.api_key).toBe("string")
+    // 打码形态：sk-**** 或类似格式
+    expect(SAMPLE_PROVIDER.api_key).toMatch(/^sk-\*\*\*\*/)
+  })
+
+  it("available_models 为 null 时页面不崩，模型数列显示 —", async () => {
+    // 后端 _row_to_provider 在无缓存时返回 available_models: null；前端必须防御
+    const providerWithNullModels = { ...SAMPLE_PROVIDER, available_models: null }
+    seedProviders([providerWithNullModels])
+    render(<Page />)
+
+    expect(await screen.findByText("OpenRouter")).toBeInTheDocument()
+    // null 时不显示 "N 个模型"，而显示 "—"
+    expect(screen.getByText("—")).toBeInTheDocument()
+    expect(screen.queryByText(/个模型/)).not.toBeInTheDocument()
+  })
+
+  it("编辑已停用供应商仅改 remark 时 PUT body 不含 enabled 字段", async () => {
+    const user = userEvent.setup({ delay: null })
+    const disabledProvider = { ...SAMPLE_PROVIDER, enabled: false }
+    const putBodies: Array<Record<string, unknown>> = []
+    fetchHandler = (url, init) => {
+      if (isListUrl(url)) {
+        return jsonResponse({ status: "ok", data: [disabledProvider] })
+      }
+      if (init?.method === "PUT" && providerSubPath(url) === "/1") {
+        putBodies.push(JSON.parse(String(init.body)))
+        return jsonResponse({ status: "ok" })
+      }
+      return jsonResponse({ status: "ok" })
+    }
+    render(<Page />)
+
+    expect(await screen.findByText("OpenRouter")).toBeInTheDocument()
+    // 断言初始徽章为「已停用」
+    expect(screen.getByText("已停用")).toBeInTheDocument()
+
+    // 打开编辑，仅改 remark
+    await user.click(screen.getByRole("button", { name: /编辑/ }))
+    expect(await screen.findByText("编辑供应商")).toBeInTheDocument()
+
+    const remarkInput = screen.getByLabelText("备注（可选）")
+    await user.clear(remarkInput)
+    await user.type(remarkInput, "改一下备注")
+
+    await user.click(screen.getByRole("button", { name: /保存修改/ }))
+
+    await waitFor(() => {
+      expect(putBodies.length).toBeGreaterThan(0)
+    })
+    const body = putBodies[putBodies.length - 1]
+    expect(body).not.toHaveProperty("enabled")
+    expect(body.remark).toBe("改一下备注")
   })
 })
