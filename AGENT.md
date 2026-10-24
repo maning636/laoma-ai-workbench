@@ -48,3 +48,10 @@ The following are local runtime data and must stay out of GitHub:
 - Before commit or push, run `git status --short`.
 - If a runtime or sensitive file appears in Git tracking, remove it from the index with `git rm --cached <path>` and add or fix the ignore rule.
 - If an example file is required for documentation or onboarding, create a sanitized template such as `*.example.*` instead of pushing real data.
+
+## AI 参与记录
+
+- AI Agent（Kimi Code / HermesAgent / Claude Code / Codex 等）主导或大幅参与的提交，必须在 commit message 末行追加 `AI-Model: <模型名>` trailer。
+- 完整规范见 [`docs/engineering/AI-CONTRIBUTIONS.md`](docs/engineering/AI-CONTRIBUTIONS.md)。
+- 该规范向前兼容，历史提交不回填；从 2026-10-24 起执行。
+- 审计命令：`git log --grep="AI-Model:" --oneline`。
