@@ -156,6 +156,48 @@ jobs:
           Expand-Archive -Path $zip -DestinationPath $dest -Force
           Get-ChildItem $dest | Select-Object -ExpandProperty Name
 
+      # B-2: 后端服务(PyInstaller ×3) —— 与本地 build-package.bat 0.5 步同源,
+      # 直接调 scripts/packaging/build_services.ps1。三目标 = backend /
+      # celery-worker / automation-worker,产物落到 dist/services/<name>/<name>.exe,
+      # 与 supervisor.py SERVICE_REGISTRY.exe_paths 完全对齐;electron-builder
+      # 的 win.extraResources 已把 ../dist/services → resources/services,所以
+      # 直接进包,无需额外拷贝步骤。
+      #
+      # 参数:
+      #   PACKAGING_PYTHON   显式指向 prismenv(依赖装在 venv,不在 PATH 上)
+      #   SKIP_OBFUSCATE=1   C18 混淆段依赖 pyarmor(付费/授权工具),CI 无授权;
+      #                       不显式跳过会让脚本走 check → 降级 → skip,浪费
+      #                       数秒且日志噪声大。
+      #   PACKAGING_TARGETS  显式列出三目标,与 SERVICE_REGISTRY.exe_paths
+      #                       非空的服务一一对应(hermes-*/redis 走脚本,非 exe)。
+      - name: 构建后端服务 (PyInstaller ×3)
+        shell: pwsh
+        env:
+          PACKAGING_PYTHON: prismenv/Scripts/python.exe
+          SKIP_OBFUSCATE: '1'
+          PACKAGING_TARGETS: backend,celery-worker,automation-worker
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/packaging/build_services.ps1
+          $services = @(
+            "dist/services/backend/backend.exe",
+            "dist/services/celery-worker/celery-worker.exe",
+            "dist/services/automation-worker/automation-worker.exe"
+          )
+          $missing = @()
+          foreach ($p in $services) {
+            if (-not (Test-Path $p)) { $missing += $p }
+          }
+          if ($missing.Count -gt 0) {
+            "❌ 后端服务产物缺失: $($missing -join ', ')"
+            throw "Missing service executables: $($missing -join ', ')"
+          }
+          "✅ 三个后端服务已构建到 dist/services/"
+          Get-ChildItem dist/services -Recurse -File -Filter "*.exe" | Select-Object -ExpandProperty FullName
+
+      # 正常流程此时 dist/services 已有三个服务的产物(见上一步 build_services.ps1)。
+      # 此步 New-Item -Force 对已存在目录是 no-op;仅在异常情况下(例如有人手动
+      # 跳过上面步骤)提供空目录兜底,让 electron-builder 不因缺 extraResources
+      # 源目录而报错。真正"空壳包"由下一步"校验安装包体积下限"拦下。
       - name: 准备占位目录 (services)
         run: |
           New-Item -ItemType Directory -Force -Path "dist/services" | Out-Null
@@ -163,6 +205,27 @@ jobs:
       - name: electron-builder 打包 (不发布)
         working-directory: desktop-electron
         run: npx electron-builder --win --x64 --publish never
+
+      # B-2: 体积下限守卫 —— 防 CI 静默打出空壳包。参考值:1.1.5=610MB,
+      # 瘦身后预期 ~480MiB(503MB);下限取 400MB(419430400 B),留 ~100MB 余量。
+      # 一旦有人把服务构建步骤改坏、或 build_services.ps1 抛错未 fail,
+      # 装包 exe 会掉到 200MB 左右,此步直接 fail。
+      - name: 校验安装包体积下限 (>= 400 MB)
+        shell: pwsh
+        run: |
+          $min = 419430400  # 400 MiB
+          $installer = Get-ChildItem desktop-electron/dist-build -Filter "*.exe" -File | Select-Object -First 1
+          if (-not $installer) {
+            throw "未在 desktop-electron/dist-build 找到 .exe 安装包"
+          }
+          $size = $installer.Length
+          $sizeMb = [math]::Round($size / 1MB, 2)
+          "安装包: $($installer.Name), 体积 ${sizeMb} MB, 下限 400 MB"
+          if ($size -lt $min) {
+            "❌ 安装包体积 ${sizeMb} MB 低于下限 400 MB —— 疑似空壳包(缺后端服务 / supervisor / prismenv 之一)"
+            throw "Installer too small: ${size} bytes < ${min} bytes"
+          }
+          "✅ 体积下限通过"
 
       - name: 生成 latest.yml (finalize)
         working-directory: desktop-electron
