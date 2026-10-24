@@ -150,6 +150,12 @@ class BatchPublishRequest(BaseModel):
         None,
         description="L1-2 软关联 artifacts.artifact_id（art_xxx）",
     )
+    # L3-1：软关联营销 campaign（可选）——向导发布时用户选了 campaign 即透传写入
+    # publish_tasks.campaign_id，让 campaigns 页可以反查关联发布任务。不 FK、可空。
+    campaign_id: Optional[str] = Field(
+        None,
+        description="L3-1 软关联 campaign.id（可选）——向导勾选营销计划后写入 publish_tasks",
+    )
 
     @field_validator('file_ids')
     @classmethod

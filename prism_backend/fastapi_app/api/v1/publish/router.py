@@ -116,6 +116,8 @@ async def publish_batch_videos(
             # L1-2 软关联归因
             material_id=request.material_id,
             artifact_id=request.artifact_id,
+            # L3-1：软关联营销 campaign
+            campaign_id=request.campaign_id,
         )
 
         return Response(
@@ -183,6 +185,8 @@ async def publish_single_video(
             # L1-2 软关联归因
             material_id=request.material_id,
             artifact_id=request.artifact_id,
+            # L3-1：软关联营销 campaign
+            campaign_id=request.campaign_id,
         )
 
         return Response(

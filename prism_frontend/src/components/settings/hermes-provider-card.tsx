@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { ChevronDown, Loader2, RefreshCw, Save, TestTube2, Trash2 } from "lucide-react"
+import { ChevronDown, Loader2, RefreshCw, Save, TestTube2, Trash2, Download } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { useToast } from "@/components/ui/use-toast"
 import { API_ENDPOINTS } from "@/lib/env"
 import { cn } from "@/lib/utils"
@@ -71,7 +72,15 @@ export function HermesProviderCard() {
     save: false,
     test: false,
     clear: false,
+    importProvider: false,
   })
+
+  // L3-1：从模型供应商导入（apply-to/chat 已存在，纯前端接线）
+  const [importDialogOpen, setImportDialogOpen] = useState(false)
+  const [providers, setProviders] = useState<{ id: number; name: string }[]>([])
+  const [selectedProviderId, setSelectedProviderId] = useState<number | null>(null)
+  const [providerModels, setProviderModels] = useState<{ id: string; name?: string }[]>([])
+  const [selectedModel, setSelectedModel] = useState("")
 
   const setField = useCallback(<K extends keyof HermesFormState>(key: K, value: HermesFormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -229,6 +238,56 @@ export function HermesProviderCard() {
     }
   }, [hydrate, toast])
 
+  // L3-1：从模型供应商导入——打开弹窗时拉取供应商列表
+  const openImportDialog = useCallback(async () => {
+    setImportDialogOpen(true)
+    try {
+      const resp = await fetch(`${API_ENDPOINTS.base}/api/v1/ai/providers`)
+      if (!resp.ok) return
+      const data = await resp.json()
+      const items = (data?.data || []) as any[]
+      setProviders(items.map((p) => ({ id: p.id, name: p.name })))
+    } catch { /* ignore */ }
+  }, [])
+
+  // 选中供应商后拉取其模型列表
+  const handleProviderChange = useCallback(async (providerId: number) => {
+    setSelectedProviderId(providerId)
+    setSelectedModel("")
+    try {
+      const resp = await fetch(`${API_ENDPOINTS.base}/api/v1/ai/providers/${providerId}/models`)
+      if (!resp.ok) { setProviderModels([]); return }
+      const data = await resp.json()
+      const models = (data?.data?.models || []) as any[]
+      setProviderModels(models)
+    } catch { setProviderModels([]) }
+  }, [])
+
+  // 执行导入：调 POST /ai/providers/{id}/apply-to/chat
+  const doImport = useCallback(async () => {
+    if (!selectedProviderId || !selectedModel) return
+    setLoading((prev) => ({ ...prev, importProvider: true }))
+    try {
+      const resp = await fetch(
+        `${API_ENDPOINTS.base}/api/v1/ai/providers/${selectedProviderId}/apply-to/chat`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }
+      )
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}))
+        throw new Error(err?.detail || "导入失败")
+      }
+      toast({ title: "已从供应商导入配置", description: `模型：${selectedModel}` })
+      setImportDialogOpen(false)
+      // 刷新当前配置
+      await hydrate()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      toast({ title: "导入失败", description: message, variant: "destructive" })
+    } finally {
+      setLoading((prev) => ({ ...prev, importProvider: false }))
+    }
+  }, [selectedProviderId, selectedModel, toast, hydrate])
+
   const dashboardUrl =
     savedConfig?.runtime?.dashboard_url ||
     "http://127.0.0.1:9119"
@@ -343,6 +402,10 @@ export function HermesProviderCard() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
+              <Button onClick={() => void openImportDialog()}>
+                <Download />
+                从供应商导入
+              </Button>
               <Button onClick={() => void saveConfig()} disabled={loading.save}>
                 {loading.save ? <Loader2 className="animate-spin" /> : <Save />}
                 保存模型配置
@@ -363,6 +426,55 @@ export function HermesProviderCard() {
           </CardContent>
         </CollapsibleContent>
       </Card>
+
+      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>从模型供应商导入</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>选择供应商</Label>
+              <select
+                className="w-full rounded-xl border border-border/70 bg-card px-4 py-2.5 text-sm"
+                value={selectedProviderId ?? ""}
+                onChange={(e) => handleProviderChange(Number(e.target.value))}
+              >
+                <option value="">请选择供应商</option>
+                {providers.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label>选择模型</Label>
+              <select
+                className="w-full rounded-xl border border-border/70 bg-card px-4 py-2.5 text-sm"
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                disabled={providerModels.length === 0}
+              >
+                <option value="">
+                  {providerModels.length === 0 ? "选择供应商后加载模型" : "请选择模型"}
+                </option>
+                {providerModels.map((m) => (
+                  <option key={m.id} value={m.id}>{m.id}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportDialogOpen(false)}>取消</Button>
+            <Button
+              onClick={() => void doImport()}
+              disabled={!selectedProviderId || !selectedModel || loading.importProvider}
+            >
+              {loading.importProvider ? <Loader2 className="animate-spin" /> : <Download />}
+              导入配置
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Collapsible>
   )
 }

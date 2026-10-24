@@ -236,9 +236,15 @@ CREATE TABLE IF NOT EXISTS publish_tasks (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     published_at DATETIME,
-    completed_at DATETIME
+    completed_at DATETIME,
+    campaign_id TEXT
 )
 """
+
+# L3-1：publish_tasks 新增归因索引（campaign_id 列已在 DDL 里；旧库 ALTER 补齐后再建索引）
+DDL_IDX_PUBLISH_TASKS = [
+    "CREATE INDEX IF NOT EXISTS idx_publish_tasks_campaign ON publish_tasks(campaign_id)",
+]
 
 
 # ---- 7. 外部协作：external_users / external_accounts（db/create_campaign_tables.py 收编）----
@@ -998,6 +1004,7 @@ _DDL_INDEX_STATEMENTS: tuple[str, ...] = tuple(
     for group in (
         DDL_IDX_ARTIFACTS,
         DDL_IDX_PUBLISH_RECEIPTS,
+        DDL_IDX_PUBLISH_TASKS,
         DDL_IDX_TASK_STATES,
         DDL_IDX_MONITOR,
         DDL_IDX_WEBHOOK,
@@ -1089,6 +1096,8 @@ def _ensure_legacy_column_migrations(conn: sqlite3.Connection) -> int:
         "artifact_id": "ALTER TABLE publish_tasks ADD COLUMN artifact_id TEXT",
         # material_id 已在 CREATE TABLE DDL 里；老库若缺，此处幂等补齐
         "material_id": "ALTER TABLE publish_tasks ADD COLUMN material_id TEXT",
+        # L3-1：软关联营销 campaign（向导发布时透传，让 campaigns 页可反查发布任务）
+        "campaign_id": "ALTER TABLE publish_tasks ADD COLUMN campaign_id TEXT",
     }
 
     # publish_receipts：db/migrate_receipts.py 用 `artifacts`，prism_core/receipts.py 用

@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, Calendar, Users, FileVideo, Play, Pause, Plus, Loader2, Trash2, CheckCircle2, XCircle, Clock, AlertCircle } from "lucide-react"
+import { ArrowLeft, Calendar, Users, FileVideo, Play, Pause, Plus, Loader2, Trash2, CheckCircle2, XCircle, Clock, AlertCircle, Package } from "lucide-react"
 import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -42,6 +42,17 @@ export default function CampaignDetailPage() {
 
     const campaign = campaignRes?.result?.plan
     const tasks = (tasksRes?.result?.items as any[]) || []
+
+    // L3-1：关联发布任务（向导提交，带 campaign_id 透传写入 publish_tasks）
+    const { data: publishTasksRes } = useQuery({
+        queryKey: ["campaign-publish-tasks", campaignId],
+        queryFn: async () => {
+            const res = await fetch(`/api/v1/campaigns/${campaignId}/publish-tasks`)
+            if (!res.ok) return { result: { items: [] as any[], count: 0 } }
+            return res.json()
+        },
+    })
+    const publishTasks = (publishTasksRes?.result?.items as any[]) || []
 
     // 执行计划
     const executeMutation = useMutation({
@@ -300,6 +311,57 @@ export default function CampaignDetailPage() {
                     )}
                 </CardContent>
             </Card>
-        </div>
+
+            {publishTasks.length > 0 && (
+              <Card className="rounded-2xl border border-border/70 bg-card">
+                <CardHeader className="flex flex-col space-y-2 p-6 pb-4">
+                  <CardTitle className="flex items-center gap-2 text-foreground">
+                    <Package className="h-5 w-5" />
+                    向导关联发布任务
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    以下发布任务通过「矩阵发布向导」勾选本活动后提交，已自动关联 campaign_id。
+                  </p>
+                </CardHeader>
+                <CardContent className="p-6 pt-2">
+                  <div className="overflow-x-auto rounded-xl border border-border/70">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/30">
+                        <tr>
+                          <th className="px-4 py-2.5 text-left text-muted-foreground">状态</th>
+                          <th className="px-4 py-2.5 text-left text-muted-foreground">标题</th>
+                          <th className="px-4 py-2.5 text-left text-muted-foreground">平台</th>
+                          <th className="px-4 py-2.5 text-left text-muted-foreground">账号</th>
+                          <th className="px-4 py-2.5 text-left text-muted-foreground">素材</th>
+                          <th className="px-4 py-2.5 text-left text-muted-foreground">创建时间</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {publishTasks.map((t: any) => (
+                          <tr key={t.celery_task_id || t.task_id} className="border-t border-border/50 hover:bg-muted/20">
+                            <td className="px-4 py-2">
+                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs ${
+                                t.status === "success" ? "bg-green-500/10 text-green-600" :
+                                t.status === "failed" ? "bg-red-500/10 text-red-600" :
+                                t.status === "cancelled" ? "bg-gray-500/10 text-gray-500" :
+                                "bg-blue-500/10 text-blue-600"
+                              }`}>{t.status || "pending"}</span>
+                            </td>
+                            <td className="px-4 py-2 truncate max-w-[200px]" title={t.title}>{t.title || "-"}</td>
+                            <td className="px-4 py-2">{t.platform || "-"}</td>
+                            <td className="px-4 py-2 truncate">{t.account_id || "-"}</td>
+                            <td className="px-4 py-2 truncate">{t.material_id || "-"}</td>
+                            <td className="px-4 py-2 text-xs text-muted-foreground">
+                              {t.created_at ? new Date(t.created_at).toLocaleString("zh-CN", { hour12: false }) : "-"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
     )
 }

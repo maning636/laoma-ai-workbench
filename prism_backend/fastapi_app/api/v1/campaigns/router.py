@@ -79,6 +79,49 @@ async def get_campaign_tasks(
         }
     }
 
+
+@router.get("/{campaign_id}/publish-tasks")
+async def get_campaign_publish_tasks(
+    campaign_id: str,
+    limit: Optional[int] = 200,
+):
+    """按 campaign_id 反查 publish_tasks（L3-1）。
+
+    publish_tasks.campaign_id 由向导发布时透传写入（BatchPublishRequest.campaign_id）；
+    本端点让 campaigns 页可以列出「本活动关联的发布任务」——原本 campaigns 是孤岛，
+    现在通过软关联列打通。老数据 campaign_id 为空 → 返回空列表，不报错。
+    """
+    import sqlite3
+    from fastapi_app.core.config import settings
+
+    limit = max(1, min(int(limit or 200), 1000))
+    try:
+        conn = sqlite3.connect(settings.DATABASE_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            rows = conn.execute(
+                "SELECT task_id, celery_task_id, platform, account_id, material_id, "
+                "title, status, campaign_id, artifact_id, created_at, published_at "
+                "FROM publish_tasks WHERE campaign_id = ? "
+                "ORDER BY created_at DESC LIMIT ?",
+                (campaign_id, limit),
+            ).fetchall()
+            items = [dict(r) for r in rows]
+        finally:
+            conn.close()
+    except sqlite3.OperationalError:
+        # 老库若尚无 campaign_id 列（未跑过 ensure_all_tables）→ 视为无关联，返回空
+        items = []
+    return {
+        "status": "success",
+        "result": {
+            "success": True,
+            "campaign_id": campaign_id,
+            "items": items,
+            "count": len(items),
+        },
+    }
+
 @router.post("/{campaign_id}/pause")
 async def pause_campaign(
     campaign_id: str,

@@ -272,6 +272,10 @@ export default function PublishPage() {
   const [accountDrawerOpen, setAccountDrawerOpen] = useState(false)
   const [accountSearchKeyword, setAccountSearchKeyword] = useState("")
 
+  // L3-1：营销活动关联（可选下拉，读 /api/v1/campaigns/list）
+  const [campaignId, setCampaignId] = useState<string>("")
+  const [campaigns, setCampaigns] = useState<{ id: string; name: string }[]>([])
+
   // 分页状态
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 5
@@ -334,6 +338,22 @@ export default function PublishPage() {
     if (plan.materials.length === 0) return
     ensureFirstFrames(plan.materials.map(String))
   }, [plan.materials, ensureFirstFrames])
+
+  // L3-1：拉取营销活动列表，用于向导可选关联
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/v1/campaigns/list")
+      .then((r) => r.ok ? r.json() : Promise.reject(r))
+      .then((data) => {
+        if (cancelled) return
+        const items = (data?.result?.items || []) as any[]
+        setCampaigns(items.map((c) => ({ id: c.id, name: c.name || c.id })))
+      })
+      .catch(() => {
+        // 老库无 campaigns 端点或失败 → 保持空列表，不阻断发布
+      })
+    return () => { cancelled = true }
+  }, [])
 
   useEffect(() => {
     if (!materialPickerOpen) return
@@ -824,6 +844,8 @@ export default function PublishPage() {
         dedup_window_days: plan.dedupWindowDays,
         // 🆕 NEW: 每平台专属配置（抖音/快手/小红书/B站/视频号面板，写入 platformSettings）
         platform_settings: plan.platformSettings || {},
+        // L3-1：营销活动关联（可选）——向导勾选 campaign 后透传到 publish_tasks.campaign_id
+        ...(campaignId ? { campaign_id: campaignId } : {}),
         // 🆕 NEW: 抖音发布选项 (仅抖音平台)
         ...(isDouyin ? {
           declaration: dSettings.declaration ?? "",
@@ -1342,6 +1364,26 @@ export default function PublishPage() {
           accountCount={plan.accounts.length}
         />
       )}
+
+      {/* L3-1：营销活动关联（可选）——勾选后写入 publish_tasks.campaign_id */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label className="text-foreground/70">关联营销活动</Label>
+          {campaigns.length === 0 && (
+            <span className="text-xs text-muted-foreground">暂无营销活动（在 /campaigns 创建）</span>
+          )}
+        </div>
+        <select
+          value={campaignId}
+          onChange={(e) => setCampaignId(e.target.value)}
+          className="w-full rounded-xl border border-border/70 bg-card px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40"
+        >
+          <option value="">不关联</option>
+          {campaigns.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
+      </div>
 
         </div>
       </div>

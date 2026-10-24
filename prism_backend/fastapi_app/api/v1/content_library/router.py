@@ -81,6 +81,141 @@ async def get_ideas():
     return {"status": "success", "result": {"ideas": outputs_svc.get_ideas()}}
 
 
+@router.get("/ideas/from-performance")
+async def get_ideas_from_performance(
+    limit: Optional[int] = 10,
+    platforms: Optional[str] = None,
+):
+    """L3-1：基于自有表现的选题建议。
+
+    查询 video_analytics 按互动量（播放 + 点赞 + 评论×2 + 收藏×2）排序，
+    取 top N 映射为「建议选题」条目：
+      title  —— 表现最好素材的标题（去重后）
+      reason —— 数据摘要（平台 · 播放 · 点赞 · 评论 · 收藏）
+      heat   —— 互动量归一化（0-1，相对本次结果最大者）
+      source —— 固定 "performance"
+
+    空数据（video_analytics 表空 / 无有效互动）时返回
+    `{suggestions: [], hint: "...", data_ready: false}`，不抛错——
+    让前端可展示空态引导先去发布回收数据。
+    """
+    import sqlite3
+    from fastapi_app.core.config import settings
+
+    limit = max(1, min(int(limit or 10), 50))
+
+    # 平台过滤：把逗号分隔字符串规范化
+    platform_list: Optional[list[str]] = None
+    if platforms and platforms.strip():
+        platform_list = [p.strip() for p in platforms.split(",") if p.strip()]
+
+    try:
+        conn = sqlite3.connect(settings.DATABASE_PATH)
+        conn.row_factory = sqlite3.Row
+    except sqlite3.Error as e:
+        return {
+            "status": "error",
+            "result": {
+                "suggestions": [],
+                "data_ready": False,
+                "hint": f"视频回收数据表不可用：{e}",
+            },
+        }
+
+    try:
+        # 构造平台过滤（NULL 安全的 IN 子句）
+        ph = ""
+        args: list = []
+        if platform_list:
+            qs = ",".join("?" for _ in platform_list)
+            ph = f" AND platform IN ({qs})"
+            args.extend(platform_list)
+
+        # 互动量加权：播放 ×1，点赞 ×1，评论 ×2，收藏 ×2（评论/收藏更能代表话题热度）
+        sql = (
+            "SELECT title, platform, play_count, like_count, comment_count, "
+            "collect_count, share_count, video_id, publish_date "
+            "FROM video_analytics "
+            "WHERE COALESCE(play_count, 0) + COALESCE(like_count, 0) "
+            "      + COALESCE(comment_count, 0) + COALESCE(collect_count, 0) > 0"
+            + ph +
+            " ORDER BY (COALESCE(play_count, 0) + COALESCE(like_count, 0) "
+            "          + COALESCE(comment_count, 0) * 2 + COALESCE(collect_count, 0) * 2) DESC "
+            "LIMIT ?"
+        )
+        args.append(limit)
+        rows = conn.execute(sql, args).fetchall()
+    except sqlite3.OperationalError as e:
+        # 表不存在 / 缺列 —— 视为空数据（老库未跑过 bootstrap）
+        conn.close()
+        return {
+            "status": "success",
+            "result": {
+                "suggestions": [],
+                "data_ready": False,
+                "hint": f"视频回收数据表尚未就绪（{type(e).__name__}），请先完成一次数据回收。",
+            },
+        }
+    finally:
+        conn.close()
+
+    if not rows:
+        return {
+            "status": "success",
+            "result": {
+                "suggestions": [],
+                "data_ready": False,
+                "hint": "暂无视频回收数据。请先在发布中心完成一次发布并触发数据回收，再回来生成选题建议。",
+            },
+        }
+
+    # 归一化热度：以本批最大互动量为基准 → 0-1
+    def _score(r):
+        return (
+            (r["play_count"] or 0)
+            + (r["like_count"] or 0)
+            + (r["comment_count"] or 0) * 2
+            + (r["collect_count"] or 0) * 2
+        )
+
+    max_score = max(_score(r) for r in rows) or 1
+
+    # 去重：同 title 保留互动量最高的一条（SQL 已按热度降序，首见即最高）
+    seen_titles: set[str] = set()
+    suggestions = []
+    for r in rows:
+        title = (r["title"] or "").strip() or "未命名话题"
+        if title in seen_titles:
+            continue
+        seen_titles.add(title)
+        score = _score(r)
+        heat = round(score / max_score, 3) if max_score else 0.0
+        suggestions.append({
+            "id": f"perf-{r['video_id']}",
+            "title": title[:120],
+            "note": (
+                f"平台 {r['platform'] or '-'} · 播放 {r['play_count'] or 0} · "
+                f"点赞 {r['like_count'] or 0} · 评论 {r['comment_count'] or 0} · "
+                f"收藏 {r['collect_count'] or 0}"
+            ),
+            "source": "performance",
+            "heat": heat,
+            "platform": r["platform"] or "",
+            "video_id": r["video_id"],
+        })
+        if len(suggestions) >= limit:
+            break
+
+    return {
+        "status": "success",
+        "result": {
+            "suggestions": suggestions,
+            "data_ready": True,
+            "hint": None,
+        },
+    }
+
+
 @router.post("/ideas")
 async def save_ideas(ideas: List[Dict] = Body(default=[])):
     outputs_svc.save_ideas(ideas)

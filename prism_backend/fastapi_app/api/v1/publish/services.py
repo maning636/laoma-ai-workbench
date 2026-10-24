@@ -187,6 +187,8 @@ class PublishService:
         # L1-2 软关联归因（可选，可被 items[i].material_id/artifact_id 覆盖）
         material_id: Optional[str] = None,
         artifact_id: Optional[str] = None,
+        # L3-1：软关联营销 campaign（可选，向导透传）
+        campaign_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         logger.info(
@@ -271,6 +273,8 @@ class PublishService:
                     # L1-2 软关联归因
                     material_id=material_id,
                     artifact_id=artifact_id,
+                    # L3-1：软关联营销 campaign
+                    campaign_id=campaign_id,
                 )
         else:
             # 单平台发布
@@ -303,6 +307,8 @@ class PublishService:
                 # L1-2 软关联归因
                 material_id=material_id,
                 artifact_id=artifact_id,
+                # L3-1：软关联营销 campaign
+                campaign_id=campaign_id,
             )
 
         logger.info(
@@ -350,6 +356,8 @@ class PublishService:
         # L1-2 软关联归因（可选，可被 items[i].material_id/artifact_id 覆盖）
         material_id: Optional[str] = None,
         artifact_id: Optional[str] = None,
+        # L3-1：软关联营销 campaign（可选，向导透传）
+        campaign_id: Optional[str] = None,
     ):
         """创建批量发布任务的内部方法"""
         import random  # 导入 random 模块用于随机偏移
@@ -802,8 +810,8 @@ class PublishService:
                         """
                         INSERT INTO publish_tasks (
                             celery_task_id, platform, account_id, material_id, title, tags,
-                            status, created_at, updated_at, artifact_id
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            status, created_at, updated_at, artifact_id, campaign_id
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             result.id,
@@ -816,6 +824,7 @@ class PublishService:
                             now_beijing_naive().isoformat(),
                             now_beijing_naive().isoformat(),
                             per_item_artifact_id or artifact_id,
+                            campaign_id,
                         )
                     )
                     db.commit()
