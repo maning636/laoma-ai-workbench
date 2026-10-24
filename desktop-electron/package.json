@@ -56,7 +56,17 @@
           "!**/__pycache__/**",
           "!**/*.pyc",
           "!**/*.pyo",
-          "!**/nul"
+          "!**/nul",
+          "!**/cv2/**",
+          "!**/cv2",
+          "!**/imageio_ffmpeg/**",
+          "!**/imageio_ffmpeg",
+          "!**/nemo_relay/**",
+          "!**/nemo_relay",
+          "!**/stream_gears/**",
+          "!**/stream_gears",
+          "!**/yt_dlp/**",
+          "!**/yt_dlp"
         ]
       },
       {
@@ -74,7 +84,9 @@
           "!**/web/**",
           "!**/.venv/**",
           "!**/*.egg-info/**",
-          "!**/nul"
+          "!**/nul",
+          "!website/**",
+          "!optional-skills/**"
         ]
       },
       {
@@ -139,7 +151,9 @@
         "from": "../prism_frontend/.next/standalone",
         "to": "frontend/standalone",
         "filter": [
-          "**/*"
+          "**/*",
+          "!**/node_modules/typescript/**",
+          "!**/node_modules/typescript"
         ]
       },
       {

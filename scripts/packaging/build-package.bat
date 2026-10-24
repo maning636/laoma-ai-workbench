@@ -99,6 +99,13 @@ if errorlevel 1 (
 )
 
 "%PROJECT_ROOT%prismenv\Scripts\python.exe" -m pip install pyinstaller psutil patchright==1.59.1
+rem NOTE: patchright MUST stay in prismenv even though it is not shipped into
+rem       dist/services/backend/_internal/. backend.exe is built with
+rem       --exclude-module patchright and relies on PYTHONPATH=prismenv at
+rem       runtime (see build_services.ps1 backendExcludes). Do NOT add a
+rem       "!**/patchright" filter to desktop-electron/package.json prismenv
+rem       extraResources or every browser-login / publish endpoint in the
+rem       shipped backend.exe will ImportError. Verified 2026-10-24.
 if errorlevel 1 (
     echo ERROR: failed to install packaged runtime dependencies into prismenv
     pause
