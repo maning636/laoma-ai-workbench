@@ -21,6 +21,7 @@
 | 质量门禁 | 所有上传器返回 `PublishReceipt` 类型，禁止裸 dict 透传 | `uploader/base_video.py` CI job |
 
 **验收标准**：`GET /api/v1/receipts/{task_id}` 返回 200 + 完整 JSON（0.1 定义全部字段）。
+**验收结果**：✅ 2026-10-24 通过（20 项验收表组 B，docs/handover/SPRINT-ACCEPTANCE-R1R2.md）；实现盘点发现 receipts.py/task_state_machine.py 已有基础，实际为补缺而非新建。
 
 ---
 
@@ -37,6 +38,7 @@
 | 回归 | 旧状态名映射：`processing` 等旧名自动映射到新枚举 | 断言映射正确 |
 
 **验收标准**：状态转换矩阵测试 100% 通过；幂等键相同两次请求不创建重复任务。
+**验收结果**：✅ 2026-10-24 通过（20 项验收表组 B，docs/handover/SPRINT-ACCEPTANCE-R1R2.md）；实现盘点发现 receipts.py/task_state_machine.py 已有基础，实际为补缺而非新建。
 
 ---
 

@@ -11,6 +11,7 @@
 > - 基于代码现状标注「已有基础」，避免重复造轮子
 > - 新增面向招投标交付的必备项：测试验收、安全合规、私有化部署、交付文档
 > - 将 11 周线性排程改为分里程碑交付，Rust Core / Tauri 迁移周期回归现实
+> - 2026-10-24：Phase 0.1/0.2 完成态回写
 
 ---
 
@@ -38,8 +39,8 @@
 
 | # | 功能 | 简述 | 工作量 | 依赖 | 现状 |
 |---|---|---|---|---|---|
-| 0.1 | 发布回执结构化 | 返回 task_id/status/platform_post_id/published_at + 失败时 error_code/retryable/requires_human_action + 诊断工件路径 | 中 | 无 | 无，需新建 |
-| 0.2 | 幂等任务状态机 | draft→awaiting_review→approved→scheduled→queued→running→succeeded/failed_retryable/failed_final/cancelled；`awaiting_review` 专指**发布任务**审批，内容版本审核归 3.3 | 中 | 0.1 | `task_state_manager.py` 已有雏形，需规范化迁移 |
+| 0.1 | 发布回执结构化 | 返回 task_id/status/platform_post_id/published_at + 失败时 error_code/retryable/requires_human_action + 诊断工件路径 | 中 | 无 | ✅ 2026-10-24 完成（d0c5c77），测试 26 用例，验收见 docs/handover/SPRINT-ACCEPTANCE-R1R2.md 组 B |
+| 0.2 | 幂等任务状态机 | draft→awaiting_review→approved→scheduled→queued→running→succeeded/failed_retryable/failed_final/cancelled；`awaiting_review` 专指**发布任务**审批，内容版本审核归 3.3 | 中 | 0.1 | ✅ 2026-10-24 完成（0526be7），测试 38 用例，验收见 docs/handover/SPRINT-ACCEPTANCE-R1R2.md 组 B |
 | 0.3 | 任务监控与告警 | 实时状态看板、失败告警（企微/钉钉/Webhook）、重试状态；告警内容携带 0.1 回执与 2.2 诊断工件 | 低 | 0.2, 2.2 | 部分看板已有 |
 | 0.4 | 账号健康监控 | 登录态检查、限流检测、Cookie 过期预警、健康快照存储 | 中 | 无 | 无，需新建 |
 
