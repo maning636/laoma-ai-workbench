@@ -17,6 +17,7 @@ from .tasks.distribution_alias import router as distribution_router
 from .recovery.router import router as recovery_router
 from .data.router import router as data_router
 from .ai.router import router as ai_router
+from .ai.providers_router import router as ai_providers_router, model_configs_link_router as ai_model_configs_link_router
 from .ai.threads_router import router as ai_threads_router
 from .ai_prompts.router import router as ai_prompts_router  # AI配置管理
 from .dashboard.router import router as dashboard_router
@@ -100,6 +101,8 @@ api_router.include_router(tasks_router)  # router 已自带 /tasks 前缀
 api_router.include_router(recovery_router)  # router 已自带 /recovery 前缀
 api_router.include_router(data_router)  # router 已自带 /data 前缀
 api_router.include_router(ai_router)  # router 已自带 /ai 前缀
+api_router.include_router(ai_providers_router)  # /ai/providers 模型供应商注册表
+api_router.include_router(ai_model_configs_link_router)  # /ai/model-configs/{service_type}/provider-link
 api_router.include_router(ai_threads_router, prefix="/ai")  # 嵌套在 /ai/threads 下
 api_router.include_router(ai_prompts_router, tags=["AI配置管理"])  # AI配置管理 /ai-prompts
 api_router.include_router(dashboard_router)  # router 已自带 /dashboard 前缀

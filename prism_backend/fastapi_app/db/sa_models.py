@@ -111,6 +111,21 @@ ai_model_configs = Table(
 )
 
 
+model_providers = Table(
+    "model_providers",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("name", Text, nullable=False, unique=True),
+    Column("base_url", Text),
+    Column("api_key", Text),
+    Column("enabled", Integer, server_default="1"),
+    Column("remark", Text),
+    Column("available_models", Text),
+    Column("created_at", DateTime, server_default=func.now()),
+    Column("updated_at", DateTime, server_default=func.now(), onupdate=func.now()),
+)
+
+
 ai_threads = Table(
     "ai_threads",
     metadata,

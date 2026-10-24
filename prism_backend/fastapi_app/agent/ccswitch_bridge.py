@@ -482,18 +482,24 @@ def _models_url_candidates(base_url: str) -> List[str]:
     return [f"{base}/v1/models", f"{base}/models"]
 
 
-async def fetch_provider_models(
-    app_type: str = "hermes", provider_id: Optional[str] = None
+async def fetch_models_from_url(
+    base_url: str, api_key: str = "", *, provider_label: str = ""
 ) -> Dict[str, Any]:
-    """调用 provider 的 models 端点抓取全部可用模型（只读，不写任何配置）。
+    """从给定的 base_url + api_key 抓取可用模型列表（公共工具函数）。
 
     依次尝试候选 URL（/v1/models、/models），兼容 OpenAI 兼容 / Anthropic / Codex 端点。
+    返回 ``{"provider": {...}, "models": [{"id", "name"}, ...]}``。
+
+    Raises:
+        ValueError: base_url 为空、鉴权失败、或全部候选都失败。
     """
-    provider = _resolve_provider_for_action(app_type, provider_id)
-    base_url = (provider.get("base_url") or "").strip()
-    api_key = (provider.get("api_key") or "").strip()
-    candidates = _models_url_candidates(base_url)
-    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    base = (base_url or "").strip()
+    if not base:
+        raise ValueError("缺少 base_url，无法抓取模型")
+    key = (api_key or "").strip()
+    candidates = _models_url_candidates(base)
+    headers = {"Authorization": f"Bearer {key}"} if key else {}
+    label = provider_label or base
 
     last_error = ""
     async with httpx.AsyncClient(timeout=15.0) as client:
@@ -521,15 +527,36 @@ async def fetch_provider_models(
                 if isinstance(m, dict) and m.get("id")
             ]
             if not models:
-                raise ValueError(f"provider「{provider['name']}」返回了空模型列表")
+                raise ValueError(f"provider「{label}」返回了空模型列表")
 
-            logger.info(f"[CCSwitch] 从 {provider['name']} 抓取到 {len(models)} 个模型（{url}）")
+            logger.info(f"[ModelProvider] 从 {label} 抓取到 {len(models)} 个模型（{url}）")
             return {
-                "provider": {"id": provider["id"], "name": provider["name"], "base_url": base_url},
+                "provider": {"name": label, "base_url": base},
                 "models": models,
             }
 
     raise ValueError(f"抓取模型失败：{last_error or '未知错误'}")
+
+
+async def fetch_provider_models(
+    app_type: str = "hermes", provider_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """调用 provider 的 models 端点抓取全部可用模型（只读，不写任何配置）。
+
+    依次尝试候选 URL（/v1/models、/models），兼容 OpenAI 兼容 / Anthropic / Codex 端点。
+    底层复用 :func:`fetch_models_from_url` 公共函数。
+    """
+    provider = _resolve_provider_for_action(app_type, provider_id)
+    base_url = (provider.get("base_url") or "").strip()
+    api_key = (provider.get("api_key") or "").strip()
+    result = await fetch_models_from_url(
+        base_url, api_key, provider_label=provider.get("name") or base_url
+    )
+    # 保留原始 provider id 结构，便于既有调用方
+    result["provider"]["id"] = provider.get("id")
+    result["provider"]["name"] = provider.get("name") or base_url
+    result["provider"]["base_url"] = base_url
+    return result
 
 
 async def test_provider(

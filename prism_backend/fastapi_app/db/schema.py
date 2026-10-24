@@ -300,6 +300,23 @@ def ensure_main_db_schema(conn: sqlite3.Connection) -> None:
         """
     )
 
+    # --- model_providers（模型供应商注册表） ---
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS model_providers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            base_url TEXT,
+            api_key TEXT,
+            enabled INTEGER DEFAULT 1,
+            remark TEXT,
+            available_models TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
     conn.commit()
 
     # --- artifacts（统一产物总线） ---
