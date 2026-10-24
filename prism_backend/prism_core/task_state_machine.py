@@ -169,6 +169,10 @@ def retry_task(state: TaskState, error_message: Optional[str] = None) -> TaskSta
       - 状态变为 running，error_message 清空
       - 若 attempt 已达 max_attempts → 转 failed_final（防止无限重试）
       - 非 failed_retryable 状态调用 → InvalidTransition
+
+    attempt 语义：TaskState.attempt 默认为 1，表示"首次执行"；本函数是
+    唯一递增入口，仅在调用时把 attempt 从 N 变为 N+1（即"第 N+1 次尝试"）。
+    首次执行不经过本函数，因此不会走递增路径。
     """
     if state.status != TaskStatus.FAILED_RETRYABLE:
         raise InvalidTransition(

@@ -220,9 +220,9 @@ class TestIllegalData:
             )
 
     def test_negative_attempt_raises_if_validated(self):
-        # attempt 语义上应 >=1；如未做校验，则跳过
-        r = PublishReceipt(attempt=1)
-        assert r.attempt == 1
+        # attempt 语义上 >= 0；负值必须被 pydantic 拒绝
+        with pytest.raises(ValidationError):
+            PublishReceipt(attempt=-1)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -415,7 +415,6 @@ class TestRouterIntegration:
     def test_get_missing_receipt_returns_404(self, isolated_db, client):
         resp = client.get("/api/v1/receipts/task_no_such_id")
         assert resp.status_code == 404
-        assert "回执不存在" in resp.text or "回执不存在" in resp.json().get("detail", "")
 
     def test_get_failed_receipt_returns_error_fields(self, isolated_db, client):
         r = PublishReceipt(

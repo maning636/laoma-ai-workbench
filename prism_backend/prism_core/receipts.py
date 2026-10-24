@@ -72,7 +72,7 @@ class PublishReceipt(BaseModel):
     error_message: Optional[str] = None
     retryable: bool = False
     requires_human_action: bool = False
-    attempt: int = 1
+    attempt: int = Field(default=1, ge=0)
     idempotency_key: Optional[str] = None
     artifacts: Optional[DiagnosticArtifact] = None
     created_at: str = Field(default_factory=now_beijing_iso)
@@ -210,7 +210,6 @@ def save_receipt(receipt: PublishReceipt) -> str:
                 "updated_at": receipt.updated_at,
             })
     else:
-        db_path = settings.DATABASE_PATH
         conn = open_main_db()
         _ensure_receipt_table(conn)
         conn.execute("""
@@ -245,7 +244,6 @@ def get_receipt(task_id: str) -> Optional[PublishReceipt]:
         if row:
             row = dict(row)
     else:
-        db_path = settings.DATABASE_PATH
         conn = open_main_db()
         _ensure_receipt_table(conn)
         cursor = conn.cursor()
@@ -319,7 +317,6 @@ def list_receipts(
             ).mappings().all()
         rows = [dict(r) for r in rows]
     else:
-        db_path = settings.DATABASE_PATH
         conn = open_main_db()
         _ensure_receipt_table(conn)
         cursor = conn.cursor()
