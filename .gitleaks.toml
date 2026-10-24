@@ -1,0 +1,82 @@
+# Gitleaks 配置：本项目最小扫描配置 + 允许列表
+#
+# 使用方式（CI 见 .github/workflows/security.yml）：
+#   gitleaks detect -v \
+#       --no-git \
+#       --source . \
+#       --target . \
+#       --config .gitleaks.toml \
+#       --log-level=error
+#
+# 允许列表原则：
+#   - 只把"人工确认为假数据/测试 fixture/构建产物"的路径写进来；
+#   - 允许项必须能说明为什么不是真密钥；
+#   - 新增允许项前请先跑一次
+#       git grep -nE "(sk-[A-Za-z0-9]{20}|ghp_[A-Za-z0-9]{30}|AKIA[A-Z0-9]{16})"
+#     并核对上下文；真密钥一律不能进允许列表——必须轮换并删除。
+#
+# 允许列表条目清单（当前 3 类）：
+#   1. 本地未入库目录：_deploy_inputs/（SSH 部署物料，.gitignore 覆盖；这里再加一层双保险）
+#   2. 逆向/教学快照 HTML 中的 base64 数据 URL 巧合子串：prism_backend/_edu_obs/*.html
+#      —— 命中形如 "AKIAAQAAAAAAAQAUAAAA"，是 base64 编码 SVG/image 数据里
+#         的随机 20 字节片段，与 AWS Access Key ID 完全无关。
+#   3. 前端 AI Provider 弹窗的字面 placeholder：
+#      prism_frontend/src/components/ai-provider-setup-dialog.tsx
+#      —— placeholder="sk-xxxxxxxxxxxxxxxxxxxxxx"，全 x 占位符，非真实 API key。
+#
+# 未来新增允许项建议：
+#   - 测试 fixture 目录（例如 prism_backend/tests/fixtures/**）：目前无，先占位；
+#   - 文档示例（docs/**）：目前无，先占位。
+#   - 每次新增请在本注释里补一条说明。
+
+title = "Prism-Fusion gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Non-leak false positives (see file header for rationale)"
+
+# --- 路径类排除 ---
+paths = [
+  # 本地部署物料目录（.gitignore 已覆盖；此条为双保险）
+  '''_deploy_inputs/''',
+  # Node / Python / 缓存 / 构建产物
+  '''node_modules/''',
+  '''\\.venv/''',
+  '''venv/''',
+  '''__pycache__/''',
+  '''dist/''',
+  '''dist-build/''',
+  '''prismenv/''',
+  '''_caches/''',
+  '''_appdata_electron/''',
+  '''_appdata_laoma_bid/''',
+  '''_electron_userdata/''',
+  '''_electron_userdata_packaged/''',
+  '''artifacts/''',
+  '''_backup_demo_20261015/''',
+  '''_plan_drafts_backup/''',
+  '''prism_publisher\\.egg-info/''',
+  '''\\.superpowers/''',
+  '''\\.pytest_cache/''',
+  '''\\.ruff_cache/''',
+
+  # 逆向/教学 HTML 快照：包含 base64 编码 SVG，出现 "AKIA[A-Z0-9]{16}" 巧合子串
+  '''prism_backend/_edu_obs/''',
+  '''prism_backend/_edu_obs/[^\\s]{1,300}html$''',
+]
+
+# --- 精确字符串排除（针对已知假数据） ---
+regexes = [
+  # 前端 AI Provider 弹窗的 UI 占位符（全 x）
+  '''sk-[xX]{16,}''',
+]
+
+# --- 全局禁止：任何情况下都不允许以下模式（即使有 allowlist）---
+# 目前无需要绝对禁止的模式，先占位。若日后出现"绝不允许出现在仓库里"的
+# 敏感模式（例如内部账号前缀），在此添加。
+#
+# banned = [
+#   '''<some-prefixed-token>''',
+# ]

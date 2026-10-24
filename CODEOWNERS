@@ -1,0 +1,58 @@
+# ============================================================
+# Prism-Fusion · CODEOWNERS
+#
+# 作用：在 PR 页面自动把列出的 owner 加为 reviewer；配合 branch protection
+# 要求 approval 时可以形成"关键路径需要专人 review"的护栏。
+#
+# 语法要点：
+#   - 匹配按"最后匹配的规则胜出"，因此全局 `*` 必须放最上面；
+#   - 路径以 `/` 开头表示相对仓库根；无 `/` 前缀的是纯文件名匹配；
+#   - 支持 gitignore 风格 glob：`*`（不跨 `/`）、`**`（跨 `/`）、`?`（单字符）；
+#   - 一个规则可写多个 owner，全部需要 approve。
+#
+# 当前 owner：@maning636（仓库唯一活跃开发者，全局兜底）。
+# 加人后请在此文件对应路径规则后追加新 GitHub 用户名，例如：
+#   /cloud_service/  @maning636 @new-backend-dev
+# ============================================================
+
+# 全局兜底：任何未匹配到的文件都由 @maning636 review
+*                         @maning636
+
+# ---------- 后端 / 云 / 桌面 / 前端 / 部署 / 文档 ----------
+
+# 云侧计费 / LLM 代理 / 认证中间件（cloud_service/）
+/cloud_service/           @maning636
+
+# Electron 桌面壳（desktop-electron/）
+/desktop-electron/        @maning636
+
+# 后端应用主仓（prism_backend/：FastAPI、上传、AI、抖音/快手发布等）
+/prism_backend/           @maning636
+
+# 前端 React 应用（prism_frontend/）
+/prism_frontend/          @maning636
+
+# 部署脚本 / CI 工作流 / 治理配置（deploy/、.github/）
+/deploy/                  @maning636
+/.github/                 @maning636
+
+# 文档 / ADR / 交接材料
+/docs/                    @maning636
+
+# ---------- 依赖与运行时（依赖声明改动需额外关注） ----------
+
+# 根级 Python 依赖声明
+/requirements*.txt        @maning636
+
+# 前端依赖锁文件
+/prism_frontend/package-lock.json @maning636
+
+# Python 包构建配置
+/pyproject.toml           @maning636
+
+# ============================================================
+# 加人后在此登记：
+#   1. 上面对应路径追加新 GitHub 用户名（空格分隔）；
+#   2. 若某路径需要"多人都必须 approve"，两个用户名都要写（GitHub 会强制）；
+#   3. 若某路径只需要"任一 reviewer"，仍然写全部名字，让评审人选一个。
+# ============================================================

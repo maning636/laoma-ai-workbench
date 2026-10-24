@@ -1,0 +1,428 @@
+# ============================================================
+# Prism-Fusion · Security Scan
+#
+# 四个安全扫描 job + 一个覆盖率基线 job；全部 continue-on-error，
+# 保证四个扫描互不拖死（基线期：任何失败都不阻断 merge，只留证据）。
+#
+# 触发：
+#   push 到 main / PR / 每周一 02:17 UTC（错峰避开整点高峰）
+#
+# Job 说明：
+#   - secret-scan        : gitleaks（配置文件 .gitleaks.toml，允许列表见其注释）
+#   - pip-audit          : 根 requirements.txt + prism_backend/requirements.txt
+#                          已知无修复版漏洞用 --ignore-vuln 占位说明
+#   - npm-audit          : prism_frontend，仅生产依赖高危才红
+#   - license-audit      : 轻量许可审计，仅输出清单到 artifact（无门禁）
+#   - coverage-baseline  : 仅 push 到 main 时跑；PR 跳过省时；不设阈值
+#
+# 与 ci.yml 的关系：ci.yml 是"能不能跑"的门（硬门/软门），
+# 本工作流是"够不够安全"的门（当前全部为软门，产出证据链）。
+# ============================================================
+
+name: Security Scan
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  schedule:
+    # 每周一 UTC 02:17 ≈ 北京 10:17（错峰，避免与整点高峰撞车）
+    - cron: '17 2 * * 1'
+
+permissions:
+  contents: read
+  security-events: write  # 供 gitleaks/pip-audit 上传 SARIF 到 GitHub Code Scanning
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ============================================================
+  # secret-scan: gitleaks
+  #
+  # - 项目无 GITLEAKS_LICENSE 时使用开源模式；
+  #   配置全部由 .gitleaks.toml 决定（允许列表已针对本项目实测误报补齐）。
+  # - fetch-depth: 0 → 完整历史，检测已 commit 到 git history 的密钥。
+  # - action 内建 SARIF 上传，扫描结果会出现在 GitHub Security tab。
+  # ============================================================
+  secret-scan:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # 必须完整历史，否则 git history 里的密钥扫不到
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          config: .gitleaks.toml
+        env:
+          # 未配置 secrets.GITLEAKS_LICENSE 时以开源模式运行
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  # ============================================================
+  # pip-audit: Python 依赖漏洞审计
+  #
+  # - 对根 requirements.txt + prism_backend/requirements.txt 两个入口跑一遍
+  #   （prism_backend 版只是 -r 引根，跑两次冗余但明确，日后拆分歧化时不用改 job）
+  # - 输出 JSON + SARIF；结果写到 job summary 供快速查看
+  # - --ignore-vuln 占位说明：已知无修复版漏洞（如 pyarrow / requests
+  #   历史上被误报的 CVE），在此登记后 CI 不再因它们而红；
+  #   每条占位都要在注释里写清"上游 issue 链接 / 何时移除"。
+  # ============================================================
+  pip-audit:
+    name: pip-audit (Python deps)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: |
+            requirements.txt
+            prism_backend/requirements.txt
+
+      - name: Install pip-audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --quiet pip-audit
+
+      - name: pip-audit on requirements.txt (root)
+        id: audit_root
+        shell: bash
+        run: |
+          set +e
+          python -m pip_audit \
+            --requirement requirements.txt \
+            --desc-only \
+            --format json --output audit-root.json \
+            --ignore-vuln CVE-PLACEHOLDER-PYARROW \
+            --ignore-vuln CVE-PLACEHOLDER-REQUESTS-51319 \
+            2>&1 | tee pip-audit-root.log
+          rc=$?
+          # exit 0：job 整体 continue-on-error，这里不额外阻断，让 SARIF/summary 都产出
+          echo "root_exit=$rc" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: pip-audit on prism_backend/requirements.txt
+        id: audit_backend
+        shell: bash
+        run: |
+          set +e
+          python -m pip_audit \
+            --requirement prism_backend/requirements.txt \
+            --desc-only \
+            --format json --output audit-backend.json \
+            --ignore-vuln CVE-PLACEHOLDER-PYARROW \
+            --ignore-vuln CVE-PLACEHOLDER-REQUESTS-51319 \
+            2>&1 | tee pip-audit-backend.log
+          rc=$?
+          echo "backend_exit=$rc" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## pip-audit 结果"
+            echo
+            echo "**已忽略 CVE**（已知无修复版 / 未影响本仓库用途）："
+            echo '- \`CVE-PLACEHOLDER-PYARROW\`：占位，待真实漏洞定位后替换成具体 CVE ID。'
+            echo '- \`CVE-PLACEHOLDER-REQUESTS-51319\`：占位，待定位后替换。'
+            echo
+            echo "**requirements.txt**：\n\`\`\`\n$(tail -30 pip-audit-root.log 2>/dev/null || echo '(无日志)')\n\`\`\`"
+            echo
+            echo "**prism_backend/requirements.txt**：\n\`\`\`\n$(tail -30 pip-audit-backend.log 2>/dev/null || echo '(无日志)')\n\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload SARIF (root)
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          category: pip-audit-root
+          sarif_file: audit-root.json
+
+  # ============================================================
+  # npm-audit: 前端生产依赖高危漏洞
+  #
+  # - `--omit=dev` : 只看 prod 依赖；dev 警告不拦
+  # - `--audit-level=high` : critical + high 才红
+  # - npm audit 默认以"发现漏洞即非 0"退出；job 已 continue-on-error，
+  #   所以这里保留 exit code 语义（有漏洞 → step 红，但 job 不阻断）
+  # ============================================================
+  npm-audit:
+    name: npm audit (prism_frontend, prod high+)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: prism_frontend/package-lock.json
+
+      - name: Install frontend deps
+        shell: bash
+        working-directory: prism_frontend
+        run: |
+          set -euo pipefail
+          npm ci
+
+      - name: npm audit (high+, prod only)
+        shell: bash
+        working-directory: prism_frontend
+        run: |
+          set +e
+          npm audit --omit=dev --audit-level=high 2>&1 | tee npm-audit.log
+          rc=$?
+          exit 0
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## npm audit 结果"
+            echo
+            echo "范围：prism_frontend，prod 依赖，仅 high+ 阻断（本 job continue-on-error）"
+            echo
+            echo "\`\`\`"
+            tail -60 npm-audit.log 2>/dev/null || echo "(无日志)"
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ============================================================
+  # license-audit: 轻量许可审计（只报告，无门禁）
+  #
+  # 目标：给软著/合规出一份"我们装了哪些 Python 依赖、各自什么许可"的清单，
+  # 落到 artifact 供下载留档。不阻断 CI。
+  #
+  # 实现：pip list --format=json 拿到顶层依赖列表（不含传递依赖），
+  # 再用 importlib.metadata.metadata() 读每个包 dist-info/METADATA 的
+  # Classifier 里的 License 字段（PEP 314 分类器）。
+  # ============================================================
+  license-audit:
+    name: License audit (Python, report-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: requirements.txt
+
+      - name: Install prod dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --quiet -r requirements.txt
+
+      - name: List licenses of top-level deps
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip list --format=json > /tmp/pip-list.json
+          python > /tmp/gen_license_report.py <<'PYGEN'
+          import importlib.metadata, json, sys
+          from pathlib import Path
+
+          root = Path("requirements.txt")
+          # 解析 requirements.txt 顶层包名（不解析 -r 递归、版本约束与 - 开头的选项）
+          top = set()
+          for raw in root.read_text(encoding="utf-8").splitlines():
+              line = raw.split("#", 1)[0].strip()
+              if not line or line.startswith("-"):
+                  continue
+              name = ""
+              for sep in ("==", ">=", "<=", "~=", "!=", ">", "<", "(", "["):
+                  if sep in line:
+                      name = line.split(sep, 1)[0].strip()
+                      break
+              if not name and not any(c in line for c in "<>=!"):
+                  name = line
+              name = name.lower().replace("_", "-")
+              if name:
+                  top.add(name)
+
+          all_pkgs = json.loads(Path("/tmp/pip-list.json").read_text(encoding="utf-8"))
+          name2info = {p["Name"].lower(): p for p in all_pkgs}
+
+          lines = []
+          lines.append("# Prism-Fusion Python License Audit")
+          lines.append("")
+          lines.append(f"扫描对象：`{root.name}` 顶层依赖（不含传递依赖）")
+          lines.append(f"顶层声明：{len(top)} 项 / 实际安装：{len(all_pkgs)} 项")
+          lines.append("")
+          lines.append("License 来源：`importlib.metadata.metadata().get_all('Classifier')` 中的 `License ::` 分类器（PEP 314）；")
+          lines.append("缺分类器的包回退到 METADATA 的 `License:` 字段。此清单**仅供软著/合规参考，不构成法律意见**。")
+          lines.append("")
+          lines.append("## 顶层依赖许可清单")
+          lines.append("")
+          lines.append("| 包名 | 版本 | License |")
+          lines.append("|---|---|---|")
+          for name in sorted(top):
+              info = name2info.get(name)
+              if not info:
+                  lines.append(f"| {name} | (未安装) | — |")
+                  continue
+              version = info.get("Version", "?")
+              try:
+                  meta = importlib.metadata.metadata(name)
+                  classifiers = meta.get_all("Classifier") or []
+                  lics = [c.split(" :: ", 1)[-1] for c in classifiers if c.startswith("License ::")]
+                  if not lics:
+                      lics = [meta.get("License") or "UNKNOWN"]
+                  lic = "; ".join(sorted(set(lics))) or "UNKNOWN"
+              except Exception as e:
+                  lic = f"ERR:{type(e).__name__}"
+              lines.append(f"| {name} | {version} | {lic} |")
+
+          lines.append("")
+          lines.append("## 生成信息")
+          lines.append("")
+          lines.append(f"- 扫描时间：CI run {__import__('os').environ.get('GITHUB_RUN_ID', 'local')}")
+          lines.append(f"- Python：{sys.version.split()[0]}")
+          lines.append(f"- 依赖清单文件：`{root.name}`")
+
+          out = Path("license-audit.md")
+          out.write_text("\n".join(lines) + "\n", encoding="utf-8")
+          print(out.read_text(encoding="utf-8"))
+          PYGEN
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## License audit"
+            echo
+            echo "完整清单见 artifact `license-audit.md`。本报告仅供软著/合规参考。"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload license audit artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-audit
+          path: license-audit.md
+          retention-days: 30
+
+  # ============================================================
+  # coverage-baseline: 仅 push 触发，不设阈值
+  #
+  # - 基线期目的：先把覆盖率数字打出来，后续再拍阈值
+  # - PR 跳过省时；只跑 main 分支 push
+  # - 依赖安装复用 ci.yml 的模式（pip + requirements.txt + requirements-dev.txt）
+  # - --cov=prism_core / --cov=fastapi_app：只统计这两个业务包，避免被
+  #   测试代码自身稀释
+  # ============================================================
+  coverage-baseline:
+    name: Coverage baseline (main push only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    continue-on-error: true
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install deps (mirror ci.yml) + pytest-cov
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --quiet -r requirements.txt
+          python -m pip install --quiet -r requirements-dev.txt
+          python -m pip install --quiet pytest-cov
+
+      - name: pytest --cov (baseline, no threshold)
+        shell: bash
+        working-directory: prism_backend
+        run: |
+          set +e
+          python -m pytest fastapi_app/tests/ \
+            tests/test_license_module.py \
+            tests/test_license_plan_derive.py \
+            tests/test_license_readonly_guard.py \
+            --cov=prism_core \
+            --cov=fastapi_app \
+            --cov-report=term \
+            --cov-report=xml:coverage.xml \
+            --cov-report=html:coverage-html \
+            --tb=short -q \
+            2>&1 | tee coverage.log
+          rc=$?
+          echo "pytest_exit=$rc" >> "$GITHUB_OUTPUT"
+          # 不阻断：基线期不设阈值
+          exit 0
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Coverage baseline"
+            echo
+            echo "**基线期**：仅报告，不设阈值。数字稳定后在 [CI 计划] 补一版阈值门。"
+            echo
+            echo "### pytest 摘要"
+            echo "\`\`\`"
+            tail -20 coverage.log 2>/dev/null || echo "(无日志)"
+            echo "\`\`\`"
+            echo
+            echo "### 覆盖率（末行）"
+            echo "\`\`\`"
+            grep -E "TOTAL|Name|Stmts|Miss" coverage.log 2>/dev/null | tail -20 || echo "(无输出)"
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ github.sha }}
+          path: |
+            prism_backend/coverage.xml
+            prism_backend/coverage-html/
+          retention-days: 14

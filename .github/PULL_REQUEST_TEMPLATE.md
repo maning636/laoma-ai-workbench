@@ -75,11 +75,54 @@ $ python -m ruff check prism_backend/ --select E9,F63,F7,F82
 
 N/A
 
+## 坑清单 / 已知问题
+
+<!-- 
+  这个 PR 引入了哪些"能跑但要注意"的东西？没有请写 N/A。
+  常见类型：
+    - 竞态 / 时序问题（例：先启动 worker 再启动 FastAPI，否则 X）
+    - 环境差异（Windows / macOS / Linux 任一独有）
+    - 临时 workaround（例：等待 upstream 修复 CVE-XXX，届时应移除）
+    - 兼容性折衷（例：为兼容 A 场景放弃了 B 场景，理由：...）
+  每一项请给一行"缓解措施"或"移除条件"，便于日后回收。
+-->
+
+- N/A
+
+## 是否涉及已拍板决策（ADR 引用）
+
+<!-- 
+  如果本 PR 触及以下已拍板的设计决定，请在对应条上打勾并说明"如何遵守"。
+  未拍板但需要拍板的决策请在下方新增条目并链接到讨论 Issue。
+  当前已拍板清单（持续追加）：
+    - ADR-001 抖音登录生产禁用 HTTP 逆向模式（见 prism_backend/AGENTS.md）
+    - ADR-002 subprocess.run 走 subprocess_safe wrapper（除 allowlist）
+    - ADR-003 requirements*.txt 与顶层 import 双向对齐（CI: deps-gate）
+    - ADR-004 CI 硬门 / 软门分层（ci.yml 头部注释）
+    - ADR-005 Security Scan 基线期全部软门（security.yml 头部注释）
+-->
+
+- [ ] ADR-001 抖音登录生产禁用 HTTP 逆向模式
+- [ ] ADR-002 subprocess.run 走 subprocess_safe wrapper
+- [ ] ADR-003 requirements*.txt 与顶层 import 双向对齐
+- [ ] ADR-004 CI 硬门 / 软门分层
+- [ ] ADR-005 Security Scan 基线期全部软门
+- [ ] 其他 / 新拍板（在此新增）：
+
 ## 关联 Issue
 
 Closes #<issue-id>
 
 Related: #<other-issue>
+
+## 文档更新
+
+<!-- 涉及行为变更、配置变更、用户可见接口变更必须同步文档 -->
+
+- [ ] README / CONTRIBUTING / SECURITY 已同步（如适用）
+- [ ] `docs/dev-reports/` 或 `docs/architecture/` 已补一篇决策/复盘（如涉及架构或大改动）
+- [ ] `.env.example` / `config/*.example` 已同步（如涉及配置字段新增）
+- [ ] 本 PR 无需文档更新（说明理由：______）
 
 ## Checklist
 
