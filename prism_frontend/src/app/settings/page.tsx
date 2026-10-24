@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -22,7 +23,9 @@ import { TikHubApiKeyCard } from "@/components/settings/tikhub-api-key-card"
 import {
   Activity,
   AlertTriangle,
+  ArrowRight,
   Bot,
+  Boxes,
   Cookie,
   Database,
   Download,
@@ -384,6 +387,30 @@ export default function SettingsPage() {
           </Badge>
         </div>
       </div>
+
+      {/* 供应商注册表入口卡：OpenRouter / one-api 风格，与下方通道卡片同一视觉族 */}
+      <Link
+        href="/settings/model-providers"
+        className="group block rounded-2xl border border-border/70 bg-card p-4 transition-colors hover:bg-accent/40"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-popover p-1.5 text-foreground">
+              <Boxes className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="text-sm font-medium text-foreground">模型供应商管理</div>
+              <div className="mt-0.5 text-xs text-muted-foreground">
+                统一管理 OpenAI 兼容推理服务；添加、测试、拉模型、一键应用到通道。
+              </div>
+            </div>
+          </div>
+          <span className="flex items-center gap-1 text-xs text-foreground/70 group-hover:text-foreground">
+            进入
+            <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+          </span>
+        </div>
+      </Link>
 
       <CcSwitchPanel />
       <HermesProviderCard />
