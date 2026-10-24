@@ -1,0 +1,194 @@
+# ============================================================
+# {{项目名}} 主 CI —— 精简版硬门骨架
+#
+# 硬门（不通过不合并）：
+#   ✅ lint           : ruff 最小规则集 E9/F63/F7/F82
+#   ✅ lint-frontend  : ESLint 全量（前端项目才启用）
+#   ✅ test           : pytest 后端单测 + license 护栏（如适用）
+#   ✅ deps-gate      : 依赖声明闸门 + 反向自测
+#
+# 软门（continue-on-error，仅告警）：
+#   ⚠️ e2e           : 需要 self-hosted runner + 真实产物，仅手动触发
+#
+# 依据（从 Prism-Fusion 抽象）：
+#   - 依赖闸门必须反向自测，否则是「永远 OK」的假闸门（坑 C4）
+#   - pytest 收集不到用例直接 exit 5 也要当 gate 失败
+#   - 一次把全部失败打出来，别只报第一个（不加 -x）
+# ============================================================
+
+name: CI
+
+on:
+  push:
+    branches:
+      - '**'
+    tags-ignore:
+      - 'v*'
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      run_e2e:
+        description: 'Run E2E (requires self-hosted runner + real artifacts)'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ------------------------------------------------------------
+  # lint: 后端 ruff 最小规则集（先抓致命语法 + NameError）
+  # 为什么这个门存在：本地 ruff 全量规则集会有大量历史告警；
+  #   最小规则集先跑起来、抓致命错，逐步扩大。
+  # ------------------------------------------------------------
+  lint:
+    name: Ruff lint (backend)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install ruff
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --quiet "ruff>=0.4"
+
+      - name: ruff check (E9/F63/F7/F82)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ruff check src/ \
+            --select E9,F63,F7,F82 \
+            --extend-exclude 'dist,node_modules,.venv,build,__pycache__'
+
+  # ------------------------------------------------------------
+  # lint-frontend: 前端 ESLint 全量
+  # 为什么这个门存在：pre-commit 只看变更文件；CI 跑全仓，
+  #   防止「绕过 pre-commit」的 PR 合进来。
+  # ------------------------------------------------------------
+  lint-frontend:
+    name: ESLint (frontend)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'  # 硬性下限：jsdom 30+ 内嵌 undici 8.12.3 要求 >= 22.19.0
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install frontend deps
+        run: |
+          set -euo pipefail
+          npm ci
+
+      - name: eslint full
+        run: |
+          set -euo pipefail
+          npm run lint:all
+
+  # ------------------------------------------------------------
+  # test: pytest 后端测试（硬门）
+  # 为什么这个门存在：pytest 是唯一能证明代码「真的能跑」的
+  #   自动化手段；lint 只能保证语法/风格。
+  # 注意：不加 -x，一次把全部失败打出来。
+  # ------------------------------------------------------------
+  test:
+    name: Pytest (backend)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install deps
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --quiet -r requirements.txt
+          python -m pip install --quiet -r requirements-dev.txt
+
+      - name: pytest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest tests/ --tb=short -q
+
+  # ------------------------------------------------------------
+  # deps-gate: 依赖声明闸门（硬门）
+  # 为什么这个门存在：`import` 用了但 `requirements.txt` 没声明的
+  #   包，本地因为别的项目残留能跑，CI 干净环境直接 ModuleNotFoundError。
+  # 关键：必须带 --self-test 反向自测，证明它不是假闸门。
+  # ------------------------------------------------------------
+  deps-gate:
+    name: Dependency declaration gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 依赖声明闸门
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/tests/check_requirements_cover_imports.py
+
+      - name: 闸门反向自测
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/tests/check_requirements_cover_imports.py --self-test
+
+  # ------------------------------------------------------------
+  # e2e: 打包产物端到端（软门，默认 skip）
+  # 为什么软门：需要 self-hosted runner + 真实产物，
+  #   push/PR 环境跑不了；只在 workflow_dispatch 手动触发。
+  # ------------------------------------------------------------
+  e2e:
+    name: E2E packaged smoke
+    runs-on: [self-hosted, windows, e2e]
+    timeout-minutes: 30
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.run_e2e == true
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: E2E script
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\scripts\tests\e2e_test.ps1 -TimeoutSec 60

@@ -1,0 +1,151 @@
+# ============================================================
+# {{项目名}} 安全扫描骨架
+#
+# 硬门（不通过不合并）：
+#   ✅ secret-scan      : gitleaks 扫仓库（含已跟踪文件 + .git 历史）
+#   ✅ secret-scan-locally: grep 兜底（防 gitleaks 未装时静默放行）
+#   ✅ dep-audit-python : safety check
+#   ✅ dep-audit-node   : npm audit
+#
+# 依据（从 Prism-Fusion 抽象）：
+#   - Repo Hygiene 十禁 → grep 兜底扫关键字
+#   - 依赖安全扫描 → PLAN_verification_measures.md G7
+#   - Secret 扫描 → 独立 workflow，与主 CI 并行
+# ============================================================
+
+name: Security
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+  schedule:
+    # 每周日凌晨 3 点扫一次全历史，防历史 commit 里被挖出来的密钥
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ------------------------------------------------------------
+  # secret-scan: gitleaks
+  # 为什么这个门存在：git 历史里的密钥即使删除也会留档，
+  #   一旦被扫出来必须轮换，不能靠「删文件」了事。
+  # ------------------------------------------------------------
+  secret-scan:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 必须全历史
+
+      - name: gitleaks scan (repo)
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          # 允许列表见 .gitleaksignore，把明显的示例值放过
+          allowlist: .gitleaksignore
+          only-ref: false  # 扫所有分支，防 PR 里合入密钥
+
+      - name: 兜底 grep 扫关键字（防 gitleaks 未装时静默放行）
+        shell: bash
+        run: |
+          set -euo pipefail
+          # 匹配：sk- / ghp_ / ghb_ / xox[bap]- / AKIA... / Bearer ...
+          if grep -rInE \
+            --exclude-dir=.git \
+            --exclude-dir=node_modules \
+            --exclude='*.lock' \
+            --exclude='*.md' \
+            --exclude='*.example.*' \
+            --include='*.py' --include='*.js' --include='*.ts' --include='*.json' --include='*.yml' --include='*.yaml' \
+            -E '(sk-[A-Za-z0-9]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----)' .; then
+            echo "❌ 疑似密钥，请人工确认"
+            exit 1
+          fi
+          echo "OK no obvious secrets found"
+
+  # ------------------------------------------------------------
+  # dep-audit-python: safety / pip-audit
+  # 为什么这个门存在：依赖 CVE 是「别人没修、你会中招」的主要来源。
+  # ------------------------------------------------------------
+  dep-audit-python:
+    name: Dependency audit (Python)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pip-audit
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --quiet pip-audit
+
+      - name: pip-audit（-r requirements.txt）
+        run: |
+          python -m pip_audit -r requirements.txt --strict
+
+  # ------------------------------------------------------------
+  # dep-audit-node: npm audit
+  # ------------------------------------------------------------
+  dep-audit-node:
+    name: Dependency audit (Node)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: npm ci (no audit during install)
+        run: |
+          npm ci --ignore-scripts --audit=false
+
+      - name: npm audit（--omit=dev，只看生产依赖的高危）
+        run: |
+          npm audit --omit=dev --audit-level=high
+
+  # ------------------------------------------------------------
+  # license-scan: 第三方许可证兼容性扫描（软门，仅告警）
+  # 为什么软门：license-checker 的兼容性判定有边界情况，
+  #   硬门容易误报；先告警，人工确认后决定是否升级。
+  # ------------------------------------------------------------
+  license-scan:
+    name: License compatibility check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: npm ls --parseable 输出到 artifacts
+        run: |
+          npm ci --ignore-scripts --audit=false
+          npm ls --json > package-license-tree.json || true
+          echo "### 依赖树" >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          head -c 8000 package-license-tree.json >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
