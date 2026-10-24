@@ -1,6 +1,6 @@
 {
   "name": "laoma-ai-workbench",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "description": "老马AI工作台",
   "main": "src/main/index.js",
   "laomaCloudUrl": "https://fusion.maning789link.top",
