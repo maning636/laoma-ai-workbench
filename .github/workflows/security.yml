@@ -110,10 +110,7 @@ jobs:
           set +e
           python -m pip_audit \
             --requirement requirements.txt \
-            --desc-only \
             --format json --output audit-root.json \
-            --ignore-vuln CVE-PLACEHOLDER-PYARROW \
-            --ignore-vuln CVE-PLACEHOLDER-REQUESTS-51319 \
             2>&1 | tee pip-audit-root.log
           rc=$?
           # exit 0：job 整体 continue-on-error，这里不额外阻断，让 SARIF/summary 都产出
@@ -127,10 +124,7 @@ jobs:
           set +e
           python -m pip_audit \
             --requirement prism_backend/requirements.txt \
-            --desc-only \
             --format json --output audit-backend.json \
-            --ignore-vuln CVE-PLACEHOLDER-PYARROW \
-            --ignore-vuln CVE-PLACEHOLDER-REQUESTS-51319 \
             2>&1 | tee pip-audit-backend.log
           rc=$?
           echo "backend_exit=$rc" >> "$GITHUB_OUTPUT"
@@ -142,10 +136,6 @@ jobs:
         run: |
           {
             echo "## pip-audit 结果"
-            echo
-            echo "**已忽略 CVE**（已知无修复版 / 未影响本仓库用途）："
-            echo '- \`CVE-PLACEHOLDER-PYARROW\`：占位，待真实漏洞定位后替换成具体 CVE ID。'
-            echo '- \`CVE-PLACEHOLDER-REQUESTS-51319\`：占位，待定位后替换。'
             echo
             echo "**requirements.txt**：\n\`\`\`\n$(tail -30 pip-audit-root.log 2>/dev/null || echo '(无日志)')\n\`\`\`"
             echo
@@ -276,7 +266,7 @@ jobs:
                   top.add(name)
 
           all_pkgs = json.loads(Path("/tmp/pip-list.json").read_text(encoding="utf-8"))
-          name2info = {p["Name"].lower(): p for p in all_pkgs}
+          name2info = {p.get("Name","").lower(): p for p in all_pkgs if p.get("Name")}
 
           lines = []
           lines.append("# Prism-Fusion Python License Audit")
@@ -327,7 +317,7 @@ jobs:
           {
             echo "## License audit"
             echo
-            echo "完整清单见 artifact `license-audit.md`。本报告仅供软著/合规参考。"
+            echo "完整清单见 artifact \`license-audit.md\`。本报告仅供软著/合规参考。"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload license audit artifact
