@@ -110,8 +110,7 @@ jobs:
           set +e
           python -m pip_audit \
             --requirement requirements.txt \
-            --format json --output audit-root.json \
-            2>&1 | tee pip-audit-root.log
+            --format json --output audit-root.json \            2>&1 | tee pip-audit-root.log
           rc=$?
           # exit 0：job 整体 continue-on-error，这里不额外阻断，让 SARIF/summary 都产出
           echo "root_exit=$rc" >> "$GITHUB_OUTPUT"
@@ -142,12 +141,8 @@ jobs:
             echo "**prism_backend/requirements.txt**：\n\`\`\`\n$(tail -30 pip-audit-backend.log 2>/dev/null || echo '(无日志)')\n\`\`\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload SARIF (root)
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          category: pip-audit-root
-          sarif_file: audit-root.json
+      # pip-audit 的 --format json 输出不符合 SARIF v2.1.0 schema（含 dependencies/fixes
+      # 额外字段），upload-sarif 校验必拒收；扫描结果已完整进上方 Summary，不再上传。
 
   # ============================================================
   # npm-audit: 前端生产依赖高危漏洞
