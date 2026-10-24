@@ -158,6 +158,87 @@ def _apply_artifact_review_writeback(
         logger.warning(f"[Review] 产物阶段回写失败 {review_id}: {e}")
 
 
+def _apply_publish_task_state_writeback(artifact_id: str, decision: str) -> None:
+    """审核决策回写到发布任务对应的 task_state 状态（L2-2 修断链 #4）。
+
+    链路：review_queue.task_id = artifact_id → publish_tasks.artifact_id
+          → publish_tasks.task_id → task_states.task_id (str)
+
+    决策 → 目标状态映射（走 task_state_machine 合法转换）：
+      - approved → APPROVED
+      - rejected / needs_edit / auto_rejected → DRAFT（退回修改）
+
+    失败策略（不阻塞审核）：
+      - publish_task 不存在 → 静默跳过
+      - task_state 不存在 → 静默跳过
+      - 非法状态转换 → 静默跳过并记 warning
+      - 其他异常 → 静默跳过并记 warning
+    """
+    if not artifact_id:
+        return
+    try:
+        from fastapi_app.db.session import open_main_db
+        from prism_core.task_state_machine import (
+            TaskStatus,
+            get_task_state,
+            save_task_state,
+            transition_state,
+            InvalidTransition,
+        )
+
+        conn = open_main_db()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT task_id FROM publish_tasks WHERE artifact_id = ? LIMIT 1",
+                (artifact_id,),
+            )
+            row = cur.fetchone()
+        finally:
+            conn.close()
+        if row is None:
+            logger.debug(
+                f"[Review] 无 publish_task 关联 artifact_id={artifact_id}，"
+                f"跳过 task_state 回写"
+            )
+            return
+
+        state_task_id = str(row[0])
+
+        if decision == "approved":
+            target = TaskStatus.APPROVED
+        elif decision in ("rejected", "needs_edit", "auto_rejected"):
+            target = TaskStatus.DRAFT
+        else:
+            return
+
+        state = get_task_state(state_task_id)
+        if state is None:
+            logger.debug(
+                f"[Review] task_state {state_task_id} 不存在，跳过回写"
+            )
+            return
+        if state.status == target:
+            return
+
+        new_status = transition_state(state.status, target)
+        state.status = new_status
+        save_task_state(state)
+        logger.info(
+            f"[Review] task_state {state_task_id} → {target.value}（decision={decision}）"
+        )
+    except InvalidTransition as e:
+        logger.warning(
+            f"[Review] task_state 非法转换（跳过，不阻塞审核）"
+            f" artifact={artifact_id} decision={decision}: {e}"
+        )
+    except Exception as e:
+        logger.warning(
+            f"[Review] task_state 回写失败（跳过，不阻塞审核）"
+            f" artifact={artifact_id} decision={decision}: {e}"
+        )
+
+
 def enqueue_review(item: ReviewItem) -> str:
     from fastapi_app.db.session import open_main_db
     data = item.model_dump()
@@ -270,9 +351,9 @@ def approve_review(review_id: str, reviewer: str, reason: str = "") -> Optional[
         """, (data.decision_id, data.review_id, data.decision, data.reason, data.reviewer, data.created_at))
         conn.commit()
     logger.info(f"[Review] 通过: {review_id} by {reviewer}")
-    _apply_artifact_review_writeback(
-        review_id, "approved", reason, _get_review_task_id(review_id)
-    )
+    _review_task_id = _get_review_task_id(review_id)
+    _apply_artifact_review_writeback(review_id, "approved", reason, _review_task_id)
+    _apply_publish_task_state_writeback(_review_task_id, "approved")
     return data
 
 
@@ -306,9 +387,11 @@ def reject_review(review_id: str, reviewer: str, reason: str = "") -> Optional[R
         """, (data.decision_id, data.review_id, data.decision, data.reason, data.reviewer, data.created_at))
         conn.commit()
     logger.warning(f"[Review] 拒绝: {review_id} by {reviewer} - {reason}")
+    _review_task_id = _get_review_task_id(review_id)
     _apply_artifact_review_writeback(
-        review_id, "rejected", reason, _get_review_task_id(review_id)
+        review_id, "rejected", reason, _review_task_id
     )
+    _apply_publish_task_state_writeback(_review_task_id, "rejected")
     return data
 
 
@@ -467,9 +550,11 @@ class ReviewQueueManager:
             conn.execute("UPDATE review_queue SET status='needs_edit', reviewed_at=?, decision_by=?, decision_reason=? WHERE review_id=?",
                          (now, reviewer, reason, review_id))
             conn.commit()
+        _review_task_id = _get_review_task_id(review_id)
         _apply_artifact_review_writeback(
-            review_id, "needs_edit", reason, _get_review_task_id(review_id)
+            review_id, "needs_edit", reason, _review_task_id
         )
+        _apply_publish_task_state_writeback(_review_task_id, "needs_edit")
 
     def get_next_pending(self, platform: Optional[int] = None, limit: int = 1) -> list:
         return list_reviews(status=ReviewStatus.PENDING.value, account_id=None,

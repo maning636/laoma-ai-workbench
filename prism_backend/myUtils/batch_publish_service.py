@@ -38,12 +38,16 @@ def _record_success_receipt(platform, account_id, video_url, data: Dict) -> None
     try:
         from prism_core.receipts import build_success_receipt, save_receipt, platform_name_for
         pn = platform_name_for(platform)
+        # L2-2: 从任务上下文透传归因字段（缺则保持 NULL，不强造）
         receipt = build_success_receipt(
             platform=platform,
             platform_name=pn,
             account_id=str(account_id),
             video_url=video_url,
             attempt=data.get('attempt', 1),
+            task_ref=data.get('task_ref'),
+            material_id=data.get('material_id'),
+            artifact_id=data.get('artifact_id'),
         )
         save_receipt(receipt)
     except Exception as e:
@@ -56,6 +60,7 @@ def _record_failure_receipt(platform, account_id, error_code, error_msg, retryab
         from prism_core.receipts import build_error_receipt, save_receipt, platform_name_for, ErrorCode
         pn = platform_name_for(platform)
         ec = ErrorCode(error_code) if error_code in [e.value for e in ErrorCode] else ErrorCode.UNKNOWN
+        # L2-2: 从任务上下文透传归因字段（缺则保持 NULL，不强造）
         receipt = build_error_receipt(
             platform=platform,
             platform_name=pn,
@@ -65,6 +70,9 @@ def _record_failure_receipt(platform, account_id, error_code, error_msg, retryab
             retryable=retryable,
             requires_human_action=(error_code in ('CAPTCHA_REQUIRED', 'ACCOUNT_BLOCKED', 'LOGIN_REQUIRED', 'COOKIE_EXPIRED')),
             attempt=data.get('attempt', 1) if data else 1,
+            task_ref=data.get('task_ref') if data else None,
+            material_id=data.get('material_id') if data else None,
+            artifact_id=data.get('artifact_id') if data else None,
         )
         save_receipt(receipt)
     except Exception as e:
