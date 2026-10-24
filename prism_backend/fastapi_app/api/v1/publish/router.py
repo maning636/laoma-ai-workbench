@@ -113,6 +113,9 @@ async def publish_batch_videos(
             miniprogram_title=request.miniprogram_title,
             # 🆕 NEW: 每平台专属配置
             platform_settings=request.platform_settings,
+            # L1-2 软关联归因
+            material_id=request.material_id,
+            artifact_id=request.artifact_id,
         )
 
         return Response(
@@ -177,6 +180,9 @@ async def publish_single_video(
             miniprogram_title=request.miniprogram_title,
             # 🆕 NEW: 每平台专属配置
             platform_settings=request.platform_settings,
+            # L1-2 软关联归因
+            material_id=request.material_id,
+            artifact_id=request.artifact_id,
         )
 
         return Response(

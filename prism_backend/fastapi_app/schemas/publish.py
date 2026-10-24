@@ -35,6 +35,13 @@ class BatchTaskItem(BaseModel):
     random_cover: Optional[bool] = Field(None, description="随机封面")
     miniprogram_link: Optional[str] = Field(None, description="小程序链接")
     miniprogram_title: Optional[str] = Field(None, description="小程序标题")
+    # L1-2 软关联归因（可选，覆盖顶层同名字段；缺省回落到顶层）
+    material_id: Optional[str] = Field(
+        None, description="L1-2 软关联素材 ID（可选，覆盖顶层 material_id）"
+    )
+    artifact_id: Optional[str] = Field(
+        None, description="L1-2 软关联 artifacts.artifact_id（可选，覆盖顶层 artifact_id）"
+    )
 
 
 class BatchPublishRequest(BaseModel):
@@ -130,6 +137,18 @@ class BatchPublishRequest(BaseModel):
         default=None,
         description="每平台专属配置（key=平台代码，如 douyin/kuaishou/xiaohongshu）",
         validation_alias=AliasChoices("platform_settings", "platformSettings"),
+    )
+
+    # L1-2 软关联归因（顶层；单条 item 可通过 items[*].material_id / artifact_id 覆盖）
+    # 透传到 publish_tasks 表的 material_id / artifact_id 列，让「素材→发布」
+    # 一段链路在数据层真正连起来。不 FK、可空、不锁写入。
+    material_id: Optional[str] = Field(
+        None,
+        description="L1-2 软关联素材 ID（file_records.id 或外部素材标识；缺省回落到 file_ids 首项）",
+    )
+    artifact_id: Optional[str] = Field(
+        None,
+        description="L1-2 软关联 artifacts.artifact_id（art_xxx）",
     )
 
     @field_validator('file_ids')

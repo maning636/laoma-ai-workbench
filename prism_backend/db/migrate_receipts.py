@@ -8,6 +8,17 @@ Phase 0 数据库迁移脚本
 - state_transitions
 - account_health_snapshots
 - alert_webhooks
+
+L1-2 收敛（2026-10-24）：所有 DDL 常量改从 `fastapi_app.db.schema` 导入，
+本文件不再维护自己的 CREATE TABLE 字符串，避免与 schema.py 二次漂移。
+schema.py 是当前唯一真源；本文件只做"运行 migrate 脚本"的入口。
+
+裁决理由（对齐 l1-2-report.md §"漂移裁决表"）：
+  publish_receipts: 保 schema.py 的 `artifacts_json`（运行时实际使用）
+  task_states: 保 schema.py 含 completed_at 版本（更完整）
+  monitor_events: 保 schema.py `message TEXT` 无默认（sqlite 里 NULL 语义正确）
+  state_transitions: 保 schema.py 的 `transition_id TEXT PK`（monitor.py 版本）
+  alert_webhooks: 保 schema.py 的 `id + name` 双列（webhook.py 模式统一）
 """
 from __future__ import annotations
 import sys
@@ -19,115 +30,40 @@ from fastapi_app.core.config import settings
 from fastapi_app.core.logger import logger
 from fastapi_app.db.runtime import mysql_enabled, sa_connection
 from fastapi_app.db.session import open_main_db
+from fastapi_app.db.schema import (
+    DDL_PUBLISH_RECEIPTS,
+    DDL_TASK_STATES,
+    DDL_MONITOR_EVENTS,
+    DDL_STATE_TRANSITIONS,
+    DDL_ACCOUNT_HEALTH_SNAPSHOTS,
+    DDL_ALERT_WEBHOOKS,
+    DDL_IDX_PUBLISH_RECEIPTS,
+    DDL_IDX_TASK_STATES,
+    DDL_IDX_MONITOR,
+)
 
 
 def migrate_sqlite() -> None:
     conn = open_main_db()
     c = conn.cursor()
 
-    c.execute("""CREATE TABLE IF NOT EXISTS publish_receipts (
-        task_id TEXT PRIMARY KEY,
-        status TEXT NOT NULL DEFAULT 'running',
-        platform INTEGER DEFAULT 0,
-        platform_name TEXT DEFAULT '',
-        account_id TEXT DEFAULT '',
-        platform_post_id TEXT,
-        published_at TEXT,
-        video_url TEXT,
-        error_code TEXT,
-        error_message TEXT,
-        retryable INTEGER DEFAULT 0,
-        requires_human_action INTEGER DEFAULT 0,
-        attempt INTEGER DEFAULT 1,
-        idempotency_key TEXT,
-        artifacts TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-    )""")
-    c.execute("CREATE INDEX IF NOT EXISTS idx_receipt_status ON publish_receipts(status)")
-    c.execute("CREATE INDEX IF NOT EXISTS idx_receipt_account ON publish_receipts(account_id)")
-    c.execute("CREATE INDEX IF NOT EXISTS idx_receipt_idem ON publish_receipts(idempotency_key)")
+    # L1-2: 全部 DDL 从 schema.py 导入（唯一真源）
+    for sql in (
+        DDL_PUBLISH_RECEIPTS,
+        DDL_TASK_STATES,
+        DDL_MONITOR_EVENTS,
+        DDL_STATE_TRANSITIONS,
+        DDL_ACCOUNT_HEALTH_SNAPSHOTS,
+        DDL_ALERT_WEBHOOKS,
+    ):
+        c.execute(sql)
 
-    c.execute("""CREATE TABLE IF NOT EXISTS task_states (
-        task_id TEXT PRIMARY KEY,
-        status TEXT NOT NULL DEFAULT 'draft',
-        idempotency_key TEXT NOT NULL DEFAULT '',
-        platform INTEGER DEFAULT 0,
-        platform_name TEXT DEFAULT '',
-        account_id TEXT DEFAULT '',
-        campaign_id TEXT,
-        variant_id TEXT,
-        video_id TEXT,
-        material_id TEXT,
-        attempt INTEGER DEFAULT 1,
-        max_attempts INTEGER DEFAULT 3,
-        receipt_task_id TEXT,
-        metadata TEXT,
-        error_message TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-    )""")
-    c.execute("CREATE INDEX IF NOT EXISTS idx_task_idem ON task_states(idempotency_key)")
-    c.execute("CREATE INDEX IF NOT EXISTS idx_task_status ON task_states(status)")
-
-    c.execute("""CREATE TABLE IF NOT EXISTS monitor_events (
-        event_id TEXT PRIMARY KEY,
-        event_type TEXT NOT NULL,
-        severity TEXT DEFAULT 'info',
-        task_id TEXT,
-        receipt_task_id TEXT,
-        account_id TEXT,
-        platform INTEGER DEFAULT 0,
-        platform_name TEXT DEFAULT '',
-        message TEXT DEFAULT '',
-        metadata TEXT,
-        created_at TEXT NOT NULL
-    )""")
-    c.execute("CREATE INDEX IF NOT EXISTS idx_monitor_type ON monitor_events(event_type)")
-    c.execute("CREATE INDEX IF NOT EXISTS idx_monitor_account ON monitor_events(account_id)")
-
-    c.execute("""CREATE TABLE IF NOT EXISTS state_transitions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        task_id TEXT NOT NULL,
-        from_status TEXT,
-        to_status TEXT NOT NULL,
-        reason TEXT DEFAULT '',
-        triggered_by TEXT DEFAULT 'system',
-        metadata TEXT,
-        created_at TEXT NOT NULL
-    )""")
-    c.execute("CREATE INDEX IF NOT EXISTS idx_trans_task ON state_transitions(task_id)")
-
-    c.execute("""CREATE TABLE IF NOT EXISTS account_health_snapshots (
-        snapshot_id TEXT PRIMARY KEY,
-        account_id TEXT NOT NULL,
-        platform INTEGER DEFAULT 0,
-        platform_name TEXT DEFAULT '',
-        health_status TEXT DEFAULT 'healthy',
-        total_publishes INTEGER DEFAULT 0,
-        success_count INTEGER DEFAULT 0,
-        failure_count INTEGER DEFAULT 0,
-        success_rate REAL DEFAULT 0.0,
-        last_success_at TEXT,
-        last_failure_at TEXT,
-        last_error_code TEXT,
-        last_error_message TEXT,
-        consecutive_failures INTEGER DEFAULT 0,
-        cooldown_until TEXT,
-        probe_status TEXT,
-        probe_checked_at TEXT,
-        created_at TEXT NOT NULL
-    )""")
-    c.execute("CREATE INDEX IF NOT EXISTS idx_health_account ON account_health_snapshots(account_id)")
-    c.execute("CREATE INDEX IF NOT EXISTS idx_health_status ON account_health_snapshots(health_status)")
-
-    c.execute("""CREATE TABLE IF NOT EXISTS alert_webhooks (
-        name TEXT PRIMARY KEY,
-        url TEXT NOT NULL,
-        event_types TEXT,
-        enabled INTEGER DEFAULT 1,
-        created_at TEXT NOT NULL
-    )""")
+    for sql in (
+        *DDL_IDX_PUBLISH_RECEIPTS,
+        *DDL_IDX_TASK_STATES,
+        *DDL_IDX_MONITOR,
+    ):
+        c.execute(sql)
 
     conn.commit()
     conn.close()
@@ -135,6 +71,8 @@ def migrate_sqlite() -> None:
 
 
 def migrate_mysql() -> None:
+    # MySQL DDL 保留在本文件（MySQL 不走 schema.py 的 sqlite-only DDL）；
+    # 字段结构与 schema.py 保持一致（L1-2 裁决见文件顶部注释）。
     from sqlalchemy import text
     with sa_connection() as conn:
         conn.execute(text("""CREATE TABLE IF NOT EXISTS publish_receipts (
@@ -152,18 +90,24 @@ def migrate_mysql() -> None:
             requires_human_action TINYINT DEFAULT 0,
             attempt INT DEFAULT 1,
             idempotency_key VARCHAR(256),
-            artifacts TEXT,
+            artifacts_json JSON,
+            task_ref VARCHAR(128),
+            material_id VARCHAR(128),
+            artifact_id VARCHAR(64),
             created_at DATETIME NOT NULL,
             updated_at DATETIME NOT NULL,
             INDEX idx_receipt_status (status),
             INDEX idx_receipt_account (account_id),
-            INDEX idx_receipt_idem (idempotency_key)
+            INDEX idx_receipt_idem (idempotency_key),
+            INDEX idx_receipt_task_ref (task_ref),
+            INDEX idx_receipt_material (material_id),
+            INDEX idx_receipt_artifact (artifact_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"""))
 
         conn.execute(text("""CREATE TABLE IF NOT EXISTS task_states (
             task_id VARCHAR(128) PRIMARY KEY,
             status VARCHAR(30) NOT NULL DEFAULT 'draft',
-            idempotency_key VARCHAR(256) NOT NULL DEFAULT '',
+            idempotency_key VARCHAR(256) NOT NULL,
             platform INT DEFAULT 0,
             platform_name VARCHAR(50) DEFAULT '',
             account_id VARCHAR(200) DEFAULT '',
@@ -178,8 +122,10 @@ def migrate_mysql() -> None:
             error_message TEXT,
             created_at DATETIME NOT NULL,
             updated_at DATETIME NOT NULL,
-            INDEX idx_task_idem (idempotency_key),
-            INDEX idx_task_status (status)
+            completed_at DATETIME,
+            INDEX idx_task_state_status (status),
+            INDEX idx_task_state_idempotency (idempotency_key),
+            INDEX idx_task_state_account (account_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"""))
 
         conn.execute(text("""CREATE TABLE IF NOT EXISTS monitor_events (
@@ -191,7 +137,7 @@ def migrate_mysql() -> None:
             account_id VARCHAR(200),
             platform INT DEFAULT 0,
             platform_name VARCHAR(50) DEFAULT '',
-            message TEXT DEFAULT '',
+            message TEXT,
             metadata TEXT,
             created_at DATETIME NOT NULL,
             INDEX idx_monitor_type (event_type),
@@ -199,13 +145,12 @@ def migrate_mysql() -> None:
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"""))
 
         conn.execute(text("""CREATE TABLE IF NOT EXISTS state_transitions (
-            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            transition_id VARCHAR(128) PRIMARY KEY,
             task_id VARCHAR(128) NOT NULL,
-            from_status VARCHAR(30),
+            account_id VARCHAR(200) DEFAULT '',
+            from_status VARCHAR(30) NOT NULL,
             to_status VARCHAR(30) NOT NULL,
-            reason TEXT DEFAULT '',
-            triggered_by VARCHAR(50) DEFAULT 'system',
-            metadata TEXT,
+            reason TEXT,
             created_at DATETIME NOT NULL,
             INDEX idx_trans_task (task_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"""))
@@ -234,7 +179,8 @@ def migrate_mysql() -> None:
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"""))
 
         conn.execute(text("""CREATE TABLE IF NOT EXISTS alert_webhooks (
-            name VARCHAR(100) PRIMARY KEY,
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(100) NOT NULL,
             url TEXT NOT NULL,
             event_types TEXT,
             enabled TINYINT DEFAULT 1,

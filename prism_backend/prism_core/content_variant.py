@@ -45,6 +45,13 @@ class ContentVariant(BaseModel):
     format_spec: Optional[str] = None  # 如 "1080x1920"
     status: VariantStatus = VariantStatus.DRAFT
     version: int = 1
+    # L1-2 软关联归因字段（可选，NULL 表示未提供）
+    publish_task_id: Optional[str] = Field(
+        None, description="软关联 publish_tasks.task_id（变体→发布任务）"
+    )
+    artifact_id: Optional[str] = Field(
+        None, description="软关联 artifacts.artifact_id（变体→产物）"
+    )
     created_at: str = Field(default_factory=now_beijing_iso)
     updated_at: str = Field(default_factory=now_beijing_iso)
 
@@ -65,13 +72,30 @@ def _ensure_variants_table(conn: sqlite3.Connection) -> None:
             format_spec TEXT,
             status TEXT DEFAULT 'draft',
             version INTEGER DEFAULT 1,
+            publish_task_id TEXT,
+            artifact_id TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
         )
     """)
     conn.cursor().execute("CREATE INDEX IF NOT EXISTS idx_variant_campaign ON content_variants(campaign_id)")
     conn.cursor().execute("CREATE INDEX IF NOT EXISTS idx_variant_status ON content_variants(status)")
+    conn.cursor().execute("CREATE INDEX IF NOT EXISTS idx_variant_task ON content_variants(publish_task_id)")
+    conn.cursor().execute("CREATE INDEX IF NOT EXISTS idx_variant_artifact ON content_variants(artifact_id)")
+    _ensure_variants_columns(conn)
     conn.commit()
+
+
+def _ensure_variants_columns(conn: sqlite3.Connection) -> None:
+    """对已存在的旧库幂等补 publish_task_id / artifact_id 两列。"""
+    cur = conn.cursor()
+    existing = {row[1] for row in cur.execute("PRAGMA table_info(content_variants)").fetchall()}
+    for col, ddl in (
+        ("publish_task_id", "ALTER TABLE content_variants ADD COLUMN publish_task_id TEXT"),
+        ("artifact_id", "ALTER TABLE content_variants ADD COLUMN artifact_id TEXT"),
+    ):
+        if col not in existing:
+            cur.execute(ddl)
 
 
 def save_variant(variant: ContentVariant) -> str:
@@ -88,23 +112,29 @@ def save_variant(variant: ContentVariant) -> str:
                     title TEXT DEFAULT '', content TEXT DEFAULT '',
                     tags TEXT DEFAULT '[]', cover_url TEXT, format_spec TEXT,
                     status VARCHAR(20) DEFAULT 'draft', version INT DEFAULT 1,
+                    publish_task_id VARCHAR(128), artifact_id VARCHAR(64),
                     created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL,
                     INDEX idx_variant_campaign (campaign_id),
-                    INDEX idx_variant_status (status)
+                    INDEX idx_variant_status (status),
+                    INDEX idx_variant_task (publish_task_id),
+                    INDEX idx_variant_artifact (artifact_id)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """))
             conn.execute(text("""
                 INSERT INTO content_variants
                 (variant_id, campaign_id, material_id, video_id, platform, platform_name,
-                 title, content, tags, cover_url, format_spec, status, version, created_at, updated_at)
+                 title, content, tags, cover_url, format_spec, status, version,
+                 publish_task_id, artifact_id, created_at, updated_at)
                 VALUES (:variant_id, :campaign_id, :material_id, :video_id, :platform, :platform_name,
-                        :title, :content, :tags, :cover_url, :format_spec, :status, :version, :created_at, :updated_at)
+                        :title, :content, :tags, :cover_url, :format_spec, :status, :version,
+                        :publish_task_id, :artifact_id, :created_at, :updated_at)
                 ON DUPLICATE KEY UPDATE
                     campaign_id=VALUES(campaign_id), material_id=VALUES(material_id),
                     video_id=VALUES(video_id), platform=VALUES(platform),
                     platform_name=VALUES(platform_name), title=VALUES(title),
                     content=VALUES(content), tags=VALUES(tags), cover_url=VALUES(cover_url),
                     format_spec=VALUES(format_spec), status=VALUES(status),
+                    publish_task_id=VALUES(publish_task_id), artifact_id=VALUES(artifact_id),
                     version=VALUES(version), updated_at=VALUES(updated_at)
             """), {
                 "variant_id": variant.variant_id, "campaign_id": variant.campaign_id,
@@ -113,6 +143,8 @@ def save_variant(variant: ContentVariant) -> str:
                 "title": variant.title, "content": variant.content,
                 "tags": tags_str, "cover_url": variant.cover_url,
                 "format_spec": variant.format_spec, "status": variant.status.value,
+                "publish_task_id": variant.publish_task_id,
+                "artifact_id": variant.artifact_id,
                 "version": variant.version, "created_at": variant.created_at,
                 "updated_at": variant.updated_at,
             })
@@ -122,13 +154,16 @@ def save_variant(variant: ContentVariant) -> str:
         conn.execute("""
             INSERT OR REPLACE INTO content_variants
             (variant_id, campaign_id, material_id, video_id, platform, platform_name,
-             title, content, tags, cover_url, format_spec, status, version, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             title, content, tags, cover_url, format_spec, status, version,
+             publish_task_id, artifact_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             variant.variant_id, variant.campaign_id, variant.material_id, variant.video_id,
             variant.platform, variant.platform_name, variant.title, variant.content,
             tags_str, variant.cover_url, variant.format_spec,
-            variant.status.value, variant.version, variant.created_at, variant.updated_at,
+            variant.status.value, variant.version,
+            variant.publish_task_id, variant.artifact_id,
+            variant.created_at, variant.updated_at,
         ))
         conn.commit()
     return variant.variant_id
@@ -197,6 +232,8 @@ def _row_to_variant(row: dict) -> ContentVariant:
         title=row.get("title", "") or "", content=row.get("content", "") or "",
         tags=tags, cover_url=row.get("cover_url"), format_spec=row.get("format_spec"),
         status=VariantStatus(row.get("status", "draft")), version=row.get("version", 1) or 1,
+        publish_task_id=row.get("publish_task_id"),
+        artifact_id=row.get("artifact_id"),
         created_at=row["created_at"], updated_at=row["updated_at"],
     )
 

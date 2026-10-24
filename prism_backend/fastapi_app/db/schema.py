@@ -9,9 +9,11 @@ L1-1 (2026-10-24): 收编散落在各处的 CREATE TABLE / CREATE INDEX 到本�
 向后兼容（内部委托给 ensure_all_tables）。真源在本模块，其他文件的
 lazy CREATE 保留不动（IF NOT EXISTS 幂等无害）。
 
-字段语义**冻结**：本模块不改任何表的字段定义，只做收编与统一执行。
-两处 DDL 字段不一致时以 schema.py 现有定义为准，不一致清单写入
-`.superpowers/sdd/valkyrie-gamora-big-barda/l1-1-report.md`，交给 L1-2 处理。
+L1-2 (2026-10-24): 在四张主链路上添加软关联归因列（素材→发布→回执→回收
+四跳的桥字段），修复 video_analytics 悬空 FK，收敛 5 处 DDL 漂移，删除
+冗余重复索引。所有新列**全部 nullable + 无 FK 约束**（软关联原则）：
+不强制迁移旧数据、不锁写入、不阻断老数据。裁决理由与写入端接线清单见
+`.superpowers/sdd/valkyrie-gamora-big-barda/l1-2-report.md`。
 """
 
 from __future__ import annotations
@@ -272,9 +274,14 @@ CREATE TABLE IF NOT EXISTS external_accounts (
 
 
 # ---- 8. 发布回执：publish_receipts（prism_core/receipts.py 版本为准）----
-# 漂移：db/migrate_receipts.py 用 `artifacts TEXT`，prism_core/receipts.py 用
-# `artifacts_json TEXT`。schema.py 原本无此表，故采用运行时实际使用的
-# prism_core/receipts.py 版本；`artifacts` 列通过 ALTER 兼容补齐（L1-2 收敛）。
+# L1-1 漂移：db/migrate_receipts.py 用 `artifacts TEXT`，prism_core/receipts.py 用
+# `artifacts_json TEXT`。schema.py 采用运行时实际使用的 prism_core/receipts.py 版本；
+# `artifacts` 列通过 ALTER 兼容补齐（L1-2 收敛：以 artifacts_json 为唯一真字段）。
+# L1-2 新增软关联归因列（nullable，无 FK）：
+#   task_ref      —— 关联 publish_tasks.task_id（TEXT，注意 publish_tasks.task_id 是 INTEGER，
+#                    此列只存字符串标识，不做 FK 约束，避免 ID 空间耦合）
+#   material_id   —— 素材 ID（file_records.id 或外部素材 ID）
+#   artifact_id   —— 产物总线 ID（art_xxx，见 artifacts 表）
 DDL_PUBLISH_RECEIPTS = """
 CREATE TABLE IF NOT EXISTS publish_receipts (
     task_id TEXT PRIMARY KEY,
@@ -292,6 +299,9 @@ CREATE TABLE IF NOT EXISTS publish_receipts (
     attempt INTEGER DEFAULT 1,
     idempotency_key TEXT,
     artifacts_json TEXT,
+    task_ref TEXT,
+    material_id TEXT,
+    artifact_id TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 )
@@ -301,14 +311,16 @@ DDL_IDX_PUBLISH_RECEIPTS = [
     "CREATE INDEX IF NOT EXISTS idx_receipt_status ON publish_receipts(status)",
     "CREATE INDEX IF NOT EXISTS idx_receipt_account ON publish_receipts(account_id)",
     "CREATE INDEX IF NOT EXISTS idx_receipt_idem ON publish_receipts(idempotency_key)",
-    # 兼容 db/migrate_receipts.py 里 idx_receipt_idempotency 的命名
-    "CREATE INDEX IF NOT EXISTS idx_receipt_idempotency ON publish_receipts(idempotency_key)",
+    # L1-2 新增归因索引
+    "CREATE INDEX IF NOT EXISTS idx_receipt_task_ref ON publish_receipts(task_ref)",
+    "CREATE INDEX IF NOT EXISTS idx_receipt_material ON publish_receipts(material_id)",
+    "CREATE INDEX IF NOT EXISTS idx_receipt_artifact ON publish_receipts(artifact_id)",
 ]
 
 
 # ---- 9. 状态机：task_states（prism_core/task_state_machine.py 版本为准，含 completed_at）----
-# 漂移：db/migrate_receipts.py 无 `completed_at`、`idempotency_key` 有 DEFAULT ''；
-# 采用 prism_core 版本（更完整），差异在 L1-2 收敛。
+# L1-1 漂移：db/migrate_receipts.py 无 `completed_at`、`idempotency_key` 有 DEFAULT ''；
+# 采用 prism_core 版本（更完整）。L1-2 收敛：以 schema.py 为唯一真源。
 DDL_TASK_STATES = """
 CREATE TABLE IF NOT EXISTS task_states (
     task_id TEXT PRIMARY KEY,
@@ -336,9 +348,6 @@ DDL_IDX_TASK_STATES = [
     "CREATE INDEX IF NOT EXISTS idx_task_state_status ON task_states(status)",
     "CREATE INDEX IF NOT EXISTS idx_task_state_idempotency ON task_states(idempotency_key)",
     "CREATE INDEX IF NOT EXISTS idx_task_state_account ON task_states(account_id)",
-    # 兼容 db/migrate_receipts.py 里的 idx_task_idem / idx_task_status
-    "CREATE INDEX IF NOT EXISTS idx_task_idem ON task_states(idempotency_key)",
-    "CREATE INDEX IF NOT EXISTS idx_task_status ON task_states(status)",
 ]
 
 
@@ -414,11 +423,7 @@ CREATE TABLE IF NOT EXISTS alert_webhooks (
 DDL_IDX_MONITOR = [
     "CREATE INDEX IF NOT EXISTS idx_monitor_type ON monitor_events(event_type)",
     "CREATE INDEX IF NOT EXISTS idx_monitor_account ON monitor_events(account_id)",
-    # 兼容 monitor.py 的命名
-    "CREATE INDEX IF NOT EXISTS idx_monitor_events_type ON monitor_events(event_type)",
-    "CREATE INDEX IF NOT EXISTS idx_monitor_events_account ON monitor_events(account_id)",
     "CREATE INDEX IF NOT EXISTS idx_trans_task ON state_transitions(task_id)",
-    "CREATE INDEX IF NOT EXISTS idx_state_transitions_task ON state_transitions(task_id)",
     "CREATE INDEX IF NOT EXISTS idx_health_account ON account_health_snapshots(account_id)",
     "CREATE INDEX IF NOT EXISTS idx_health_status ON account_health_snapshots(health_status)",
 ]
@@ -532,6 +537,11 @@ DDL_IDX_REVIEW_QUEUE = [
 
 
 # ---- 13. 内容变体：content_variants / review_records（prism_core/content_variant.py 收编）----
+# L1-2 新增软关联归因列（nullable，无 FK）：
+#   publish_task_id —— 关联 publish_tasks.task_id（变体→发布任务）
+#   artifact_id     —— 关联 artifacts.artifact_id（变体→产物）
+# campaign_id / material_id 已有；L1-2 补 publish_task_id / artifact_id 让
+# 「变体→发布→回收」四跳闭环成立。
 DDL_CONTENT_VARIANTS = """
 CREATE TABLE IF NOT EXISTS content_variants (
     variant_id TEXT PRIMARY KEY,
@@ -547,6 +557,8 @@ CREATE TABLE IF NOT EXISTS content_variants (
     format_spec TEXT,
     status TEXT DEFAULT 'draft',
     version INTEGER DEFAULT 1,
+    publish_task_id TEXT,
+    artifact_id TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 )
@@ -567,6 +579,9 @@ DDL_IDX_CONTENT_VARIANT = [
     "CREATE INDEX IF NOT EXISTS idx_variant_campaign ON content_variants(campaign_id)",
     "CREATE INDEX IF NOT EXISTS idx_variant_status ON content_variants(status)",
     "CREATE INDEX IF NOT EXISTS idx_review_variant ON review_records(variant_id)",
+    # L1-2 新增归因索引
+    "CREATE INDEX IF NOT EXISTS idx_variant_task ON content_variants(publish_task_id)",
+    "CREATE INDEX IF NOT EXISTS idx_variant_artifact ON content_variants(artifact_id)",
 ]
 
 
@@ -824,8 +839,12 @@ DDL_IDX_IMAGE_GEN = [
 
 
 # ---- 23. 视频数据回收：video_analytics / analytics_history（myUtils/analytics_db.py 收编）----
-# 注意：video_analytics.task_id FK 指向不存在的 `tasks` 表（FK 悬空）——
-# 这是 L1-2 的任务（见 module-link-backend.md §2）。此处保留原字段不动。
+# L1-1：video_analytics.task_id FK 指向不存在的 `tasks` 表；account_id FK 指向
+# 不存在的 `accounts` 表（都是悬空 FK）。L1-2 修复：**删掉这两条 FK 行**，
+# 列保留（task_id / account_id 作为自由文本标识，不做约束）。
+# L1-2 新增软关联归因列（nullable，无 FK）：
+#   publish_task_id —— 关联 publish_tasks.task_id（回收→发布任务）
+#   artifact_id     —— 关联 artifacts.artifact_id（回收→产物）
 DDL_VIDEO_ANALYTICS = """
 CREATE TABLE IF NOT EXISTS video_analytics (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -846,8 +865,8 @@ CREATE TABLE IF NOT EXISTS video_analytics (
     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     match_confidence FLOAT,
     raw_data TEXT,
-    FOREIGN KEY (task_id) REFERENCES tasks(id),
-    FOREIGN KEY (account_id) REFERENCES accounts(id)
+    publish_task_id TEXT,
+    artifact_id TEXT
 )
 """
 
@@ -869,6 +888,9 @@ DDL_IDX_ANALYTICS = [
     "CREATE INDEX IF NOT EXISTS idx_video_analytics_platform ON video_analytics(platform)",
     "CREATE INDEX IF NOT EXISTS idx_video_analytics_publish_date ON video_analytics(publish_date)",
     "CREATE INDEX IF NOT EXISTS idx_analytics_history_video_id ON analytics_history(video_analytics_id)",
+    # L1-2 新增归因索引
+    "CREATE INDEX IF NOT EXISTS idx_video_analytics_task ON video_analytics(publish_task_id)",
+    "CREATE INDEX IF NOT EXISTS idx_video_analytics_artifact ON video_analytics(artifact_id)",
 ]
 
 
@@ -1060,22 +1082,43 @@ def _ensure_legacy_column_migrations(conn: sqlite3.Connection) -> int:
         # 统一产物总线：发布任务指回它的来源产物（art_xxx），
         # 让「生成 → 审核 → 发布」三段在数据层连成一条线。
         "artifact_id": "ALTER TABLE publish_tasks ADD COLUMN artifact_id TEXT",
+        # material_id 已在 CREATE TABLE DDL 里；老库若缺，此处幂等补齐
+        "material_id": "ALTER TABLE publish_tasks ADD COLUMN material_id TEXT",
     }
 
     # publish_receipts：db/migrate_receipts.py 用 `artifacts`，prism_core/receipts.py 用
     # `artifacts_json`。schema.py 以 prism_core 为准，同时补 `artifacts` 列以保持旧代码可读。
+    # L1-2 新增软关联归因列（nullable，无 FK）：task_ref / material_id / artifact_id
     publish_receipts_required: Dict[str, str] = {
         "artifacts": "ALTER TABLE publish_receipts ADD COLUMN artifacts TEXT",
+        "artifacts_json": "ALTER TABLE publish_receipts ADD COLUMN artifacts_json TEXT",
+        "task_ref": "ALTER TABLE publish_receipts ADD COLUMN task_ref TEXT",
+        "material_id": "ALTER TABLE publish_receipts ADD COLUMN material_id TEXT",
+        "artifact_id": "ALTER TABLE publish_receipts ADD COLUMN artifact_id TEXT",
     }
 
     # publish_tasks.schedule_time 在 dashboard/router.py 里叫 TEXT，schema.py 叫 DATETIME——
     # ALTER 阶段无法改类型，此处只做存在性检查，不动。
+
+    # L1-2 新增：video_analytics 归因列（老库补齐）
+    video_analytics_required: Dict[str, str] = {
+        "publish_task_id": "ALTER TABLE video_analytics ADD COLUMN publish_task_id TEXT",
+        "artifact_id": "ALTER TABLE video_analytics ADD COLUMN artifact_id TEXT",
+    }
+
+    # L1-2 新增：content_variants 归因列（老库补齐；campaign_id/material_id 已在 CREATE 里）
+    content_variants_required: Dict[str, str] = {
+        "publish_task_id": "ALTER TABLE content_variants ADD COLUMN publish_task_id TEXT",
+        "artifact_id": "ALTER TABLE content_variants ADD COLUMN artifact_id TEXT",
+    }
 
     added = 0
     added += _ensure_columns(conn, "file_records", file_records_required)
     added += _ensure_columns(conn, "publish_presets", publish_presets_required)
     added += _ensure_columns(conn, "publish_tasks", publish_tasks_required)
     added += _ensure_columns(conn, "publish_receipts", publish_receipts_required)
+    added += _ensure_columns(conn, "video_analytics", video_analytics_required)
+    added += _ensure_columns(conn, "content_variants", content_variants_required)
     return added
 
 
@@ -1110,18 +1153,23 @@ def ensure_all_tables(
         for sql in _DDL_TABLE_STATEMENTS:
             _exec(cursor, sql)
 
-        # 2) 全量索引（每张表的索引紧跟其 DDL，避免顺序误）
+        if _commit:
+            conn.commit()
+
+        # 2) 旧库列补齐（ALTER TABLE ADD COLUMN）——放在索引之前，
+        #    因为归因列（如 publish_receipts.task_ref）索引依赖列存在。
+        #    _ensure_columns 内部用 PRAGMA table_info 判断，幂等。
+        added = _ensure_legacy_column_migrations(conn)
+        if added:
+            conn.commit()
+            logger.info(f"[DB] Schema bootstrap; added {added} missing column(s)")
+
+        # 3) 全量索引（每张表的索引紧跟其 DDL，避免顺序误）
         for sql in _DDL_INDEX_STATEMENTS:
             _exec(cursor, sql)
 
         if _commit:
             conn.commit()
-
-        # 3) 旧库列补齐（ALTER TABLE ADD COLUMN）
-        added = _ensure_legacy_column_migrations(conn)
-        if added:
-            conn.commit()
-            logger.info(f"[DB] Schema bootstrap; added {added} missing column(s)")
     finally:
         if owns_conn:
             conn.close()

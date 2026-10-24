@@ -184,6 +184,9 @@ class PublishService:
         miniprogram_title: str = "",
         # 🆕 NEW: 每平台专属配置（透传到发布任务，供各平台 worker 读取）
         platform_settings: Optional[Dict[str, Any]] = None,
+        # L1-2 软关联归因（可选，可被 items[i].material_id/artifact_id 覆盖）
+        material_id: Optional[str] = None,
+        artifact_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         logger.info(
@@ -265,6 +268,9 @@ class PublishService:
                     miniprogram_link=miniprogram_link,
                     miniprogram_title=miniprogram_title,
                     platform_settings=platform_settings,
+                    # L1-2 软关联归因
+                    material_id=material_id,
+                    artifact_id=artifact_id,
                 )
         else:
             # 单平台发布
@@ -294,6 +300,9 @@ class PublishService:
                 random_cover=random_cover,
                 miniprogram_link=miniprogram_link,
                 miniprogram_title=miniprogram_title,
+                # L1-2 软关联归因
+                material_id=material_id,
+                artifact_id=artifact_id,
             )
 
         logger.info(
@@ -338,6 +347,9 @@ class PublishService:
         miniprogram_title: str = "",
         # 🆕 NEW: 每平台专属配置
         platform_settings: Optional[Dict[str, Any]] = None,
+        # L1-2 软关联归因（可选，可被 items[i].material_id/artifact_id 覆盖）
+        material_id: Optional[str] = None,
+        artifact_id: Optional[str] = None,
     ):
         """创建批量发布任务的内部方法"""
         import random  # 导入 random 模块用于随机偏移
@@ -498,6 +510,18 @@ class PublishService:
                 # 查找是否有独立配置
                 item_config = next((i for i in (items or []) if (i.file_id if hasattr(i, 'file_id') else i.get('file_id')) == file_id), None)
 
+                # L1-2 归因：从 item_config 提取 per-item 覆盖（若有）
+                if item_config is not None:
+                    if hasattr(item_config, 'material_id'):
+                        per_item_material_id = item_config.material_id
+                        per_item_artifact_id = item_config.artifact_id
+                    else:
+                        per_item_material_id = item_config.get('material_id')
+                        per_item_artifact_id = item_config.get('artifact_id')
+                else:
+                    per_item_material_id = None
+                    per_item_artifact_id = None
+
                 # 调试日志
                 logger.info(f"📝 [Publish Debug] file_id={file_id}")
                 logger.info(f"📝 [Publish Debug] item_config={item_config}")
@@ -606,6 +630,9 @@ class PublishService:
                     "miniprogram_link": final_miniprogram_link,
                     "miniprogram_title": final_miniprogram_title,
                     "platform_settings": platform_settings or {},
+                    # L1-2 软关联归因（透传到 celery task_data → publish_tasks 入库）
+                    "material_id": per_item_material_id or material_id or (str(file_id) if file_id is not None else None),
+                    "artifact_id": per_item_artifact_id or artifact_id,
                 }
 
                 task_id = f"publish_{batch_id}_{file_id}_{account['account_id']}"
@@ -761,25 +788,34 @@ class PublishService:
 
                 # ✅ 同时写入 SQLite 数据库（持久化历史记录）
                 # 避免重启后端时任务状态丢失，导致重复提交
+                # L1-2: 透传 artifact_id（可选），material_id 沿用 file_id 作为素材 ID
                 try:
                     cursor = db.cursor()
+                    effective_material_id = (
+                        per_item_material_id
+                        or material_id
+                        or str(file_id)
+                        if file_id is not None
+                        else per_item_material_id or material_id
+                    )
                     cursor.execute(
                         """
                         INSERT INTO publish_tasks (
                             celery_task_id, platform, account_id, material_id, title, tags,
-                            status, created_at, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            status, created_at, updated_at, artifact_id
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             result.id,
                             str(platform),
                             str(account['account_id']),
-                            str(file_id),
+                            effective_material_id,
                             final_title,
                             json.dumps(final_topics, ensure_ascii=False) if final_topics else None,
                             "pending",  # 初始状态
                             now_beijing_naive().isoformat(),
-                            now_beijing_naive().isoformat()
+                            now_beijing_naive().isoformat(),
+                            per_item_artifact_id or artifact_id,
                         )
                     )
                     db.commit()

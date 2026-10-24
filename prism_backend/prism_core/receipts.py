@@ -75,6 +75,17 @@ class PublishReceipt(BaseModel):
     attempt: int = Field(default=1, ge=0)
     idempotency_key: Optional[str] = None
     artifacts: Optional[DiagnosticArtifact] = None
+    # L1-2 软关联归因字段（全部可选，NULL 表示未提供，不阻断既有流程）
+    task_ref: Optional[str] = Field(
+        None,
+        description="软关联 publish_tasks.task_id（TEXT 版，不做 FK 约束）",
+    )
+    material_id: Optional[str] = Field(
+        None, description="软关联素材 ID（file_records.id 或外部素材标识）"
+    )
+    artifact_id: Optional[str] = Field(
+        None, description="软关联 artifacts.artifact_id（art_xxx）"
+    )
     created_at: str = Field(default_factory=now_beijing_iso)
     updated_at: str = Field(default_factory=now_beijing_iso)
 
@@ -116,6 +127,8 @@ def platform_name_for(code: int) -> str:
 # ── 持久化 ──
 
 def _ensure_receipt_table(conn: sqlite3.Connection) -> None:
+    # L1-2：publish_receipts 加三列软关联归因（task_ref / material_id / artifact_id），
+    # 与 fastapi_app/db/schema.py::DDL_PUBLISH_RECEIPTS 保持字段一致；索引名对齐为 idx_receipt_idem。
     conn.cursor().execute("""
         CREATE TABLE IF NOT EXISTS publish_receipts (
             task_id TEXT PRIMARY KEY,
@@ -133,14 +146,35 @@ def _ensure_receipt_table(conn: sqlite3.Connection) -> None:
             attempt INTEGER DEFAULT 1,
             idempotency_key TEXT,
             artifacts_json TEXT,
+            task_ref TEXT,
+            material_id TEXT,
+            artifact_id TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
         )
     """)
     conn.cursor().execute("CREATE INDEX IF NOT EXISTS idx_receipt_status ON publish_receipts(status)")
     conn.cursor().execute("CREATE INDEX IF NOT EXISTS idx_receipt_account ON publish_receipts(account_id)")
-    conn.cursor().execute("CREATE INDEX IF NOT EXISTS idx_receipt_idempotency ON publish_receipts(idempotency_key)")
+    conn.cursor().execute("CREATE INDEX IF NOT EXISTS idx_receipt_idem ON publish_receipts(idempotency_key)")
+    conn.cursor().execute("CREATE INDEX IF NOT EXISTS idx_receipt_task_ref ON publish_receipts(task_ref)")
+    conn.cursor().execute("CREATE INDEX IF NOT EXISTS idx_receipt_material ON publish_receipts(material_id)")
+    conn.cursor().execute("CREATE INDEX IF NOT EXISTS idx_receipt_artifact ON publish_receipts(artifact_id)")
+    _ensure_receipt_columns(conn)
     conn.commit()
+
+
+def _ensure_receipt_columns(conn: sqlite3.Connection) -> None:
+    """对已存在的旧库幂等补 task_ref / material_id / artifact_id 三列。"""
+    cur = conn.cursor()
+    existing = {row[1] for row in cur.execute("PRAGMA table_info(publish_receipts)").fetchall()}
+    for col, ddl in (
+        ("artifacts_json", "ALTER TABLE publish_receipts ADD COLUMN artifacts_json TEXT"),
+        ("task_ref", "ALTER TABLE publish_receipts ADD COLUMN task_ref TEXT"),
+        ("material_id", "ALTER TABLE publish_receipts ADD COLUMN material_id TEXT"),
+        ("artifact_id", "ALTER TABLE publish_receipts ADD COLUMN artifact_id TEXT"),
+    ):
+        if col not in existing:
+            cur.execute(ddl)
 
 
 def save_receipt(receipt: PublishReceipt) -> str:
@@ -169,6 +203,9 @@ def save_receipt(receipt: PublishReceipt) -> str:
                     attempt INT DEFAULT 1,
                     idempotency_key VARCHAR(200),
                     artifacts_json JSON,
+                    task_ref VARCHAR(128),
+                    material_id VARCHAR(128),
+                    artifact_id VARCHAR(64),
                     created_at DATETIME NOT NULL,
                     updated_at DATETIME NOT NULL
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
@@ -178,17 +215,22 @@ def save_receipt(receipt: PublishReceipt) -> str:
                 (task_id, status, platform, platform_name, account_id, platform_post_id,
                  published_at, video_url, error_code, error_message, retryable,
                  requires_human_action, attempt, idempotency_key, artifacts_json,
+                 task_ref, material_id, artifact_id,
                  created_at, updated_at)
                 VALUES (:task_id, :status, :platform, :platform_name, :account_id,
                         :platform_post_id, :published_at, :video_url, :error_code,
                         :error_message, :retryable, :requires_human_action, :attempt,
-                        :idempotency_key, :artifacts_json, :created_at, :updated_at)
+                        :idempotency_key, :artifacts_json,
+                        :task_ref, :material_id, :artifact_id,
+                        :created_at, :updated_at)
                 ON DUPLICATE KEY UPDATE
                     status=VALUES(status), platform_post_id=VALUES(platform_post_id),
                     published_at=VALUES(published_at), video_url=VALUES(video_url),
                     error_code=VALUES(error_code), error_message=VALUES(error_message),
                     retryable=VALUES(retryable), requires_human_action=VALUES(requires_human_action),
                     attempt=VALUES(attempt), artifacts_json=VALUES(artifacts_json),
+                    task_ref=VALUES(task_ref), material_id=VALUES(material_id),
+                    artifact_id=VALUES(artifact_id),
                     updated_at=VALUES(updated_at)
             """), {
                 "task_id": receipt.task_id,
@@ -206,6 +248,9 @@ def save_receipt(receipt: PublishReceipt) -> str:
                 "attempt": receipt.attempt,
                 "idempotency_key": receipt.idempotency_key,
                 "artifacts_json": artifacts_json,
+                "task_ref": receipt.task_ref,
+                "material_id": receipt.material_id,
+                "artifact_id": receipt.artifact_id,
                 "created_at": receipt.created_at,
                 "updated_at": receipt.updated_at,
             })
@@ -217,14 +262,16 @@ def save_receipt(receipt: PublishReceipt) -> str:
             (task_id, status, platform, platform_name, account_id, platform_post_id,
              published_at, video_url, error_code, error_message, retryable,
              requires_human_action, attempt, idempotency_key, artifacts_json,
+             task_ref, material_id, artifact_id,
              created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             receipt.task_id, receipt.status.value, receipt.platform, receipt.platform_name,
             receipt.account_id, receipt.platform_post_id, receipt.published_at,
             receipt.video_url, receipt.error_code.value if receipt.error_code else None,
             receipt.error_message, int(receipt.retryable), int(receipt.requires_human_action),
             receipt.attempt, receipt.idempotency_key, artifacts_json,
+            receipt.task_ref, receipt.material_id, receipt.artifact_id,
             receipt.created_at, receipt.updated_at,
         ))
         conn.commit()
@@ -276,6 +323,9 @@ def _row_to_receipt(row_dict: Dict[str, Any]) -> PublishReceipt:
         attempt=row_dict.get("attempt", 1) or 1,
         idempotency_key=row_dict.get("idempotency_key"),
         artifacts=DiagnosticArtifact(**json.loads(row_dict["artifacts_json"])) if row_dict.get("artifacts_json") else None,
+        task_ref=row_dict.get("task_ref"),
+        material_id=row_dict.get("material_id"),
+        artifact_id=row_dict.get("artifact_id"),
         created_at=row_dict["created_at"],
         updated_at=row_dict["updated_at"],
     )
@@ -351,6 +401,9 @@ def build_success_receipt(
     platform_post_id: Optional[str] = None,
     idempotency_key: Optional[str] = None,
     attempt: int = 1,
+    task_ref: Optional[str] = None,
+    material_id: Optional[str] = None,
+    artifact_id: Optional[str] = None,
 ) -> PublishReceipt:
     """构造成功回执。
 
@@ -369,6 +422,9 @@ def build_success_receipt(
         video_url=video_url,
         idempotency_key=idempotency_key,
         attempt=attempt,
+        task_ref=task_ref,
+        material_id=material_id,
+        artifact_id=artifact_id,
     )
 
 
@@ -383,6 +439,9 @@ def build_error_receipt(
     artifacts: Optional[DiagnosticArtifact] = None,
     idempotency_key: Optional[str] = None,
     attempt: int = 1,
+    task_ref: Optional[str] = None,
+    material_id: Optional[str] = None,
+    artifact_id: Optional[str] = None,
 ) -> PublishReceipt:
     """构造失败回执"""
     return PublishReceipt(
@@ -397,6 +456,9 @@ def build_error_receipt(
         artifacts=artifacts,
         idempotency_key=idempotency_key,
         attempt=attempt,
+        task_ref=task_ref,
+        material_id=material_id,
+        artifact_id=artifact_id,
     )
 
 
@@ -417,6 +479,9 @@ def build_receipt(
     idempotency_key: Optional[str] = None,
     attempt: int = 1,
     task_id: Optional[str] = None,
+    task_ref: Optional[str] = None,
+    material_id: Optional[str] = None,
+    artifact_id: Optional[str] = None,
 ) -> PublishReceipt:
     """统一回执工厂：按状态语义构造 PublishReceipt（Phase 0.1 验收项）。
 
@@ -437,6 +502,9 @@ def build_receipt(
         published_at: 发布时间 ISO（succeeded 必填，缺省用当前北京时间）
         error_code: 错误码（failed_* 必填，可传字符串自动转 ErrorCode）
         retryable: 是否可重试；若状态为 failed_retryable 默认 True，否则默认 False
+        task_ref: 软关联 publish_tasks.task_id（L1-2 新增，可选）
+        material_id: 软关联素材 ID（L1-2 新增，可选）
+        artifact_id: 软关联 artifacts.artifact_id（L1-2 新增，可选）
     """
     status_val: ReceiptStatus
     if isinstance(status, ReceiptStatus):
@@ -492,6 +560,9 @@ def build_receipt(
         artifacts=artifacts,
         idempotency_key=idempotency_key,
         attempt=attempt,
+        task_ref=task_ref,
+        material_id=material_id,
+        artifact_id=artifact_id,
     )
     # task_id 有 default_factory；若未显式传入则让 Pydantic 自动生成
     if task_id is not None:

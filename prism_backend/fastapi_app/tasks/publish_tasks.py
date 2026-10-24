@@ -124,7 +124,9 @@ class CallbackTask(Task):
 
             platform = task_data.get('platform', 'unknown')
             account_id = task_data.get('account_id', 'unknown')
-            material_id = task_data.get('file_id', '')
+            # L1-2 归因：优先用显式传入的 material_id / artifact_id，否则回落到 file_id
+            material_id = task_data.get('material_id') or task_data.get('file_id', '')
+            artifact_id = task_data.get('artifact_id')
             title = task_data.get('title', '')
             tags = json.dumps(task_data.get('tags', []), ensure_ascii=False) if task_data.get('tags') else None
 
@@ -157,12 +159,14 @@ class CallbackTask(Task):
                     )
                 else:
                     # 插入新任务（包含完整的 task_data）
+                    # L1-2: 从 task_data 里透传 material_id / artifact_id 到列
                     cursor.execute(
                         """
                         INSERT INTO publish_tasks (
                             celery_task_id, platform, account_id, material_id, title, tags,
-                            status, error_message, task_data, priority, created_at, updated_at, published_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            status, error_message, task_data, priority, created_at, updated_at, published_at,
+                            artifact_id
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             task_id,
@@ -177,7 +181,8 @@ class CallbackTask(Task):
                             5,  # 默认优先级
                             now_beijing_iso(),
                             now_beijing_iso(),
-                            now_beijing_iso() if status == "success" else None
+                            now_beijing_iso() if status == "success" else None,
+                            artifact_id,
                         )
                     )
 

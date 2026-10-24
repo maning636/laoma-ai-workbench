@@ -20,6 +20,8 @@ def ensure_analytics_schema(db_path: Path):
         cursor = conn.cursor()
         
         # Video analytics table
+        # L1-2：删除原 FK 悬空行（tasks / accounts 表都不存在）；
+        # 保留 task_id / account_id 列（自由文本标识），加软关联归因列。
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS video_analytics (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,8 +42,8 @@ def ensure_analytics_schema(db_path: Path):
                 last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 match_confidence FLOAT,
                 raw_data TEXT,
-                FOREIGN KEY (task_id) REFERENCES tasks(id),
-                FOREIGN KEY (account_id) REFERENCES accounts(id)
+                publish_task_id TEXT,
+                artifact_id TEXT
             )
         """)
         
