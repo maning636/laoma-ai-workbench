@@ -140,6 +140,8 @@ export function AIServiceProviderCard({
         title: `${title}配置读取失败`,
         description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
+        // 同 serviceType 的错误配置读取失败只保留一条，防止 hydrate 循环刷屏。
+        dedupeKey: `${serviceType}-config-load-failed`,
       })
     } finally {
       setLoading((prev) => ({ ...prev, hydrate: false }))

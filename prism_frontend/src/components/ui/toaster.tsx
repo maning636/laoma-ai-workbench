@@ -20,11 +20,25 @@ export function Toaster() {
 
   return (
     <ToastProvider>
-      {toasts.map(function ({ id, title, description, action, ...props }) {
+      {toasts.map(function ({ id, title, description, action, dedupeKey, count, ...props }) {
+        void dedupeKey // 仅用于 use-toast 内部去重，不进 DOM
+        const showCount = typeof count === "number" && count > 1
         return (
           <Toast key={id} {...props}>
             <div className="grid gap-1">
-              {title && <ToastTitle>{title}</ToastTitle>}
+              {title ? (
+                <div className="flex items-center gap-2">
+                  <ToastTitle>{title}</ToastTitle>
+                  {showCount ? (
+                    <span
+                      aria-label={`已出现 ${count} 次`}
+                      className="inline-flex min-w-[20px] items-center justify-center rounded-full border border-border bg-foreground/10 px-1.5 py-0.5 text-[10px] font-medium leading-none"
+                    >
+                      ×{count}
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
               {description && <ToastDescription>{description}</ToastDescription>}
             </div>
             {action}

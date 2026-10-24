@@ -135,6 +135,15 @@ const platformProxyLabels: Record<PlatformProxyChoice, string> = {
   inherit: "跟随系统(走代理)",
 }
 
+// chat 服务可用的模型提供商（静态）。提为模块级常量，避免 settings 页每次
+// re-render 都生成新数组引用，触发 AIServiceProviderCard 内的 hydrate 循环。
+const chatProviderOptions: Array<{ value: string; label: string }> = [
+  { value: "openai_compatible", label: "OpenAI Compatible" },
+  { value: "openai", label: "OpenAI" },
+  { value: "siliconflow", label: "SiliconFlow" },
+  { value: "volcengine", label: "Volcengine" },
+]
+
 const defaultPlatformProxyPreferences: Record<PlatformProxyKey, PlatformProxyChoice> = {
   douyin: "direct",
   kuaishou: "direct",
@@ -384,12 +393,7 @@ export default function SettingsPage() {
         title="标题生成 / 对话模型"
         description="用于标题 AI 生成、文案润色与对话交互的模型提供商（对应 chat 服务）。"
         defaultOpen={false}
-        providerOptions={[
-          { value: "openai_compatible", label: "OpenAI Compatible" },
-          { value: "openai", label: "OpenAI" },
-          { value: "siliconflow", label: "SiliconFlow" },
-          { value: "volcengine", label: "Volcengine" },
-        ]}
+        providerOptions={chatProviderOptions}
         note="这里写入 chat 服务配置，素材编辑器的“标题 AI 生成”会直接使用它。请确认账户余额充足，避免 402 计费错误。"
       />
 

@@ -4,14 +4,21 @@ import * as React from "react"
 
 import type { ToastActionElement, ToastProps } from "@/components/ui/toaster"
 
-const TOAST_LIMIT = 5
+const TOAST_LIMIT = 2
 const TOAST_REMOVE_DELAY = 1000
+// 同 dedupeKey 的活跃 toast 允许被重复刷新的最大次数；
+// 达到上限后不再重置，后续调用直接丢弃，防止高频错误刷屏。
+const DEDUPE_MAX_COUNT = 3
 
 type ToasterToast = ToastProps & {
   id: string
   title?: React.ReactNode
   description?: React.ReactNode
   action?: ToastActionElement
+  /** 同 key 去重标识；非必填。同一 dedupeKey 的活跃 toast 会被合并而非堆叠。 */
+  dedupeKey?: string
+  /** 同 dedupeKey 累计出现次数；仅 dedupe 场景下递增。 */
+  count?: number
 }
 
 const actionTypes = {
@@ -93,22 +100,83 @@ function dispatch(action: Action) {
   listeners.forEach((listener) => listener(memoryState))
 }
 
+// dedupeKey → 活跃 toast 元数据。同一 dedupeKey 同一时刻只保留一条。
+type DedupeEntry = {
+  id: string
+  count: number
+  autoDismissTimer: ReturnType<typeof setTimeout> | null
+}
+const dedupeState = new Map<string, DedupeEntry>()
+
+function cleanDedupeEntry(toastId: string) {
+  for (const [key, entry] of dedupeState) {
+    if (entry.id === toastId) {
+      if (entry.autoDismissTimer) clearTimeout(entry.autoDismissTimer)
+      dedupeState.delete(key)
+      break
+    }
+  }
+}
+
+function updateToastById(id: string, props: Partial<ToasterToast>) {
+  dispatch({
+    type: actionTypes.UPDATE_TOAST,
+    toast: { ...props, id },
+  })
+}
+
+function dismissToastById(id: string) {
+  dispatch({ type: actionTypes.DISMISS_TOAST, toastId: id })
+  addToRemoveQueue(id)
+  cleanDedupeEntry(id)
+}
+
 type Toast = Omit<ToasterToast, "id">
 
 function toast({ ...props }: Toast) {
-  const id = Math.random().toString(36).slice(2, 9)
-
   const duration = props.duration ?? 4000
 
-  const update = (props: ToasterToast) =>
-    dispatch({
-      type: actionTypes.UPDATE_TOAST,
-      toast: { ...props, id },
-    })
+  // 同 dedupeKey 已存在活跃 toast：不再新增，仅更新内容与计时；
+  // 计数达到 DEDUPE_MAX_COUNT 后直接丢弃，避免高频错误刷屏。
+  // 若 existing.id 已不在活跃 state（例如被 TOAST_LIMIT 挤出或正在 fadeout），
+  // 视为孤儿条目，丢弃并走新建路径。
+  if (props.dedupeKey) {
+    const existing = dedupeState.get(props.dedupeKey)
+    const isAlive = existing && memoryState.toasts.some((t) => t.id === existing.id)
+    if (isAlive) {
+      if (existing.count >= DEDUPE_MAX_COUNT) {
+        return {
+          id: existing.id,
+          dismiss: () => dismissToastById(existing.id),
+          update: (u: ToasterToast) => updateToastById(existing.id, u),
+        }
+      }
+      const nextCount = existing.count + 1
+      existing.count = nextCount
+      if (existing.autoDismissTimer) clearTimeout(existing.autoDismissTimer)
+      existing.autoDismissTimer =
+        duration === Infinity ? null : setTimeout(() => dismissToastById(existing.id), duration)
+      updateToastById(existing.id, { ...props, count: nextCount })
+      return {
+        id: existing.id,
+        dismiss: () => dismissToastById(existing.id),
+        update: (u: ToasterToast) => updateToastById(existing.id, u),
+      }
+    }
+    if (existing) dedupeState.delete(props.dedupeKey)
+  }
 
-  const dismiss = (toastId?: string) => {
-    dispatch({ type: actionTypes.DISMISS_TOAST, toastId: toastId ?? id })
-    addToRemoveQueue(toastId ?? id)
+  const id = Math.random().toString(36).slice(2, 9)
+
+  // 挤压预警：若这次 ADD 后 state 长度超过 TOAST_LIMIT，最旧的 toast 会被 slice 掉，
+  // 先清掉它的 dedupeState 条目，避免 orphan。
+  if (memoryState.toasts.length >= TOAST_LIMIT) {
+    const squeezed = memoryState.toasts[memoryState.toasts.length - 1]
+    cleanDedupeEntry(squeezed.id)
+  }
+
+  if (props.dedupeKey) {
+    dedupeState.set(props.dedupeKey, { id, count: 1, autoDismissTimer: null })
   }
 
   dispatch({
@@ -117,9 +185,10 @@ function toast({ ...props }: Toast) {
       ...props,
       id,
       duration,
+      count: props.dedupeKey ? 1 : props.count,
       open: true,
       onOpenChange: (open) => {
-        if (!open) dismiss(id)
+        if (!open) dismissToastById(id)
       },
     },
   })
@@ -131,13 +200,19 @@ function toast({ ...props }: Toast) {
   // guarantees each toast closes after `duration` regardless of pointer/focus
   // state. DISMISS on an already-closed toast is a no-op, so this is safe.
   if (duration !== Infinity) {
-    setTimeout(() => dismiss(id), duration)
+    const timer = setTimeout(() => dismissToastById(id), duration)
+    if (props.dedupeKey) {
+      const entry = dedupeState.get(props.dedupeKey)
+      if (entry && entry.id === id) {
+        entry.autoDismissTimer = timer
+      }
+    }
   }
 
   return {
     id,
-    dismiss: () => dismiss(id),
-    update,
+    dismiss: () => dismissToastById(id),
+    update: (u: ToasterToast) => updateToastById(id, u),
   }
 }
 
@@ -158,11 +233,15 @@ function useToast() {
       dispatch({ type: actionTypes.DISMISS_TOAST, toastId })
       if (toastId) {
         addToRemoveQueue(toastId)
+        cleanDedupeEntry(toastId)
       } else {
-        state.toasts.forEach((toastItem) => addToRemoveQueue(toastItem.id))
+        state.toasts.forEach((toastItem) => {
+          addToRemoveQueue(toastItem.id)
+          cleanDedupeEntry(toastItem.id)
+        })
       }
     },
   }
 }
 
-export { toast, useToast }
+export { toast, useToast, DEDUPE_MAX_COUNT, TOAST_LIMIT }
