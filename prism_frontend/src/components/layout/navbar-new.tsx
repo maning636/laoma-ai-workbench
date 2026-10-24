@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import Link from "next/link"
 import { cn } from "@/lib/utils"
 
 interface NavbarProps extends HTMLAttributes<HTMLDivElement> {
@@ -276,6 +277,28 @@ export function NavbarNew({ className, onMenuClick }: NavbarProps) {
     })
   }
 
+  // 用 <Link> 承载导航（触发 prefetch），onClick 仅保留状态副作用并 preventDefault，
+  // 由 Link 自身完成真正的跳转。这样 hover 时能预取目标页 HTML+JS。
+  const handleRouteClick = (route: SearchRoute, event: React.MouseEvent<HTMLElement>) => {
+    event.preventDefault()
+    navigateToRoute(route)
+  }
+
+  // 预取 ROUTE_CATALOG 内所有路由，slash 搜索命中项点击时几乎瞬间完成。
+  // router.prefetch 是 Next.js Link 内部使用的同一 API，副作用安全（无导航）。
+  useEffect(() => {
+    const prefetchRoutes = ROUTE_CATALOG.slice(0, 32).map((r) => r.href)
+    void Promise.allSettled(
+      prefetchRoutes.map((href) => {
+        try {
+          return router.prefetch(href)
+        } catch {
+          return undefined
+        }
+      })
+    )
+  }, [router])
+
   const handleChange = (value: string) => {
     setSearchValue(value)
 
@@ -370,12 +393,14 @@ export function NavbarNew({ className, onMenuClick }: NavbarProps) {
                           {group.items.map((route) => {
                             const Icon = route.icon
                             return (
-                              <button
+                              <Link
                                 key={route.href}
-                                type="button"
+                                href={route.href}
+                                prefetch={false}
+                                aria-disabled={false}
                                 onMouseDown={(event) => event.preventDefault()}
-                                onClick={() => navigateToRoute(route)}
-                                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-foreground/75 transition hover:bg-accent hover:text-foreground"
+                                onClick={(event) => handleRouteClick(route, event)}
+                                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-foreground/75 transition hover:bg-accent hover:text-foreground no-underline"
                               >
                                 <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/80 bg-accent/60">
                                   <Icon className="h-4 w-4" />
@@ -385,7 +410,7 @@ export function NavbarNew({ className, onMenuClick }: NavbarProps) {
                                   <div className="truncate text-xs text-foreground/40">{route.description}</div>
                                 </div>
                                 <span className="shrink-0 text-[11px] text-foreground/30">{route.href}</span>
-                              </button>
+                              </Link>
                             )
                           })}
                         </div>

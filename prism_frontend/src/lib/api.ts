@@ -21,23 +21,37 @@ export class ApiError extends Error {
 
 import { z } from "zod"
 
+export const DEFAULT_FETCH_TIMEOUT_MS = 30_000
+
+type FetcherOptions = RequestInit & { timeoutMs?: number }
+
 export async function fetcher<T = any>(
   url: string,
-  schemaOrOptions?: z.ZodType<any> | RequestInit
+  schemaOrOptions?: z.ZodType<any> | FetcherOptions
 ): Promise<T> {
   // 区分是 schema 还是 options
   const isSchema = schemaOrOptions && 'parse' in schemaOrOptions
-  const options = isSchema ? undefined : (schemaOrOptions as RequestInit)
+  const options = isSchema ? undefined : (schemaOrOptions as FetcherOptions)
   const schema = isSchema ? (schemaOrOptions as z.ZodType<any>) : undefined
 
   try {
+    // 默认 30s 超时（可通过 options.timeoutMs 覆盖；传入 signal 时视为调用方自控，不强制超时）
+    const { timeoutMs = DEFAULT_FETCH_TIMEOUT_MS, ...requestOptions } = options ?? {}
+    const controller = new AbortController()
+    let timer: ReturnType<typeof setTimeout> | undefined
+    if (timeoutMs > 0 && !requestOptions.signal) {
+      timer = setTimeout(() => controller.abort(), timeoutMs)
+    }
+
     const response = await fetch(url, {
-      ...options,
+      ...requestOptions,
+      signal: requestOptions.signal ?? controller.signal,
       headers: {
         "Content-Type": "application/json",
-        ...options?.headers,
+        ...requestOptions?.headers,
       },
     })
+    if (timer) clearTimeout(timer)
 
     if (!response.ok) {
       throw new ApiError(
@@ -112,10 +126,14 @@ export async function uploadFile(file: File, filename?: string): Promise<string>
     formData.append("filename", filename)
   }
 
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), DEFAULT_FETCH_TIMEOUT_MS)
   const response = await fetch(`${backendBaseUrl}/uploadSave`, {
     method: "POST",
     body: formData,
+    signal: controller.signal,
   })
+  clearTimeout(timer)
 
   const result: ApiResponse<{ filepath: string }> = await response.json()
 

@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Sparkles,
   Wand2,
+  Loader2,
 } from "lucide-react"
 
 import {
@@ -82,7 +83,7 @@ function MaterialsPageContent() {
   const [groupFilter, setGroupFilter] = useState<string>("all")
 
   // Queries
-  const { data: materialsResponse, refetch } = useQuery({
+  const { data: materialsResponse, refetch, isLoading } = useQuery({
     queryKey: ["materials", keyword],
     queryFn: () => {
       const params = new URLSearchParams()
@@ -527,7 +528,16 @@ function MaterialsPageContent() {
     },
   ]
 
-  return (
+    if (isLoading) {
+        return (
+            <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">素材加载中...</p>
+            </div>
+        )
+    }
+
+    return (
     <div className="mx-auto flex h-full max-w-[1440px] flex-col space-y-5 px-4 py-4 md:px-6 md:py-5">
       <PageHeader
         eyebrow="老马AI研习社 / 素材管理"

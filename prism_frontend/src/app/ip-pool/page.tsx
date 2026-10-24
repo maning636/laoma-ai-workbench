@@ -19,7 +19,8 @@ import {
     MapPin,
     CloudLightning,
     MonitorSmartphone,
-    LogOut
+    LogOut,
+    Loader2
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -149,7 +150,7 @@ export default function IPPoolPage() {
     const [importText, setImportText] = useState("")
 
     // Queries
-    const { data: stats } = useQuery<IPStats>({
+    const { data: stats, isLoading: isLoadingStats } = useQuery<IPStats>({
         queryKey: ["ip-pool", "stats"],
         queryFn: async () => {
             const res = await fetch("/api/v1/ip-pool/stats")
@@ -157,7 +158,7 @@ export default function IPPoolPage() {
         }
     })
 
-    const { data: ipListResponse } = useQuery({
+    const { data: ipListResponse, isLoading: isLoadingIpList } = useQuery({
         queryKey: ["ip-pool", "list"],
         queryFn: async () => {
             const res = await fetch("/api/v1/ip-pool/list")
@@ -165,7 +166,7 @@ export default function IPPoolPage() {
         }
     })
 
-    const { data: accountsResponse } = useQuery({
+    const { data: accountsResponse, isLoading: isLoadingAccounts } = useQuery({
         queryKey: ["accounts"],
         queryFn: async () => {
             const res = await fetch("/api/v1/accounts?limit=1000")
@@ -173,13 +174,15 @@ export default function IPPoolPage() {
         }
     })
 
-    const { data: personaStatus } = useQuery({
+    const { data: personaStatus, isLoading: isLoadingPersona } = useQuery({
         queryKey: ["ip-pool", "persona-status"],
         queryFn: async () => {
             const res = await fetch("/api/v1/ip-pool/persona/status")
             return res.json()
         }
     })
+
+    const isLoading = isLoadingStats || isLoadingIpList || isLoadingAccounts || isLoadingPersona
 
     // Mutations
     const addIPMutation = useMutation({
@@ -380,6 +383,15 @@ export default function IPPoolPage() {
     })
 
     const [qgLink, setQgLink] = useState("https://exclusive.proxy.qg.net/replace?key=880E8B24&num=1&area=&isp=0&format=json&distinct=false&keep_alive=1440")
+
+    if (isLoading) {
+        return (
+            <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">代理数据加载中...</p>
+            </div>
+        )
+    }
 
     return (
         <div className="space-y-8 px-4 py-4 md:px-6 md:py-6">

@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/layout/page-scaffold"
 
 import { useEffect, useMemo, useState, useRef, useCallback } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { Calendar, Download, Play, Heart, MessageCircle, Bookmark, X, Check, Search, Filter as FilterIcon } from "lucide-react"
+import { Calendar, Download, Play, Heart, MessageCircle, Bookmark, X, Check, Search, Filter as FilterIcon, Loader2 } from "lucide-react"
 import Image from "next/image"
 
 import { Button } from "@/components/ui/button"
@@ -13,8 +13,17 @@ import { useToast } from "@/components/ui/use-toast"
 import { DatePicker } from "@/components/ui/date-picker"
 import { VideoDataTable } from "./components/video-data-table"
 import { VideoAnalytics, AnalyticsSummary } from "./types"
-import { AnalyticsChart } from "./components/analytics-chart"
+import dynamic from "next/dynamic"
 import { StatsCard } from "./components/stats-card"
+
+const AnalyticsChart = dynamic(() => import("./components/analytics-chart").then(m => m.AnalyticsChart), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-64 items-center justify-center rounded-lg border border-border/80">
+      <span className="text-sm text-muted-foreground">图表加载中…</span>
+    </div>
+  ),
+})
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -63,7 +72,7 @@ export default function AnalyticsPage() {
     }
 
     // 获取账号列表
-    const { data: accountsData } = useQuery({
+    const { data: accountsData, isLoading: isLoadingAccounts } = useQuery({
         queryKey: ['accounts'],
         queryFn: async () => {
             const res = await fetch('/api/accounts?limit=1000')
@@ -293,6 +302,15 @@ export default function AnalyticsPage() {
     const selectedAccountsList = useMemo(() => {
         return accounts.filter((acc: any) => selectedAccounts.includes(accountIdOf(acc)))
     }, [accounts, selectedAccounts])
+
+    if (isLoading || isLoadingAccounts) {
+        return (
+            <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">数据分析加载中...</p>
+            </div>
+        )
+    }
 
     return (
         <div className="mx-auto max-w-[1440px] space-y-3 px-3 py-3 md:px-5 md:py-4">

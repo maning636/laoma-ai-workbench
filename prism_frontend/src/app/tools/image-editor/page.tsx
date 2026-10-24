@@ -2,8 +2,17 @@
 
 import { Suspense, useMemo } from "react"
 import { useSearchParams } from "next/navigation"
-import { ImageEditor } from "@/components/image-editor/image-editor"
+import dynamic from "next/dynamic"
 import { PageHeader } from "@/components/layout/page-scaffold"
+
+const ImageEditor = dynamic(() => import("@/components/image-editor/image-editor").then(m => m.ImageEditor), {
+  ssr: false,
+  loading: () => (
+    <div className="flex min-h-[50vh] items-center justify-center rounded-lg border border-border/80">
+      <span className="text-sm text-muted-foreground">编辑器加载中…</span>
+    </div>
+  ),
+})
 
 // `export const metadata` 必须放在 server component；本页用 useSearchParams 读 query，
 // 因此拆成外层（server）+ 内层（client）以支持 /tools/image-editor?url=<imgUrl>。

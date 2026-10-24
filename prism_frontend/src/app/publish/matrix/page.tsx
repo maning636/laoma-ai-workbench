@@ -57,7 +57,16 @@ import { PageHeader } from "@/components/layout/page-scaffold"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PlatformSelector, PlatformKey, PLATFORMS } from "../components/PlatformSelector"
 import { DouyinConfig, KuaishouConfig, XhsConfig, BilibiliConfig, VideoChannelConfig } from "../components/PlatformConfigs"
-import { MaterialMetadataEditor } from "../components/MaterialMetadataEditor"
+import dynamic from "next/dynamic"
+
+const MaterialMetadataEditor = dynamic(() => import("../components/MaterialMetadataEditor").then(m => m.MaterialMetadataEditor), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-64 items-center justify-center rounded-lg border border-border/80">
+      <span className="text-sm text-muted-foreground">编辑器加载中…</span>
+    </div>
+  ),
+})
 import { PlatformMetadataAdapter } from "@/lib/platform-metadata-adapter"
 import { backendBaseUrl } from "@/lib/env"
 

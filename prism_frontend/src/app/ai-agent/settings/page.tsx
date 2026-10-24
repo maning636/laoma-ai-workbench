@@ -1,7 +1,7 @@
 "use client"
 
 import { startTransition, useCallback, useEffect, useMemo, useState } from "react"
-import { Download, ExternalLink, RefreshCw, Settings2, Terminal, Wrench } from "lucide-react"
+import { Download, ExternalLink, Loader2, RefreshCw, Settings2, Terminal, Wrench } from "lucide-react"
 
 import { PageHeader } from "@/components/layout/page-scaffold"
 import {
@@ -60,6 +60,7 @@ export default function HermesSettingsPage() {
   const [backendBase, setBackendBase] = useState(API_ENDPOINTS.base)
   const [updateStatus, setUpdateStatus] = useState<HermesUpdateStatus | null>(null)
   const [updateBusy, setUpdateBusy] = useState(false)
+  const [isInitialLoading, setIsInitialLoading] = useState(true)
 
   const loadRuntime = useCallback(async () => {
     const baseUrl = await resolveRuntimeBackendBase().catch(() => API_ENDPOINTS.base)
@@ -121,12 +122,16 @@ export default function HermesSettingsPage() {
         })
         const updateResponse = await fetch(`${baseUrl}/api/v1/agent/config/hermes/update`, { cache: "no-store" })
         const updatePayload = await updateResponse.json()
-        if (active) setUpdateStatus(updatePayload?.data || null)
+        if (active) {
+          setUpdateStatus(updatePayload?.data || null)
+          setIsInitialLoading(false)
+        }
       } catch {
         if (!active) return
         startTransition(() => {
           setRuntime(null)
         })
+        if (active) setIsInitialLoading(false)
       }
     }
 
@@ -148,6 +153,15 @@ export default function HermesSettingsPage() {
     }
     return `powershell -ExecutionPolicy Bypass -File "scripts\\hermes\\hermes.ps1"`
   }, [runtime?.python_path, runtime?.wrapper_path])
+
+  if (isInitialLoading) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">Hermes 运行时加载中...</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-8 px-4 py-4 md:px-6 md:py-6">
