@@ -93,6 +93,9 @@ def ensure_analytics_schema(db_path: Path):
                 "last_updated": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
                 "match_confidence": "FLOAT",
                 "raw_data": "TEXT",
+                # L2-3：软关联归因列（nullable，无 FK），供「回收→任务/产物」反查
+                "publish_task_id": "TEXT",
+                "artifact_id": "TEXT",
             },
         )
         ensure_columns(
@@ -112,6 +115,9 @@ def ensure_analytics_schema(db_path: Path):
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_video_analytics_platform ON video_analytics(platform)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_video_analytics_publish_date ON video_analytics(publish_date)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_analytics_history_video_id ON analytics_history(video_analytics_id)")
+        # L2-3：归因维度索引（软关联列，nullable）
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_video_analytics_task ON video_analytics(publish_task_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_video_analytics_artifact ON video_analytics(artifact_id)")
         
         conn.commit()
 
@@ -122,6 +128,9 @@ def _build_filter_clause(
     platform: Optional[str] = None,
     platforms: Optional[List[str]] = None,
     account_ids: Optional[List[str]] = None,
+    publish_task_id: Optional[str] = None,
+    artifact_id: Optional[str] = None,
+    material_id: Optional[str] = None,
 ) -> tuple[str, list]:
     conditions = ["1=1"]
     params = []
@@ -158,6 +167,23 @@ def _build_filter_clause(
         conditions.append("publish_date <= ?")
         params.append(end_date)
 
+    # L2-3：归因维度过滤（新增，nullable 列；NULL 记录不会被任何值命中，天然不崩）
+    if publish_task_id:
+        conditions.append("publish_task_id = ?")
+        params.append(publish_task_id)
+    if artifact_id:
+        conditions.append("artifact_id = ?")
+        params.append(artifact_id)
+    if material_id:
+        # 经 publish_tasks 反查 task_id 集合，再过滤 video_analytics.publish_task_id。
+        # CAST 两侧为 TEXT 以避免 publish_tasks.task_id INTEGER 与 publish_task_id TEXT 的
+        # 类型亲和性差异。子查询空集合 → 条件恒假 → 返回空结果而非报错。
+        conditions.append(
+            "publish_task_id IN ("
+            "SELECT CAST(task_id AS TEXT) FROM publish_tasks WHERE material_id = ?)"
+        )
+        params.append(material_id)
+
     return "WHERE " + " AND ".join(conditions), params
 
 
@@ -168,13 +194,19 @@ def get_analytics_summary(
     platform: Optional[str] = None,
     platforms: Optional[List[str]] = None,
     account_ids: Optional[List[str]] = None,
+    publish_task_id: Optional[str] = None,
+    artifact_id: Optional[str] = None,
+    material_id: Optional[str] = None,
 ) -> Dict:
     """Get analytics summary statistics"""
     with sqlite3.connect(db_path) as conn:
         cursor = conn.cursor()
         
         where_clause, params = _build_filter_clause(
-            start_date, end_date, platform, platforms, account_ids
+            start_date, end_date, platform, platforms, account_ids,
+            publish_task_id=publish_task_id,
+            artifact_id=artifact_id,
+            material_id=material_id,
         )
         
         cursor.execute(f"""
@@ -209,6 +241,9 @@ def get_analytics_videos(
     platform: Optional[str] = None,
     platforms: Optional[List[str]] = None,
     account_ids: Optional[List[str]] = None,
+    publish_task_id: Optional[str] = None,
+    artifact_id: Optional[str] = None,
+    material_id: Optional[str] = None,
 ) -> List[Dict]:
     """Get video analytics data"""
     with sqlite3.connect(db_path) as conn:
@@ -216,7 +251,10 @@ def get_analytics_videos(
         cursor = conn.cursor()
         
         where_clause, params = _build_filter_clause(
-            start_date, end_date, platform, platforms, account_ids
+            start_date, end_date, platform, platforms, account_ids,
+            publish_task_id=publish_task_id,
+            artifact_id=artifact_id,
+            material_id=material_id,
         )
         
         cursor.execute(f"""
@@ -235,7 +273,9 @@ def get_analytics_videos(
                 collect_count as collectCount,
                 share_count as shareCount,
                 raw_data as rawData,
-                last_updated as lastUpdated
+                last_updated as lastUpdated,
+                publish_task_id as publishTaskId,
+                artifact_id as artifactId
             FROM video_analytics
             {where_clause}
             ORDER BY publish_date DESC
@@ -252,6 +292,9 @@ def get_chart_data(
     days: int = 7,
     platforms: Optional[List[str]] = None,
     account_ids: Optional[List[str]] = None,
+    publish_task_id: Optional[str] = None,
+    artifact_id: Optional[str] = None,
+    material_id: Optional[str] = None,
 ) -> List[Dict]:
     """Get chart data for trend visualization"""
     with sqlite3.connect(db_path) as conn:
@@ -260,7 +303,10 @@ def get_chart_data(
         # Build filter clause
         # Note: we pass None for platform single arg, but pass the lists
         where_clause, params = _build_filter_clause(
-            start_date, end_date, None, platforms, account_ids
+            start_date, end_date, None, platforms, account_ids,
+            publish_task_id=publish_task_id,
+            artifact_id=artifact_id,
+            material_id=material_id,
         )
         
         cursor.execute(f"""
@@ -295,8 +341,9 @@ def insert_video_analytics(db_path: Path, data: Dict) -> int:
             INSERT INTO video_analytics (
                 task_id, account_id, platform, video_id, video_url,
                 title, thumbnail, publish_date, collected_at, play_count, like_count,
-                comment_count, collect_count, share_count, match_confidence, raw_data
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                comment_count, collect_count, share_count, match_confidence, raw_data,
+                publish_task_id, artifact_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             data.get('task_id'),
             data.get('account_id'),
@@ -313,7 +360,9 @@ def insert_video_analytics(db_path: Path, data: Dict) -> int:
             data.get('collect_count', 0),
             data.get('share_count', 0),
             data.get('match_confidence'),
-            json.dumps(data.get('raw_data', {}))
+            json.dumps(data.get('raw_data', {})),
+            data.get('publish_task_id'),
+            data.get('artifact_id'),
         ))
         
         conn.commit()
@@ -391,6 +440,8 @@ def upsert_video_analytics_by_key(db_path: Path, *, platform: str, video_id: str
                     collect_count = ?,
                     share_count = ?,
                     match_confidence = COALESCE(?, match_confidence),
+                    publish_task_id = COALESCE(?, publish_task_id),
+                    artifact_id = COALESCE(?, artifact_id),
                     raw_data = ?,
                     last_updated = CURRENT_TIMESTAMP
                 WHERE id = ?
@@ -409,6 +460,8 @@ def upsert_video_analytics_by_key(db_path: Path, *, platform: str, video_id: str
                     data.get("collect_count", 0),
                     data.get("share_count", 0),
                     data.get("match_confidence"),
+                    data.get("publish_task_id"),
+                    data.get("artifact_id"),
                     raw_json,
                     row_id,
                 ),
@@ -421,8 +474,9 @@ def upsert_video_analytics_by_key(db_path: Path, *, platform: str, video_id: str
             INSERT INTO video_analytics (
                 task_id, account_id, platform, video_id, video_url,
                 title, thumbnail, publish_date, collected_at, play_count, like_count,
-                comment_count, collect_count, share_count, match_confidence, raw_data
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                comment_count, collect_count, share_count, match_confidence, raw_data,
+                publish_task_id, artifact_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 data.get("task_id"),
@@ -441,10 +495,79 @@ def upsert_video_analytics_by_key(db_path: Path, *, platform: str, video_id: str
                 data.get("share_count", 0),
                 data.get("match_confidence"),
                 raw_json,
+                data.get("publish_task_id"),
+                data.get("artifact_id"),
             ),
         )
         conn.commit()
         return cursor.lastrowid
+
+
+def set_video_analytics_attribution(
+    db_path: Path,
+    *,
+    platform: str,
+    video_id: str,
+    publish_task_id: Optional[str] = None,
+    artifact_id: Optional[str] = None,
+) -> None:
+    """回写 video_analytics 归因列（nullable）。
+
+    用 COALESCE 保持「已归因不覆盖」语义：新值为 NULL 时不动旧值。
+    按 (platform, video_id) 唯一键匹配（与 upsert_video_analytics_by_key 一致）。
+    """
+    if not (platform and video_id):
+        return
+    if not (publish_task_id or artifact_id):
+        return
+    with sqlite3.connect(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE video_analytics
+            SET
+                publish_task_id = COALESCE(?, publish_task_id),
+                artifact_id = COALESCE(?, artifact_id),
+                last_updated = CURRENT_TIMESTAMP
+            WHERE platform = ? AND video_id = ?
+            """,
+            (publish_task_id, artifact_id, platform, video_id),
+        )
+        conn.commit()
+
+
+def resolve_task_attribution_from_publish_tasks(
+    db_path: Path,
+    *,
+    platform: str,
+    account_id: Optional[str] = None,
+    video_id: Optional[str] = None,
+) -> tuple[Optional[str], Optional[str]]:
+    """从 publish_tasks 反查 (platform, account_id, video_id) 的归因。
+
+    解析不到（无匹配行 / video_id 为空）→ 返回 (None, None)。
+    用于「数据回收入库后，从发布记录反推归因」的最省路径——不加爬虫负担。
+    """
+    if not platform or not video_id:
+        return None, None
+    with sqlite3.connect(db_path) as conn:
+        if account_id is not None:
+            row = conn.execute(
+                "SELECT task_id, artifact_id FROM publish_tasks "
+                "WHERE platform = ? AND account_id = ? AND video_id = ? "
+                "ORDER BY task_id DESC LIMIT 1",
+                (platform, str(account_id), str(video_id)),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT task_id, artifact_id FROM publish_tasks "
+                "WHERE platform = ? AND video_id = ? "
+                "ORDER BY task_id DESC LIMIT 1",
+                (platform, str(video_id)),
+            ).fetchone()
+    if not row:
+        return None, None
+    return (str(row[0]), row[1])
 
 
 def record_analytics_history(db_path: Path, video_analytics_id: int):

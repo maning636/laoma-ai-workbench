@@ -39,7 +39,12 @@ except ImportError:
     def now_beijing_naive():
         return dt.now()
 
-from myUtils.analytics_db import ensure_analytics_schema, upsert_video_analytics_by_key
+from myUtils.analytics_db import (
+    ensure_analytics_schema,
+    upsert_video_analytics_by_key,
+    set_video_analytics_attribution,
+    resolve_task_attribution_from_publish_tasks,
+)
 from myUtils.functional_route_manager import functional_route_manager
 from myUtils.cookie_manager import cookie_manager
 from myUtils.tikhub_client import (
@@ -269,6 +274,26 @@ class VideoDataCollector:
 
         # 触发 ID 回写到后端任务表
         self._proximity_match_and_recover(account_id, platform, video)
+
+        # L2-3：从 publish_tasks 反查归因（publish_task_id / artifact_id），
+        # 回写到 video_analytics；解析不到保持 NULL（不强造、不加爬虫负担）。
+        try:
+            publish_task_id, artifact_id = resolve_task_attribution_from_publish_tasks(
+                DB_PATH,
+                platform=platform,
+                account_id=str(account_id or ""),
+                video_id=data_to_save["video_id"],
+            )
+            if publish_task_id or artifact_id:
+                set_video_analytics_attribution(
+                    DB_PATH,
+                    platform=platform,
+                    video_id=data_to_save["video_id"],
+                    publish_task_id=publish_task_id,
+                    artifact_id=artifact_id,
+                )
+        except Exception as e:
+            logger.warning(f"[Collector] Attribution backfill failed: {e}")
 
     async def collect_douyin_data_api(self, cookie_file: str, account_id: str) -> Dict[str, Any]:
         cookies = self._load_cookie_list(cookie_file)

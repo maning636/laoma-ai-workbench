@@ -555,9 +555,16 @@ async def get_analytics(
     platform: Optional[str] = Query(None, description="Legacy single platform"),
     platforms: Optional[List[str]] = Query(None, description="List of platforms"),
     accounts: Optional[List[str]] = Query(None, description="List of account IDs"),
+    publishTaskId: Optional[str] = Query(None, description="按发布任务 ID 过滤（L2-3 新增，对应 video_analytics.publish_task_id）"),
+    artifactId: Optional[str] = Query(None, description="按产物 ID 过滤（L2-3 新增，对应 video_analytics.artifact_id）"),
+    materialId: Optional[str] = Query(None, description="按素材 ID 反查 publish_tasks 得任务集合过滤（L2-3 新增）"),
     limit: int = Query(100, ge=1, le=10000, description="Limit")
 ):
-    """获取汇总、视频列表和图表数据"""
+    """获取汇总、视频列表和图表数据。
+
+    L2-3 新增归因维度参数 publishTaskId / artifactId / materialId（均可选）。
+    按任务维度查询时，summary 天然返回该任务的聚合小计（复用现有汇总逻辑）。
+    """
     try:
         # Support legacy single platform param by adding it to list if present
         if platform and platform != "all":
@@ -568,8 +575,14 @@ async def get_analytics(
         # Build account_ids list from accounts param
         account_ids = accounts
 
-        summary = get_analytics_summary(DB_PATH, startDate, endDate, platforms=platforms, account_ids=account_ids)
-        videos = get_analytics_videos(DB_PATH, startDate, endDate, limit, platforms=platforms, account_ids=account_ids)
+        summary = get_analytics_summary(
+            DB_PATH, startDate, endDate, platforms=platforms, account_ids=account_ids,
+            publish_task_id=publishTaskId, artifact_id=artifactId, material_id=materialId,
+        )
+        videos = get_analytics_videos(
+            DB_PATH, startDate, endDate, limit, platforms=platforms, account_ids=account_ids,
+            publish_task_id=publishTaskId, artifact_id=artifactId, material_id=materialId,
+        )
         
         account_map = _account_lookup()
         for video in videos:
@@ -581,7 +594,10 @@ async def get_analytics(
                 video["accountId"] = account_id
                 
         # Pass filters to chart data as well
-        chart_data = get_chart_data(DB_PATH, startDate, endDate, platforms=platforms, account_ids=account_ids)
+        chart_data = get_chart_data(
+            DB_PATH, startDate, endDate, platforms=platforms, account_ids=account_ids,
+            publish_task_id=publishTaskId, artifact_id=artifactId, material_id=materialId,
+        )
         
         return {
             "code": 200,
@@ -601,6 +617,9 @@ async def export_analytics(
     platform: Optional[str] = Query(None, description="Legacy single platform"),
     platforms: Optional[List[str]] = Query(None, description="List of platforms"),
     accounts: Optional[List[str]] = Query(None, description="List of account IDs"),
+    publishTaskId: Optional[str] = Query(None, description="按发布任务 ID 过滤（L2-3 新增）"),
+    artifactId: Optional[str] = Query(None, description="按产物 ID 过滤（L2-3 新增）"),
+    materialId: Optional[str] = Query(None, description="按素材 ID 反查任务集合过滤（L2-3 新增）"),
     format: str = Query("csv", pattern="^(csv|excel)$", description="导出格式 csv 或 excel")
 ):
     """导出分析数据为 CSV（默认）或 Excel（若依赖存在）"""
@@ -620,7 +639,10 @@ async def export_analytics(
             endDate,
             limit=10000,
             platforms=platforms,
-            account_ids=account_ids
+            account_ids=account_ids,
+            publish_task_id=publishTaskId,
+            artifact_id=artifactId,
+            material_id=materialId,
         )
         if format == "excel":
             try:
