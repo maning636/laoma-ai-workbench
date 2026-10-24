@@ -135,7 +135,9 @@ CREATE TABLE IF NOT EXISTS file_records (
     ai_title TEXT,
     ai_description TEXT,
     ai_tags TEXT,
-    ai_generated_at TIMESTAMP
+    ai_generated_at TIMESTAMP,
+    artifact_id TEXT,
+    source TEXT
 )
 """
 
@@ -1066,6 +1068,9 @@ def _ensure_legacy_column_migrations(conn: sqlite3.Connection) -> int:
         "ai_description": "ALTER TABLE file_records ADD COLUMN ai_description TEXT",
         "ai_tags": "ALTER TABLE file_records ADD COLUMN ai_tags TEXT",
         "ai_generated_at": "ALTER TABLE file_records ADD COLUMN ai_generated_at TIMESTAMP",
+        # L2-1 新增：AI 生图产物自动登记素材库的归因/来源列
+        "artifact_id": "ALTER TABLE file_records ADD COLUMN artifact_id TEXT",
+        "source": "ALTER TABLE file_records ADD COLUMN source TEXT",
     }
 
     publish_presets_required: Dict[str, str] = {

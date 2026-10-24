@@ -214,6 +214,123 @@ def _new_ref_id() -> str:
     return f"gen_{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}"
 
 
+def _register_file_record_for_generation(
+    *,
+    local_path: str,
+    artifact_id: Optional[str],
+    prompt: str,
+    model_key: str,
+    aspect_ratio: str,
+    media_type: str = "",
+    conn: Optional[Any] = None,
+) -> Optional[int]:
+    """把已落盘的 AI 生图产物登记到 `file_records`（素材库），返回 file_records.id。
+
+    L2-1 断链修复：AI 生图产物之前只落 `artifacts`（产物总线）+ `image_generations`，
+    从未写 `file_records`；而素材库页 `/api/materials` → `/api/v1/files` 只读
+    `file_records`。本函数在生图成功后被 `_register_generation_artifacts` 调用，
+    让 AI 生图产物在素材库可见。
+
+    幂等策略：
+      - `artifact_id` 非空 → 同一 artifact_id 只登记一次（返回 None 表示已存在）
+      - `artifact_id` 为空 → 按 (file_path, source='ai_image') 去重
+    任一异常均吞掉，返回 None（不影响生成主流程）。
+
+    参数：
+      local_path     str      VIDEO_FILES_DIR 下的相对路径，如 "generated/abc.png"
+      artifact_id    str?     来自 `_register_generation_artifacts` 的产物总线 ID（art_xxx）
+      prompt         str      生图 prompt（截断到 200 字符写入 note）
+      model_key      str      生图模型 key（如 "dall-e-3"）
+      aspect_ratio   str      长宽比（如 "1:1"）
+      media_type     str      MIME（如 "image/png"），可选
+      conn           sqlite3.Connection?   测试注入用；缺省则从 open_main_db() 取
+    """
+    if not local_path:
+        return None
+    own_conn = conn is None
+    try:
+        if own_conn:
+            try:
+                from fastapi_app.db.session import open_main_db
+                conn = open_main_db()
+            except Exception as _db_exc:
+                try:
+                    if logger is not None:
+                        logger.warning(
+                            f"[ai_design] file_records 登记失败（DB 不可用）: {_db_exc}"
+                        )
+                except Exception:
+                    pass
+                return None
+
+        # 计算 filesize (MB)：文件存在则 stat，缺失退化 0.0
+        filesize_mb = 0.0
+        try:
+            from fastapi_app.core.config import settings
+            from pathlib import Path as _Path
+            abs_path = _Path(settings.VIDEO_FILES_DIR) / local_path
+            if abs_path.exists():
+                filesize_mb = round(abs_path.stat().st_size / (1024 * 1024), 4)
+        except Exception:
+            filesize_mb = 0.0
+
+        filename = local_path.replace("\\", "/").split("/")[-1] or local_path
+
+        # 幂等检查
+        try:
+            if artifact_id:
+                cur = conn.execute(
+                    "SELECT id FROM file_records WHERE artifact_id=? "
+                    "AND artifact_id IS NOT NULL",
+                    (artifact_id,),
+                )
+                if cur.fetchone():
+                    return None
+            else:
+                cur = conn.execute(
+                    "SELECT id FROM file_records WHERE file_path=? AND source='ai_image'",
+                    (local_path,),
+                )
+                if cur.fetchone():
+                    return None
+        except Exception:
+            # 老库可能缺 artifact_id 列（迁移未完成）；退化跳过 dedupe，让 INSERT 兜底
+            pass
+
+        # 组装可读元数据
+        title = f"AI生图 · {model_key}"[:64]
+        note_parts: List[str] = []
+        if prompt:
+            note_parts.append(f"prompt: {prompt[:200]}")
+        note_parts.append(f"model: {model_key}")
+        note_parts.append(f"ratio: {aspect_ratio}")
+        if media_type:
+            note_parts.append(f"mime: {media_type}")
+        note = " | ".join(note_parts)
+
+        cur = conn.execute(
+            "INSERT INTO file_records (filename, file_path, filesize, upload_time, "
+            "status, source, artifact_id, title, note, group_name) "
+            "VALUES (?, ?, ?, CURRENT_TIMESTAMP, 'pending', 'ai_image', ?, ?, ?, 'AI生成')",
+            (filename, local_path, filesize_mb, artifact_id, title, note),
+        )
+        conn.commit()
+        return cur.lastrowid
+    except Exception as _fr_exc:
+        try:
+            if logger is not None:
+                logger.warning(f"[ai_design] file_records 登记失败（不阻断生成）: {_fr_exc}")
+        except Exception:
+            pass
+        return None
+    finally:
+        if own_conn and conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
 def _register_generation_artifacts(
     *,
     record_id: Optional[int],
@@ -234,6 +351,7 @@ def _register_generation_artifacts(
     - provider 返回 data:base64 → 先落盘到 VIDEO_FILES_DIR/generated/，
       path 存相对路径（/getFile?filename= 可取），避免把几 MB 的 base64 塞进 DB。
     - 登记失败只记日志、不阻断生成（safe_register_artifact）。
+    - L2-1：落盘成功的本地图，同步登记 file_records（素材库可见）。
     """
     from prism_core import artifacts as artifact_service
 
@@ -243,11 +361,15 @@ def _register_generation_artifacts(
             continue
         path = raw_url
         media_type = ""
+        local_path: Optional[str] = None
         if raw_url.startswith("data:"):
-            path, media_type = artifact_service.persist_data_url(
+            persisted, media_type = artifact_service.persist_data_url(
                 raw_url, subdir="generated"
             )
-            if not path:
+            if persisted:
+                path = persisted
+                local_path = persisted
+            else:
                 # 落盘失败：保留原始 data URL（不阻断主流程）
                 path = raw_url
         aid = artifact_service.safe_register_artifact(
@@ -271,6 +393,25 @@ def _register_generation_artifacts(
         )
         if aid:
             artifact_ids.append(aid)
+        # L2-1：落盘成功的本地图 → 同步登记 file_records（素材库）
+        if local_path:
+            try:
+                _register_file_record_for_generation(
+                    local_path=local_path,
+                    artifact_id=aid,
+                    prompt=prompt,
+                    model_key=model_key,
+                    aspect_ratio=aspect_ratio,
+                    media_type=media_type,
+                )
+            except Exception as _fr_exc:
+                try:
+                    if logger is not None:
+                        logger.warning(
+                            f"[ai_design] file_records 登记失败（不阻断生成）: {_fr_exc}"
+                        )
+                except Exception:
+                    pass
     return artifact_ids
 
 
