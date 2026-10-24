@@ -101,3 +101,42 @@
 - `npx eslint <涉及文件>`：**0 errors**（109 warnings 均为项目既有 any / img 提示，非本次引入）
 - 所有触及文件 U+FFFD = 0（脚本 `bytes.count(b'\xef\xbf\xbd')` 逐文件核验）
 - 边框颜色：新增/改写样式仅使用 `border-border` / `border-border/80` / `border-primary/30`（项目既有），未引入其他边框色。
+
+---
+
+## 评审跟进修复（`fix(ux): 超时误报 500 修正为 408 语义 + 三处裸 fetch 接入超时封装`）
+
+依据：`.superpowers/sdd/valkyrie-gamora-big-barda/ux-review.md` 的 2 条 Important。
+
+### I1 — `api.ts` AbortError 分类为 408
+
+**文件**：`prism_frontend/src/lib/api.ts`
+
+- L26：新增导出常量 `TIMEOUT_ERROR_MESSAGE = "请求超时，请稍后重试"`。
+- L106-121（`fetcher` catch）：先判 `error.name === "AbortError"`（含 `DOMException` 双判定），命中则抛 `new ApiError(408, TIMEOUT_ERROR_MESSAGE)`；其余仍走 `ApiError(500, ...)` 兜底。
+- L152-205（`uploadFile`）：同样在 catch 里识别 AbortError → `ApiError(408, TIMEOUT_ERROR_MESSAGE)`；顺手加第三个参数 `options?: { timeoutMs?: number }` 覆盖默认 30s（Minor#2）。
+
+**新增单测**：`prism_frontend/src/lib/__tests__/api.test.ts`
+
+- "fetch 因 AbortError 中断时抛 `ApiError(408, TIMEOUT_ERROR_MESSAGE)`"：mock `fetch` 抛 `name='AbortError'` 的 Error，断言 rejects 匹配 `{code: 408, message: '请求超时…'}`。
+- "AbortError 文案包含「超时」"：捕获后 `expect(err.message).toContain("超时")`。
+- "非 Abort 的普通错误仍包装为 ApiError(500)"：保底语义不变，避免误伤既有错误路径。
+
+### I2 — 三处裸 fetch 换 fetcher（30s 超时生效）
+
+**新增能力**：`fetcher` 加 `envelope?: boolean`（L32），`false` 时跳过 `{code|success, data}` 包装解包，直接返回整块 JSON。用于适配后端非包装接口。
+
+| 文件 | 位置 | 改动 |
+|---|---|---|
+| `src/app/ip-pool/page.tsx` | L153-181（4 个 useQuery） | 4 处 `fetch().json()` 全部换 `fetcher<T>(url, { envelope: false })`：`/stats` 直接返 stats 对象、`/list` / `/persona/status` 返 `{status, result}`、`/accounts?limit=1000` 返 `{code:200, data}` 但下游消费 `.result.items` 也兼容 |
+| `src/app/analytics/page.tsx` | L75-83, L180-213（2 个 useQuery） | `/api/accounts?limit=1000` 走默认 envelope（Next route 转换后是 `{code:200,data}`）；`/api/analytics?${params}` 后端直返 `{code, summary, videos, chartData}` → `envelope: false` |
+| `src/app/ai-agent/settings/page.tsx` | L65-80 `loadRuntime` / L82-91 `updateAction` / L93-108 `saveUpdateSettings` / L114-139 useEffect `run` | 6 处 `fetch()` 全部换 `fetcher<HermesRuntime|HermesUpdateStatus>(...)`；Hermes 后端统一 `{success:true, data:...}`，fetcher 默认解包 `.data`，与旧 `payload?.data` 消费等价；错误路径走 ApiError 兜底、catch 保持 `finally` 收口不变 |
+
+**行为等价保证**：`fetcher` 在 envelope 模式下 unwrap `.data`，恰好与各处 `payload?.data || null` 的旧取法相同；非包装模式返回整块 JSON，与旧 `res.json()` 完全一致；错误语义从"字符串异常"升级为 `ApiError`，`catch {}` 均能吞下不影响既有 UI 流程。
+
+### 验证
+
+- `npx tsc --noEmit`：**0 错误**
+- `npx vitest run`：**29 files / 463 tests 全绿**（新增 3 条 api.test.ts；初次跑一次 model-providers 出现一次 5000ms timeout，独立与全量重跑均通过，为环境抖动产物，与本次改动无关）
+- `npx eslint <涉及文件>`：**0 errors**（`api.ts` 12 条 warning 全为既有 `no-explicit-any`，非本次新增）
+- 触及文件 U+FFFD = 0：`src/lib/api.ts`、`src/lib/__tests__/api.test.ts`、`src/app/ip-pool/page.tsx`、`src/app/analytics/page.tsx`、`src/app/ai-agent/settings/page.tsx`（逐文件 `bytes.count(b'\xef\xbf\xbd')` 核验）

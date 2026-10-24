@@ -74,6 +74,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import { Textarea } from "@/components/ui/textarea"
 import { PageHeader } from "@/components/layout/page-scaffold"
+import { fetcher } from "@/lib/api"
 
 // Types
 interface ProxyIP {
@@ -153,32 +154,28 @@ export default function IPPoolPage() {
     const { data: stats, isLoading: isLoadingStats } = useQuery<IPStats>({
         queryKey: ["ip-pool", "stats"],
         queryFn: async () => {
-            const res = await fetch("/api/v1/ip-pool/stats")
-            return res.json()
+            return fetcher<IPStats>("/api/v1/ip-pool/stats", { envelope: false })
         }
     })
 
     const { data: ipListResponse, isLoading: isLoadingIpList } = useQuery({
         queryKey: ["ip-pool", "list"],
         queryFn: async () => {
-            const res = await fetch("/api/v1/ip-pool/list")
-            return res.json()
+            return fetcher<any>("/api/v1/ip-pool/list", { envelope: false })
         }
     })
 
     const { data: accountsResponse, isLoading: isLoadingAccounts } = useQuery({
         queryKey: ["accounts"],
         queryFn: async () => {
-            const res = await fetch("/api/v1/accounts?limit=1000")
-            return res.json()
+            return fetcher<any>("/api/v1/accounts?limit=1000", { envelope: false })
         }
     })
 
     const { data: personaStatus, isLoading: isLoadingPersona } = useQuery({
         queryKey: ["ip-pool", "persona-status"],
         queryFn: async () => {
-            const res = await fetch("/api/v1/ip-pool/persona/status")
-            return res.json()
+            return fetcher<any>("/api/v1/ip-pool/persona/status", { envelope: false })
         }
     })
 

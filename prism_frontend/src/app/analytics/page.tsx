@@ -15,6 +15,7 @@ import { VideoDataTable } from "./components/video-data-table"
 import { VideoAnalytics, AnalyticsSummary } from "./types"
 import dynamic from "next/dynamic"
 import { StatsCard } from "./components/stats-card"
+import { fetcher } from "@/lib/api"
 
 const AnalyticsChart = dynamic(() => import("./components/analytics-chart").then(m => m.AnalyticsChart), {
   ssr: false,
@@ -75,9 +76,7 @@ export default function AnalyticsPage() {
     const { data: accountsData, isLoading: isLoadingAccounts } = useQuery({
         queryKey: ['accounts'],
         queryFn: async () => {
-            const res = await fetch('/api/accounts?limit=1000')
-            if (!res.ok) throw new Error('Failed to fetch accounts')
-            return res.json()
+            return fetcher<any>('/api/accounts?limit=1000')
         },
         refetchInterval: 10000,
     })
@@ -204,9 +203,7 @@ export default function AnalyticsPage() {
                 selectedAccounts.forEach(a => params.append('accounts', a))
             }
 
-            const res = await fetch(`/api/analytics?${params}`)
-            if (!res.ok) throw new Error('Failed to fetch analytics')
-            return res.json()
+            return await fetcher<any>(`/api/analytics?${params}`, { envelope: false })
         },
     })
 

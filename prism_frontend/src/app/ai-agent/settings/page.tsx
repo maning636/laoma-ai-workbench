@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { API_ENDPOINTS } from "@/lib/env"
+import { fetcher } from "@/lib/api"
 import { resolveRuntimeBackendBase } from "@/lib/runtime-backend"
 
 type HermesRuntime = {
@@ -66,12 +67,10 @@ export default function HermesSettingsPage() {
     const baseUrl = await resolveRuntimeBackendBase().catch(() => API_ENDPOINTS.base)
     setBackendBase(baseUrl)
     try {
-      const response = await fetch(`${baseUrl}/api/v1/agent/config/hermes/runtime`, { cache: "no-store" })
-      const payload = await response.json()
-      setRuntime(payload?.data || null)
-      const updateResponse = await fetch(`${baseUrl}/api/v1/agent/config/hermes/update`, { cache: "no-store" })
-      const updatePayload = await updateResponse.json()
-      setUpdateStatus(updatePayload?.data || null)
+      const runtime = await fetcher<HermesRuntime | null>(`${baseUrl}/api/v1/agent/config/hermes/runtime`, { cache: "no-store" })
+      setRuntime(runtime || null)
+      const updateStatus = await fetcher<HermesUpdateStatus | null>(`${baseUrl}/api/v1/agent/config/hermes/update`, { cache: "no-store" })
+      setUpdateStatus(updateStatus || null)
     } catch {
       setRuntime(null)
     }
@@ -80,11 +79,11 @@ export default function HermesSettingsPage() {
   const updateAction = useCallback(async (action: "check" | "apply") => {
     setUpdateBusy(true)
     try {
-      const response = await fetch(`${backendBase}/api/v1/agent/config/hermes/update/${action}`, { method: "POST" })
-      const payload = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(payload?.detail || "Hermes 更新操作失败")
-      setUpdateStatus(payload?.data || null)
+      const updateStatus = await fetcher<HermesUpdateStatus | null>(`${backendBase}/api/v1/agent/config/hermes/update/${action}`, { method: "POST" })
+      setUpdateStatus(updateStatus || null)
       if (action === "apply") await loadRuntime()
+    } catch {
+      // ApiError 或网络错误：保留既有 finally 收口，不弹 toast（与旧逻辑一致）
     } finally {
       setUpdateBusy(false)
     }
@@ -93,14 +92,11 @@ export default function HermesSettingsPage() {
   const saveUpdateSettings = useCallback(async (next: HermesUpdateStatus["settings"]) => {
     setUpdateBusy(true)
     try {
-      const response = await fetch(`${backendBase}/api/v1/agent/config/hermes/update/settings`, {
+      const updateStatus = await fetcher<HermesUpdateStatus | null>(`${backendBase}/api/v1/agent/config/hermes/update/settings`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(next),
       })
-      const payload = await response.json()
-      if (!response.ok) throw new Error(payload?.detail || "保存更新策略失败")
-      setUpdateStatus(payload?.data || null)
+      setUpdateStatus(updateStatus || null)
     } finally {
       setUpdateBusy(false)
     }
@@ -114,16 +110,14 @@ export default function HermesSettingsPage() {
       if (!active) return
       setBackendBase(baseUrl)
       try {
-        const response = await fetch(`${baseUrl}/api/v1/agent/config/hermes/runtime`, { cache: "no-store" })
-        const payload = await response.json()
+        const runtime = await fetcher<HermesRuntime | null>(`${baseUrl}/api/v1/agent/config/hermes/runtime`, { cache: "no-store" })
         if (!active) return
         startTransition(() => {
-          setRuntime(payload?.data || null)
+          setRuntime(runtime || null)
         })
-        const updateResponse = await fetch(`${baseUrl}/api/v1/agent/config/hermes/update`, { cache: "no-store" })
-        const updatePayload = await updateResponse.json()
+        const updateStatus = await fetcher<HermesUpdateStatus | null>(`${baseUrl}/api/v1/agent/config/hermes/update`, { cache: "no-store" })
         if (active) {
-          setUpdateStatus(updatePayload?.data || null)
+          setUpdateStatus(updateStatus || null)
           setIsInitialLoading(false)
         }
       } catch {
