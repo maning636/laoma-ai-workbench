@@ -394,15 +394,17 @@ async def startup_event():
 
 
     # Ensure local SQLite schema is initialized (fresh install / older DB compatibility)
+    # L1-1: 统一 bootstrap 全部 37 张主库表 + 索引（含从分散文件收编的），
+    # 消灭「DDL 定义了但库里没有表」的地基问题。字段语义冻结，见 l1-1-report.md。
     try:
-        from fastapi_app.db.schema import ensure_main_db_schema
+        from fastapi_app.db.schema import ensure_all_tables
         from fastapi_app.db.session import main_db_pool
 
         with main_db_pool.get_connection() as conn:
-            ensure_main_db_schema(conn)
-        logger.info("[DB] Schema check completed")
+            ensure_all_tables(conn)
+        logger.info("[DB] Schema bootstrap completed (all tables ensured)")
     except Exception as e:
-        logger.warning(f"[DB] Schema check failed (continuing): {e}")
+        logger.warning(f"[DB] Schema bootstrap failed (continuing): {e}")
 
     # If MySQL is enabled, ensure minimal tables exist (migration should still be run for data copy).
     try:
